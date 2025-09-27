@@ -1,0 +1,36 @@
+llm:
+  type: manual
+  script: scripts/run_lint.yaml
+
+workspace:
+  root: ..
+  allow_outside_root: false
+
+limits:
+  max_iterations: 5
+  command_timeout: 180
+  max_failures: 2
+
+tests:
+  auto: false
+  commands: []
+
+policies:
+  allow_network: false
+  allow_shell_write: true
+
+goals:
+  apply_patch_success_rate:
+    min: 0.9
+  actions_success_rate:
+    min: 0.85
+  tests_success_rate:
+    min: 0.95
+  lint_success_rate:
+    min: 0.95
+
+audit:
+  enable_file_log: true
+  file_dir: seed/changes
+  enable_git_commit: false
+  commit_prefix: "A3X"

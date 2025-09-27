@@ -1,0 +1,7 @@
+--- a/configs/doc.md
++++ b/configs/doc.md
+--- configs/doc.md
++++ configs/doc.md
+@@ -1,2 +1 @@
+-# Documento Inicial
+-Este é o conteúdo inicial do documento.+# Documento Seed

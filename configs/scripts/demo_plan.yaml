@@ -1,0 +1,10 @@
+# Script de exemplo para ManualLLMClient
+- type: message
+  text: "Iniciando demonstração: verificando ambiente."
+- type: command
+  command: ["ls"]
+  cwd: "."
+- type: message
+  text: "Nenhuma alteração realizada; encerrando."
+- type: finish
+  summary: "Demo concluída sem modificações."

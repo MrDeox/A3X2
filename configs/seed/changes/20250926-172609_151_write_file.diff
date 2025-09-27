@@ -1,0 +1,10 @@
+--- a/example.py
++++ b/example.py
+--- example.py
++++ example.py
+@@ -0,0 +1,5 @@
++def add(a, b):
++    return a + b
++
++result = add(1, 2)
++print(result)

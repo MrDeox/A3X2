@@ -1,0 +1,21 @@
+llm:
+  type: manual
+  script: scripts/demo_plan.yaml
+
+workspace:
+  root: .
+  allow_outside_root: false
+
+limits:
+  max_iterations: 25
+  command_timeout: 120
+  max_failures: 5
+
+tests:
+  auto: false
+  commands: []
+
+policies:
+  allow_network: false
+  allow_shell_write: true
+

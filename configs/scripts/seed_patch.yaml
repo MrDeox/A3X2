@@ -1,0 +1,19 @@
+# Script manual para seeds de benchmark
+- type: message
+  text: "Iniciando seed de benchmark manual."
+- type: patch
+  diff: |
+    --- a/docs/seed_manifesto.md
+    +++ b/docs/seed_manifesto.md
+    @@
+    -## Próximos Passos Manifesto
+    - - Automatizar coleta das métricas acima.
+    - - Expor painel/relatório para revisão humana periódica.
+    - - Expandir biblioteca de seeds iniciais (guidelines, prompts, templates).
+    +## Próximos Passos Manifesto
+    +- Automatizar coleta das métricas acima.
+    +- Expor painel/relatório para revisão humana periódica.
+    +- Expandir biblioteca de seeds iniciais (guidelines, prompts, templates).
+    +- *(Seed Runner)* Validar seeds automáticas que apliquem diffs controlados.
+- type: finish
+  summary: "Seed manual aplicada."

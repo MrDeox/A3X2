@@ -1,0 +1,10 @@
+- type: message
+  text: "Executando lint com ruff e black (check)."
+- type: command
+  command: ["ruff", "check", "samples/core_tests_demo"]
+  cwd: "."
+- type: command
+  command: ["black", "--check", "samples/core_tests_demo"]
+  cwd: "."
+- type: finish
+  summary: "Lint executado."

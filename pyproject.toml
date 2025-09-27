@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "a3x"
+version = "0.1.0"
+description = "Ferramenta CLI para orquestrar um agente autônomo de codificação local"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+  {name = "A3X", email = "dev@a3x.local"}
+]
+requires-python = ">=3.10"
+dependencies = [
+  "PyYAML>=6.0",
+  "httpx>=0.27"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.4",
+  "ruff>=0.4",
+  "black>=24.3"
+]
+
+[project.scripts]
+a3x = "a3x.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]

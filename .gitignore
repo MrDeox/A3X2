@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+a3x.egg-info/
+.env
+*.log
+seed/evaluations/
+seed/metrics/
+tests/generated/

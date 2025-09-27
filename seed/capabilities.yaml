@@ -1,0 +1,48 @@
+# Registro inicial de capacidades do A3X (SeedAI Capability Graph)
+- id: core.diffing
+  name: Edição por diffs unificados
+  category: vertical
+  description: Aplicar patches gerados pelo LLM usando utilitário `patch` com dry-run.
+  maturity: baseline
+  metrics:
+    success_rate: null
+    avg_iterations: null
+  seeds:
+    - Implementar fallback AST-aware para linguagens específicas.
+    - Monitorar taxa de conflitos ao aplicar patches.
+
+- id: core.testing
+  name: Execução de testes automatizados
+  category: vertical
+  description: "Rodar comandos de teste (ex.: pytest) após modificações conforme configuração."
+  maturity: baseline
+  metrics:
+    auto_trigger_rate: null
+    failures_detected: null
+  seeds:
+    - Integrar coleta de cobertura de testes.
+    - Permitir configuração de prioridades por tipo de teste.
+
+- id: horiz.python
+  name: Suporte a projetos Python
+  category: horizontal
+  description: "Manipular arquivos Python, dependências PyPI e executar pytest/ruff/black."
+  maturity: established
+  metrics:
+    tasks_completed: null
+    regression_rate: null
+  seeds:
+    - Expandir para frameworks (Flask, FastAPI) com blueprints dedicados.
+    - Adicionar verificação automática de requisitos (pip freeze).
+
+- id: horiz.docs
+  name: Produção de documentação técnica
+  category: horizontal
+  description: Gerar e atualizar documentação Markdown baseada em pesquisas ou diffs produzidos.
+  maturity: baseline
+  metrics:
+    docs_generated: null
+    human_feedback: null
+  seeds:
+    - Criar templates de relatórios de progresso.
+    - Medir clareza por meio de checklist automatizada.

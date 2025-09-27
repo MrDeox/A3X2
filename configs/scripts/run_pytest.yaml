@@ -1,0 +1,7 @@
+- type: message
+  text: "Executando suíte de testes Python (pytest)."
+- type: command
+  command: ["pytest", "samples/core_tests_demo", "-q"]
+  cwd: "."
+- type: finish
+  summary: "Pytest executado."

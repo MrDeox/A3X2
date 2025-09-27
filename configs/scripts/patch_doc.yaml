@@ -1,0 +1,13 @@
+- type: write_file
+  path: configs/doc.md
+  content: "# Documento Seed\n"
+- type: patch
+  diff: |
+    --- a/configs/doc.md
+    +++ b/configs/doc.md
+    @@ -1 +1,2 @@
+    -# Documento Seed
+    +# Documento Seed
+    +Linha adicionada pelo seed auto patch.
+- type: finish
+  summary: "Patch docs concluído."
