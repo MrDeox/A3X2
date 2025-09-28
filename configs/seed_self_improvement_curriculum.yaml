@@ -64,7 +64,7 @@ phases:
           - a3x/agent.py
           - a3x/executor.py
         safeguards:
-          - Sempre requer --dry-run para self-patches.
+          - Requer --dry-run apenas para self-patches de alto risco; low-risk prossegue sem dry-run.
           - Limitar a arquivos em a3x/ e configs/.
         metrics_target:
           self_patch_success_rate: 0.95

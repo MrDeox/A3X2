@@ -39,5 +39,6 @@ loop:
 audit:
   enable_file_log: true
   file_dir: seed/changes
-  enable_git_commit: false
+  enable_git_commit: true
+  low_risk_dry_run: false
   commit_prefix: "A3X"

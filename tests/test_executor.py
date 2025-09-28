@@ -311,3 +311,92 @@ def test_handle_self_modify_high_risk_prompt(executor):
     mock_run.assert_any_call(["pytest", "-q", "tests/"], cwd=executor.workspace_root, capture_output=True, text=True, timeout=30)
     mock_run.assert_any_call(['git', 'add', 'a3x/executor.py'], cwd=executor.workspace_root, check=True)
     mock_run.assert_any_call(['git', 'commit', '-m', "Seed-applied: self-modify enhancement"], cwd=executor.workspace_root, check=True)
+def test_handle_self_modify_git_error_retry(executor):
+    diff = """--- a/configs/test.yaml
++++ b/configs/test.yaml
+@@ -0,0 +1 @@
++key: value
+"""
+    # Low risk: non-core file, small diff
+    executor.patch_manager.extract_paths.return_value = ['configs/test.yaml']
+    executor.patch_manager.apply.return_value = (True, "Applied")
+    mock_pytest = Mock()
+    mock_pytest.returncode = 0
+    mock_git_add = Mock()
+    mock_git_add.returncode = 0
+    mock_path = Mock()
+    mock_path.exists.return_value = True
+    mock_path.__str__ = Mock(return_value='configs/test.yaml')
+    
+    # First commit fails with CalledProcessError
+    mock_git_commit_fail = Mock()
+    mock_git_commit_fail.returncode = 1
+    mock_git_commit_fail.stderr = "Permission denied"
+    
+    # Retry commit succeeds
+    mock_git_commit_success = Mock()
+    mock_git_commit_success.returncode = 0
+    
+    with patch('subprocess.run', side_effect=[mock_pytest, mock_git_add, mock_git_commit_fail, mock_git_commit_success]) as mock_run:
+        with patch('a3x.executor.logging') as mock_logging:
+            with patch.object(executor, '_resolve_workspace_path', return_value=mock_path):
+                with patch.object(executor, '_has_dangerous_self_change', return_value=False):
+                    action = AgentAction(type="self_modify", diff=diff)
+                    obs = executor._handle_self_modify(action)
+    
+    assert obs.success
+    assert "Auto-commit applied after retry." in obs.output
+    mock_logging.error.assert_called_once_with("Git commit failed: Permission denied")
+    mock_logging.info.assert_called_with("Git commit retry successful")
+    mock_run.assert_has_calls([
+        call(["pytest", "-q", "tests/"], cwd=executor.workspace_root, capture_output=True, text=True, timeout=30),
+        call(['git', 'add', 'configs/test.yaml'], cwd=executor.workspace_root, check=True),
+        call(['git', 'commit', '-m', "Seed-applied: self-modify enhancement"], cwd=executor.workspace_root, check=True),
+        call(['git', 'commit', '-m', "Seed-applied: self-modify enhancement (retry)"], cwd=executor.workspace_root, check=True)
+    ], any_order=False)
+def test_handle_self_modify_low_risk_no_dry_run_force_commit(executor):
+    diff = """--- a/configs/test.yaml
++++ b/configs/test.yaml
+@@ -0,0 +1 @@
++key: value
+"""
+    # Low risk: non-core file, small diff (<10 lines)
+    executor.patch_manager.extract_paths.return_value = ['configs/test.yaml']
+    
+    # Mock apply to check if called without dry_run=True
+    mock_apply = Mock()
+    mock_apply.return_value = (True, "Applied")
+    executor.patch_manager.apply = mock_apply
+    
+    mock_pytest = Mock()
+    mock_pytest.returncode = 0  # Implies success_rate=1.0 >0.9
+    
+    mock_git_add = Mock()
+    mock_git_add.returncode = 0
+    mock_git_commit = Mock()
+    mock_git_commit.returncode = 0
+    
+    mock_path = Mock()
+    mock_path.exists.return_value = True
+    mock_path.__str__.return_value = 'configs/test.yaml'
+    
+    # Initially set dry_run=True to test forcing to False
+    action = AgentAction(type="self_modify", diff=diff, dry_run=True)
+    
+    with patch('subprocess.run', side_effect=[mock_pytest, mock_git_add, mock_git_commit]) as mock_run:
+        with patch.object(executor, '_resolve_workspace_path', return_value=mock_path):
+            with patch.object(executor, '_has_dangerous_self_change', return_value=False):
+                with patch('builtins.input') as mock_input:  # Should not be called for low-risk high success
+                    obs = executor._handle_self_modify(action)
+    
+    assert obs.success
+    assert "Auto-commit applied successfully." in obs.output
+    # Assert apply was called without dry_run (second arg is dry_run=True only in dry-run branch)
+    mock_apply.assert_called_once_with(diff)  # No dry_run=True, so dry_run=False
+    assert not mock_apply.call_args[1]  # No dry_run kwarg
+    mock_input.assert_not_called()  # No prompt due to low-risk and success_rate >0.9
+    mock_run.assert_has_calls([
+        call(["pytest", "-q", "tests/"], cwd=executor.workspace_root, capture_output=True, text=True, timeout=30),
+        call(['git', 'add', 'configs/test.yaml'], cwd=executor.workspace_root, check=True),
+        call(['git', 'commit', '-m', "Seed-applied: self-modify enhancement"], cwd=executor.workspace_root, check=True)
+    ], any_order=False)

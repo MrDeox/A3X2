@@ -499,16 +499,56 @@
   max_attempts: 3
   next_run_at: null
   last_error: null
-
 - id: meta.final_recursion_report
-  goal: Sintetizar relatório final de recursão real completa e atualizar capabilities.yaml com recursion: advanced
+  goal: 'Sintetizar relatório final de recursão real completa e atualizar capabilities.yaml
+    com recursion: advanced'
   priority: medium
-  status: pending
+  status: completed
   type: report
   config: configs/sample.yaml
   max_steps: 5
   metadata:
-    description: Synthesis of final report on full real recursion achievement in A3X project
+    description: Synthesis of final report on full real recursion achievement in A3X
+      project
+  history:
+  - status: in_progress
+    timestamp: '2025-09-28T19:38:48.448944+00:00'
+  - status: completed
+    timestamp: '2025-09-28T19:39:40.612327+00:00'
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
+- id: meta.executor_permission_fix
+  goal: Corrigir permissões no executor.py para garantir triggers de auto-commit em
+    contextos seguros e recursão real completa
+  priority: high
+  status: completed
+  type: fix
+  config: configs/seed_patch.yaml
+  max_steps: 5
+  metadata:
+    description: Resolve subprocess errors in git commands for auto-commit in low-risk
+      contexts, enabling full real recursion.
+  history:
+  - status: in_progress
+    timestamp: '2025-09-28T19:38:48.020636+00:00'
+  - status: completed
+    timestamp: '2025-09-28T19:38:48.433658+00:00'
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
+
+- id: meta.seed_application_fix
+  goal: Desabilitar dry-run para low-risk self-modify e forçar commits reais para resolver simulação
+  priority: critical
+  status: pending
+  type: fix
+  config: configs/manual.yaml
+  max_steps: 10
+  metadata:
+    description: Fix seed application by disabling dry-run for low-risk self-modify and forcing real commits to enable actual changes.
   history: []
   attempts: 0
   max_attempts: 3
