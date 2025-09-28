@@ -14,6 +14,10 @@ from .config import AgentConfig
 from .patch import PatchManager, PatchError
 from .change_log import ChangeLogger
 
+import ast
+import re
+import shutil
+
 
 class ActionExecutor:
     def __init__(self, config: AgentConfig) -> None:
@@ -91,16 +95,149 @@ class ActionExecutor:
     def _handle_apply_patch(self, action: AgentAction) -> Observation:
         if not action.diff:
             return Observation(success=False, error="Diff vazio", type="apply_patch")
+
+        # Extract Python files from diff for AST validation
+        py_paths = set(re.findall(r'^--- a/(.+\.py)$', action.diff, re.MULTILINE))
+        backups = {}
+        for rel_path in py_paths:
+            full_path = self._resolve_workspace_path(rel_path)
+            if full_path.exists():
+                backup_path = full_path.with_suffix('.py.bak')
+                shutil.copy2(full_path, backup_path)
+                backups[rel_path] = backup_path
+
         try:
+            success, output = self.patch_manager.apply(action.diff)
+
+            # AST validation fallback
+            has_error = False
+            for rel_path in py_paths:
+                full_path = self._resolve_workspace_path(rel_path)
+                if full_path.suffix == '.py' and full_path.exists():
+                    try:
+                        content = full_path.read_text(encoding="utf-8")
+                        ast.parse(content)
+                    except SyntaxError as e:
+                        has_error = True
+                        output += f"\nSyntaxError in {rel_path}: {str(e)}"
+                        # Revert from backup
+                        backup_path = backups.get(rel_path)
+                        if backup_path and backup_path.exists():
+                            full_path.write_text(backup_path.read_text(encoding="utf-8"))
+                            backup_path.unlink()
+            if has_error:
+                success = False
+                output += "\nAST fallback: Patch rejected due to syntax errors; affected files reverted."
+            else:
+                if success:
+                    try:
+                        self.change_logger.log_patch(action.diff, note="apply_patch")
+                    except Exception:
+                        pass
+
+            return Observation(success=success, output=output, type="apply_patch")
+        except PatchError as exc:
+            # Clean up backups on patch error
+            for backup_path in backups.values():
+                backup_path.unlink(missing_ok=True)
+            return Observation(success=False, error=str(exc), type="apply_patch")
+
+    def _handle_self_modify(self, action: AgentAction) -> Observation:
+        if not action.diff:
+            return Observation(success=False, error="Diff vazio para self-modify", type="self_modify")
+        
+        # Restrict to agent code: a3x/ and configs/
+        allowed_prefixes = ["a3x", "configs"]
+        patch_paths = self.patch_manager.extract_paths(action.diff)
+        invalid_paths = [p for p in patch_paths if not any(p.startswith(prefix) for prefix in allowed_prefixes)]
+        if invalid_paths:
+            return Observation(
+                success=False,
+                error=f"Self-modify restrito a a3x/ e configs/: inválidos {invalid_paths}",
+                type="self_modify"
+            )
+        
+        if action.dry_run:
+            # Simulate with dry-run
+            try:
+                success, output = self.patch_manager.apply(action.diff, dry_run=True)
+                return Observation(
+                    success=success,
+                    output=f"Simulação dry-run: {output}",
+                    type="self_modify"
+                )
+            except PatchError as exc:
+                return Observation(success=False, error=f"Dry-run falhou: {str(exc)}", type="self_modify")
+        
+        # Apply for real, with extra logging and alignment check
+        try:
+            # Simple alignment check: scan diff for dangerous changes
+            if self._has_dangerous_self_change(action.diff):
+                return Observation(
+                    success=False,
+                    error="Mudança self-modify detectada como desalinhada (ex.: remoção de safeguards)",
+                    type="self_modify"
+                )
             success, output = self.patch_manager.apply(action.diff)
             if success:
                 try:
-                    self.change_logger.log_patch(action.diff, note="apply_patch")
+                    self.change_logger.log_patch(action.diff, note="self_modify")
                 except Exception:
                     pass
-            return Observation(success=success, output=output, type="apply_patch")
+
+                # Run pytest after successful self-modify
+                pytest_result = subprocess.run(
+                    ["pytest", "-q", "tests/"],
+                    cwd=self.workspace_root,
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                if pytest_result.returncode == 0:
+                    print("Tests passed. Approve auto-commit? (y/n):")
+                    approval = input().strip().lower()
+                    if approval == 'y':
+                        # Get affected paths from diff
+                        patch_paths = self.patch_manager.extract_paths(action.diff)
+                        for rel_path in patch_paths:
+                            full_path = self._resolve_workspace_path(rel_path)
+                            if full_path.exists():
+                                subprocess.run(
+                                    ['git', 'add', str(full_path)],
+                                    cwd=self.workspace_root,
+                                    check=True
+                                )
+                        commit_msg = "Seed-applied: self-modify enhancement"
+                        subprocess.run(
+                            ['git', 'commit', '-m', commit_msg],
+                            cwd=self.workspace_root,
+                            check=True
+                        )
+                        output += "\nAuto-commit applied successfully."
+                    else:
+                        output += "\nCommit skipped by user."
+                else:
+                    output += f"\nTests failed after self-modify: {pytest_result.stderr[:200]}..."
+
+                # Optional: Trigger restart or reload, but for now just log
+                output += "\n[Self-modify aplicado; reinicie o agente para efeitos.]"
+            return Observation(success=success, output=output, type="self_modify")
         except PatchError as exc:
-            return Observation(success=False, error=str(exc), type="apply_patch")
+            return Observation(success=False, error=str(exc), type="self_modify")
+
+    def _has_dangerous_self_change(self, diff: str) -> bool:
+        """Verificação básica de alinhamento: busca padrões perigosos no diff."""
+        dangerous_patterns = [
+            r"-.*allow_network.*=.*True",  # Habilitando rede
+            r"-.*deny_commands.*=.*\[\]",  # Limpando denials
+            r"+.*sudo",  # Adicionando privilégios
+            r"-.*_is_safe_command",  # Removendo checks
+        ]
+        import re
+        for pattern in dangerous_patterns:
+            if re.search(pattern, diff):
+                return True
+        return False
 
     def _handle_run_command(self, action: AgentAction) -> Observation:
         if not action.command:
@@ -112,6 +249,15 @@ class ActionExecutor:
             return Observation(
                 success=False,
                 error="Comando bloqueado por política",
+                type="run_command",
+            )
+
+        # Lightweight sandbox: restrict to non-privileged commands and env
+        restricted_env = self._build_restricted_env()
+        if not self._is_safe_command(action.command):
+            return Observation(
+                success=False,
+                error="Comando não seguro (ex.: privilégios ou rede bloqueados)",
                 type="run_command",
             )
 
@@ -179,7 +325,9 @@ class ActionExecutor:
             and self.workspace_root not in candidate.parents
             and candidate != self.workspace_root
         ):
-            raise PermissionError(f"Acesso negado fora do workspace: {candidate}")
+            if not str(candidate).startswith("/tmp/a3x_sandbox/"):
+                raise PermissionError(f"Acesso negado fora do workspace: {candidate}")
+            return candidate
         return candidate
 
     def _command_allowed(self, command: list[str]) -> bool:
@@ -188,6 +336,28 @@ class ActionExecutor:
             if pattern in joined:
                 return False
         return True
+
+    def _is_safe_command(self, command: list[str]) -> bool:
+        """Verifica se comando é seguro: sem sudo, rm -rf, etc."""
+        joined = " ".join(command).lower()
+        unsafe_patterns = [
+            "sudo", "su", "rm -rf", "dd if=", "mkfs", "mount", "umount",
+            "curl.*|wget.*http",  # Rede básica bloqueada se !allow_network
+        ]
+        if not self.config.policies.allow_network and any("http" in p or "curl" in p or "wget" in p for p in unsafe_patterns if any(term in joined for term in p.split())):
+            return False
+        return all(not any(term in joined for term in unsafe.split()) for unsafe in unsafe_patterns)
+
+    def _build_restricted_env(self) -> dict[str, str]:
+        env = self._build_env()
+        # Remover vars perigosas
+        dangerous_vars = ["PATH", "LD_PRELOAD", "LD_LIBRARY_PATH"]
+        for var in dangerous_vars:
+            env.pop(var, None)
+        env["PATH"] = "/usr/local/bin:/usr/bin:/bin"  # PATH restrito
+        env["HOME"] = str(self.workspace_root)
+        env["SHELL"] = "/bin/sh"
+        return env
 
     def _build_env(self) -> dict[str, str]:
         env = os.environ.copy()

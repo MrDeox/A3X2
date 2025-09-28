@@ -39,7 +39,7 @@ class AgentHistory:
             lines.append(f"[{idx}] ACTION: {action_desc}")
             if obs_desc:
                 lines.append(f"[{idx}] OBS   : {obs_desc}")
-            if sum(len(l) for l in lines) > max_chars:
+            if sum(len(line) for line in lines) > max_chars:
                 lines.append("... (histórico truncado) ...")
                 break
         return "\n".join(lines)

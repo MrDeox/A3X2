@@ -15,6 +15,7 @@ class ActionType(Enum):
     APPLY_PATCH = auto()
     WRITE_FILE = auto()
     READ_FILE = auto()
+    SELF_MODIFY = auto()
     FINISH = auto()
 
 
@@ -29,6 +30,7 @@ class AgentAction:
     diff: Optional[str] = None
     path: Optional[str] = None
     content: Optional[str] = None
+    dry_run: bool = False  # For SELF_MODIFY: whether to simulate without applying
     metadata: Dict[str, str] = field(default_factory=dict)
 
 

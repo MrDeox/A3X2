@@ -1,0 +1,6 @@
+--- a/samples/core_tests_demo/demo.py
++++ b/samples/core_tests_demo/demo.py
+--- samples/core_tests_demo/demo.py
++++ samples/core_tests_demo/demo.py
+@@ -0,0 +1 @@
++# teste real
