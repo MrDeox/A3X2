@@ -31,10 +31,10 @@
   description: Manipular arquivos Python, dependências PyPI e executar pytest/ruff/black.
   maturity: established
   metrics:
-    tasks_completed: 16
+    tasks_completed: 17
     regression_rate: 0.0
-    runs: 16
-    completed_runs: 16
+    runs: 17
+    completed_runs: 17
   seeds:
   - Expandir para frameworks (Flask, FastAPI) com blueprints dedicados.
   - Adicionar verificação automática de requisitos (pip freeze).
@@ -84,3 +84,34 @@
     priority: medium
     type: mission
     config: tests
+- id: meta.self_modification
+  name: Auto-modificação do Agente
+  category: meta
+  description: Permitir que o agente proponha e aplique mudanças em seu próprio código
+    via SELF_MODIFY, com safeguards.
+  maturity: baseline
+  metrics: {}
+  seeds:
+  - Implementar prompts para LLM sugerir SELF_MODIFY baseado em gaps de métricas.
+  - Adicionar testes para validar self-patches sem quebrar o loop principal.
+  requirements:
+    core.diffing: established
+  activation:
+    goal: Testar SELF_MODIFY em um refactor simples de agent.py
+    priority: high
+    type: mission
+    config: seed_self_improvement_curriculum.yaml
+    max_steps: 10
+- id: horizontal.llm_integration
+  name: Integração de LLM Local com Fallback Ollama
+  category: horizontal
+  description: Adicionar suporte a Ollama como fallback para chamadas OpenRouter que
+    falham por rate limits (429), garantindo continuidade das operações.
+  maturity: baseline
+  metrics:
+    success_rate: 0.95
+    runs: 0
+    completed_runs: 0
+  seeds:
+  - Implementar monitoramento de taxa de fallback em métricas de run.
+  - Expandir para outros modelos locais se necessário.

@@ -1,32 +1,234 @@
- - id: meta.prompt.advanced
-  goal: Evoluir prompt tuning com auto-geração de variações baseadas em memória e ROI
+- id: test.core
+  goal: Teste básico core
   priority: high
-  status: pending
-  type: meta
-  config: configs/sample.yaml
-  max_steps: 20
+  status: completed
+  type: test
+  config: configs/manual.yaml
+  max_steps: 3
   metadata:
-    description: Usar reflection para gerar/testar prompts dinâmicos, otimizando para novos domínios.
-    phase: 4
-    created_at: '2025-09-28T23:00:00+00:00'
-  history: []
+    description: Teste simples para validar system
+  history:
+  - status: in_progress
+    timestamp: '2025-09-28T17:01:22.692229+00:00'
+  - status: completed
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-
- - id: meta.selfmodify.v1
-  goal: Implementar self-modify controlado com diffs validados e auditoria ética
+- id: vertical.loop_optimization
+  goal: Otimizar o loop em a3x/agent.py para truncar histórico mais inteligentemente
+    e priorizar ações de alto ROI.
   priority: high
-  status: pending
-  type: meta
-  config: configs/sample.yaml
-  max_steps: 15
+  status: in_progress
+  type: refactor
+  config: configs/seed_self_improvement_curriculum.yaml
+  max_steps: 8
   metadata:
-    description: Permitir agente editar próprio código via policies, com human approval para core.
-    phase: 4
-    created_at: '2025-09-28T23:00:00+00:00'
-  history: []
+    description: Primeira seed do currículo de autoaperfeiçoamento para eficiência
+      vertical.
+    phase: vertical_efficiency
+    target_files: '[''a3x/agent.py'']'
+  history:
+  - status: in_progress
+    timestamp: '2025-09-28T17:02:24.509107+00:00'
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
+- id: auto.benchmark.report
+  goal: Regenerar relatório SeedAI para testar ciclo seed-run.
+  priority: medium
+  status: completed
+  type: benchmark_report
+  config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
+  max_steps: 3
+  metadata:
+    description: Seed auto-gerada para refresh de relatórios
+    created_at: '2025-09-28T17:01:17.178465+00:00'
+  history:
+  - status: in_progress
+    timestamp: '2025-09-28T17:01:23.753216+00:00'
+  - status: completed
+    timestamp: '2025-09-28T17:01:23.979691+00:00'
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
+- id: mission.core-diffing-growth.diff-advanced
+  goal: Sustentar success_rate >= 0.95
+  priority: high
+  status: completed
+  type: mission
+  config: /home/arthur/Projetos/A3X/configs/seed_patch.yaml
+  max_steps: 6
+  metadata:
+    mission: core-diffing-growth
+    milestone: diff-advanced
+    description: Sustentar success_rate >= 0.95
+    created_at: '2025-09-28T17:01:17.179340+00:00'
+  history:
+  - status: in_progress
+    timestamp: '2025-09-28T17:01:22.885287+00:00'
+  - status: completed
+    timestamp: '2025-09-28T17:01:23.083570+00:00'
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
+- id: mission.core-testing-growth.tests-established
+  goal: Disparar testes automaticamente em 70% das runs
+  priority: high
+  status: completed
+  type: mission
+  config: /home/arthur/Projetos/A3X/configs/seed_tests.yaml
+  max_steps: 6
+  metadata:
+    mission: core-testing-growth
+    milestone: tests-established
+    description: Disparar testes automaticamente em 70% das runs
+    created_at: '2025-09-28T17:01:17.179352+00:00'
+  history:
+  - status: in_progress
+    timestamp: '2025-09-28T17:01:23.086092+00:00'
+  - status: completed
+    timestamp: '2025-09-28T17:01:23.514339+00:00'
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
+- id: meta.meta.self_modification
+  goal: Testar SELF_MODIFY em um refactor simples de agent.py
+  priority: high
+  status: completed
+  type: mission
+  config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
+  max_steps: 10
+  metadata:
+    meta_capability: meta.self_modification
+    description: Permitir que o agente proponha e aplique mudanças em seu próprio
+      código via SELF_MODIFY, com safeguards.
+    created_at: '2025-09-28T17:01:17.182162+00:00'
+  history:
+  - status: in_progress
+    timestamp: '2025-09-28T17:01:23.517043+00:00'
+  - status: completed
+    timestamp: '2025-09-28T17:01:23.750388+00:00'
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
+- id: auto.tests.run
+  goal: Executar suíte de testes Pytest para garantir integridade.
+  priority: high
+  status: completed
+  type: benchmark_tests
+  config: /home/arthur/Projetos/A3X/configs/seed_tests.yaml
+  max_steps: 6
+  metadata:
+    description: Seed auto-gerada para rodar pytest e diagnosticar falhas.
+    created_at: '2025-09-28T17:01:24.041136+00:00'
+  history:
+  - status: in_progress
+    timestamp: '2025-09-28T17:01:24.201077+00:00'
+  - status: completed
+    timestamp: '2025-09-28T17:01:24.625125+00:00'
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
+- id: auto.actions.recovery
+  goal: Verificar logs de seeds falhas e propor correção
+  priority: medium
+  status: completed
+  type: analysis
+  config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
+  max_steps: 4
+  metadata:
+    description: Seed diagnóstica quando actions_success_rate cai.
+    created_at: '2025-09-28T17:04:57.717009+00:00'
+  history:
+  - status: in_progress
+    timestamp: '2025-09-28T17:04:57.884118+00:00'
+  - status: completed
+    timestamp: '2025-09-28T17:04:58.109726+00:00'
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
+- id: auto.patch.success
+  goal: Atualizar configs/doc.md adicionando uma linha final de validação
+  priority: high
+  status: completed
+  type: benchmark_diff
+  config: /home/arthur/Projetos/A3X/configs/seed_patch.yaml
+  max_steps: 5
+  metadata:
+    description: Seed corretiva para garantir sucesso no apply_patch
+    created_at: '2025-09-28T17:05:01.163490+00:00'
+  history:
+  - status: in_progress
+    timestamp: '2025-09-28T17:05:06.576635+00:00'
+  - status: completed
+    timestamp: '2025-09-28T17:05:06.783785+00:00'
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
+- id: meta.exponential_acceleration
+  goal: Aprimorar meta.seed_generator para gerar seeds mais rapidamente e aumentar
+    recursion_depth para 5, simulando aceleração exponencial controlada.
+  priority: high
+  status: in_progress
+  type: enhancement
+  config: configs/seed_self_improvement_curriculum.yaml
+  max_steps: 12
+  metadata:
+    description: Seed meta para acelerar o ciclo de autoaperfeiçoamento, permitindo
+      mais recursão e geração de seeds derivadas.
+    phase: meta_recursion
+    target_files: '[''a3x/autoeval.py'', ''a3x/agent.py'']'
+    safeguards: '[''Manter max_recursion <= 5 para evitar loops infinitos.'', ''Adicionar
+      métrica de "growth_rate" > 1.5 por ciclo.'']'
+  history:
+  - status: in_progress
+    timestamp: '2025-09-28T17:05:34.602873+00:00'
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
+- id: horizontal.llm_local_fallback
+  goal: Integrar Ollama como fallback local para evitar rate limits em llm.py
+  priority: high
+  status: in_progress
+  type: enhancement
+  config: configs/sample.yaml
+  max_steps: 8
+  metadata:
+    description: Adicionar suporte a Ollama como fallback para chamadas OpenRouter
+      que falham por rate limits (429)
+  history:
+  - status: in_progress
+    timestamp: '2025-09-28T17:20:00+00:00'
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
+- id: meta.meta.diffing.curriculum
+  goal: Desenhar plano de fallback AST-aware
+  priority: high
+  status: completed
+  type: mission
+  config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
+  max_steps: 6
+  metadata:
+    meta_capability: meta.diffing.curriculum
+    description: Planejar e executar seeds para edição AST-aware após dominar diffs.
+    created_at: '2025-09-28T17:27:00.341541+00:00'
+  history:
+  - status: in_progress
+    timestamp: '2025-09-28T17:27:00.549996+00:00'
+  - status: completed
+    timestamp: '2025-09-28T17:27:00.816109+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null

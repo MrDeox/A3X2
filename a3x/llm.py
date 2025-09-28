@@ -11,6 +11,7 @@ from typing import Iterable, Optional
 
 import httpx
 import yaml
+from ollama import Client
 
 from .actions import ActionType, AgentAction, AgentState
 
@@ -96,6 +97,7 @@ class OpenRouterLLMClient(BaseLLMClient):
         self.retry_backoff = retry_backoff
         self._goal: Optional[str] = None
         self._last_metrics: dict[str, float] = {}
+        self.ollama_client = Client()
 
     def start(self, goal: str) -> None:
         self._goal = goal
@@ -180,6 +182,17 @@ class OpenRouterLLMClient(BaseLLMClient):
                 time.sleep(delay)
                 delay *= self.retry_backoff
                 continue
+
+            if response.status_code == 429:
+                self._last_metrics = {
+                    "llm_latency": time.perf_counter() - started_at,
+                    "llm_retries": float(attempt),
+                    "llm_status_code": float(response.status_code),
+                    "llm_fallback_used": 1.0,
+                }
+                # Fallback to Ollama
+                return self._send_with_ollama(messages)
+
             if response.status_code >= 400:
                 self._last_metrics = {
                     "llm_latency": time.perf_counter() - started_at,
@@ -193,6 +206,7 @@ class OpenRouterLLMClient(BaseLLMClient):
                 "llm_latency": time.perf_counter() - started_at,
                 "llm_retries": float(attempt),
                 "llm_status_code": float(response.status_code),
+                "llm_fallback_used": 0.0,
             }
             return response.json()
 
@@ -249,6 +263,46 @@ class OpenRouterLLMClient(BaseLLMClient):
             path=data.get("path"),
             content=data.get("content"),
         )
+
+    def _send_with_ollama(self, messages: list[dict[str, str]]) -> dict:
+        """Send request using Ollama as fallback."""
+        started_at = time.perf_counter()
+        try:
+            # Format messages for Ollama (ollama expects list of dicts with role and content)
+            ollama_messages = [
+                {"role": msg["role"], "content": msg["content"]} for msg in messages
+            ]
+            response = self.ollama_client.chat(
+                model="llama3",
+                messages=ollama_messages,
+                options={"temperature": 0.1},
+            )
+            content = response["message"]["content"]
+            # Format response similar to OpenRouter
+            formatted_response = {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": content,
+                        }
+                    }
+                ]
+            }
+            latency = time.perf_counter() - started_at
+            self._last_metrics.update({
+                "ollama_latency": latency,
+            })
+            return formatted_response
+        except Exception as exc:
+            self._last_metrics = {
+                "llm_latency": time.perf_counter() - started_at,
+                "llm_retries": 0.0,
+                "llm_status_code": 500.0,  # Internal error
+                "llm_fallback_used": 1.0,
+                "ollama_error": 1.0,
+            }
+            raise RuntimeError(f"Falha no fallback Ollama: {exc}") from exc
 
 
 def build_llm_client(llm_config) -> BaseLLMClient:
@@ -336,3 +390,43 @@ def _entry_to_action(entry: dict, idx: int, path: Path) -> AgentAction:
         return AgentAction(type=action_type, text=str(entry.get("summary", "")))
 
     raise ValueError(f"Tipo não tratado no script manual: {type_name}")
+
+    def _send_with_ollama(self, messages: list[dict[str, str]]) -> dict:
+        """Send request using Ollama as fallback."""
+        started_at = time.perf_counter()
+        try:
+            # Format messages for Ollama (ollama expects list of dicts with role and content)
+            ollama_messages = [
+                {"role": msg["role"], "content": msg["content"]} for msg in messages
+            ]
+            response = self.ollama_client.chat(
+                model="llama3",
+                messages=ollama_messages,
+                options={"temperature": 0.1},
+            )
+            content = response["message"]["content"]
+            # Format response similar to OpenRouter
+            formatted_response = {
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": content,
+                        }
+                    }
+                ]
+            }
+            latency = time.perf_counter() - started_at
+            self._last_metrics.update({
+                "ollama_latency": latency,
+            })
+            return formatted_response
+        except Exception as exc:
+            self._last_metrics = {
+                "llm_latency": time.perf_counter() - started_at,
+                "llm_retries": 0.0,
+                "llm_status_code": 500.0,  # Internal error
+                "llm_fallback_used": 1.0,
+                "ollama_error": 1.0,
+            }
+            raise RuntimeError(f"Falha no fallback Ollama: {exc}") from exc
