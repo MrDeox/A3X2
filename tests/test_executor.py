@@ -224,3 +224,27 @@ def test_handle_self_modify_tests_fail(executor):
     assert obs.success
     assert "Tests failed after self-modify" in obs.output
     mock_run.assert_called_once_with(["pytest", "-q", "tests/"], cwd=executor.workspace_root, capture_output=True, text=True, timeout=30)
+def test_handle_apply_patch_cleanup_old_diffs(executor):
+    # Mock successful patch apply
+    diff = """--- a/test.py
++++ b/test.py
+@@ -1,0 +1,1 @@
++print("test")
+"""
+    executor.patch_manager.apply.return_value = (True, "Patch applied")
+    
+    # Mock file system for cleanup
+    old_diff_files = ['old1.diff', 'old2.diff']
+    executor.change_logger.log_patch = Mock()
+    
+    with patch('a3x.executor.os.listdir', return_value=old_diff_files):
+        with patch('a3x.executor.os.path.getmtime', return_value=0):  # Old timestamp (1970)
+            with patch('a3x.executor.shutil.move') as mock_move:
+                with patch('a3x.executor.re.findall', return_value=[]):  # No py files for simplicity
+                    action = AgentAction(type="apply_patch", diff=diff)
+                    obs = executor._handle_apply_patch(action)
+    
+    assert obs.success
+    assert mock_move.call_count == 2  # Both old files moved
+    mock_move.assert_any_call('seed/changes/old1.diff', 'seed/archive/old1.diff')
+    mock_move.assert_any_call('seed/changes/old2.diff', 'seed/archive/old2.diff')

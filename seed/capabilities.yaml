@@ -169,3 +169,15 @@
     avg_success_rate: 0.85
     simulation_reduction: 20
   seeds: []
+
+- id: meta.file_management
+  name: Automated File Management and Cleanup
+  category: meta
+  description: Automated archiving of old .diff files (>7 days) from seed/changes/ to seed/archive/ post successful patch apply, reducing git bloat.
+  maturity: baseline
+  metrics:
+    success_rate: 1.0
+    runs: 0
+    completed_runs: 0
+  seeds:
+  - Monitor cleanup frequency and archive size growth.

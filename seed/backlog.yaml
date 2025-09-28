@@ -352,3 +352,18 @@
   max_attempts: 3
   next_run_at: null
   last_error: null
+
+- id: meta.diff_cleanup
+  goal: Implementar limpeza automática de .diff antigos em seed/changes/ para reduzir overflow no git
+  priority: high
+  status: pending
+  type: enhancement
+  config: configs/seed_patch.yaml
+  max_steps: 5
+  metadata:
+    description: Automated cleanup of old .diff files to prevent git bloat in seed/changes/
+  history: []
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null

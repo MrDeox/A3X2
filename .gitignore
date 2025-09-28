@@ -8,3 +8,5 @@ a3x.egg-info/
 seed/evaluations/
 seed/metrics/
 tests/generated/
+
+seed/archive/*.diff

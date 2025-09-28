@@ -17,6 +17,7 @@ from .change_log import ChangeLogger
 import ast
 import re
 import shutil
+from datetime import datetime, timedelta
 
 
 class ActionExecutor:
@@ -134,6 +135,19 @@ class ActionExecutor:
                         self.change_logger.log_patch(action.diff, note="apply_patch")
                     except Exception:
                         pass
+
+                    # Cleanup old .diff files in seed/changes/
+                    from pathlib import Path
+                    changes_dir = Path('seed/changes')
+                    archive_dir = Path('seed/archive')
+                    if changes_dir.exists():
+                        for filename in os.listdir(changes_dir):
+                            if filename.endswith('.diff'):
+                                file_path = changes_dir / filename
+                                if file_path.is_file():
+                                    mtime = os.path.getmtime(file_path)
+                                    if datetime.now() - datetime.fromtimestamp(mtime) > timedelta(days=7):
+                                        shutil.move(str(file_path), str(archive_dir / filename))
 
             return Observation(success=success, output=output, type="apply_patch")
         except PatchError as exc:
