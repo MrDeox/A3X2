@@ -335,3 +335,20 @@
   max_attempts: 3
   next_run_at: null
   last_error: null
+- id: meta.post_improvement_report
+  goal: Sintetizar relatório pós-melhorias e atualizar capabilities.yaml com métricas
+    atuais
+  priority: medium
+  status: in_progress
+  type: report
+  config: configs/sample.yaml
+  max_steps: 3
+  metadata:
+    description: Post-improvement report for A3X enhancements and autopilot results
+  history:
+  - status: in_progress
+    timestamp: '2025-09-28T17:53:47.510455+00:00'
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
