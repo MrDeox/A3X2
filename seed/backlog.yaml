@@ -367,3 +367,18 @@
   max_attempts: 3
   next_run_at: null
   last_error: null
+
+- id: meta.auto_approval_safe
+  goal: Implementar auto-approval para self-modify de baixo risco em executor.py para habilitar commits reais e recursão completa
+  priority: high
+  status: pending
+  type: refactor
+  config: configs/seed_patch.yaml
+  max_steps: 5
+  metadata:
+    description: Implement auto-approval for low-risk self-modifies in executor.py to enable real commits and full recursion, bypassing manual prompts for non-core files or small changes (<10 lines).
+  history: []
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null

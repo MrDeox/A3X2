@@ -208,11 +208,22 @@ class ActionExecutor:
                     timeout=30
                 )
                 if pytest_result.returncode == 0:
-                    print("Tests passed. Approve auto-commit? (y/n):")
-                    approval = input().strip().lower()
-                    if approval == 'y':
+                    # Risk assessment for auto-approval
+                    core_list = ['a3x/agent.py', 'a3x/executor.py']
+                    patch_paths = self.patch_manager.extract_paths(action.diff)
+                    diff_lines = len(action.diff.splitlines())
+                    is_low_risk = (diff_lines < 10) or all(path not in core_list for path in patch_paths)
+                    
+                    if is_low_risk:
+                        auto_approve = True
+                        print("Low-risk self-modify detected: Auto-approving commit.")
+                    else:
+                        print("High-risk self-modify detected. Approve auto-commit? (y/n):")
+                        approval = input().strip().lower()
+                        auto_approve = approval == 'y'
+                    
+                    if auto_approve:
                         # Get affected paths from diff
-                        patch_paths = self.patch_manager.extract_paths(action.diff)
                         for rel_path in patch_paths:
                             full_path = self._resolve_workspace_path(rel_path)
                             if full_path.exists():
@@ -229,7 +240,7 @@ class ActionExecutor:
                         )
                         output += "\nAuto-commit applied successfully."
                     else:
-                        output += "\nCommit skipped by user."
+                        output += "\nCommit skipped."
                 else:
                     output += f"\nTests failed after self-modify: {pytest_result.stderr[:200]}..."
 

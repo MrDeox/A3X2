@@ -168,9 +168,9 @@ def test_handle_self_modify_with_auto_commit(executor):
     mock_git_add.returncode = 0
     mock_git_commit = Mock()
     mock_git_commit.returncode = 0
-    mock_path = Mock(spec=Path)
+    mock_path = Mock()
     mock_path.exists.return_value = True
-    mock_path.__str__.return_value = 'a3x/test.py'
+    mock_path.__str__ = Mock(return_value='a3x/test.py')
     with patch('subprocess.run', side_effect=[mock_pytest, mock_git_add, mock_git_commit]) as mock_run:
         with patch('builtins.input', return_value='y'):
             with patch.object(executor, '_resolve_workspace_path', return_value=mock_path):
@@ -185,23 +185,23 @@ def test_handle_self_modify_with_auto_commit(executor):
 
 
 def test_handle_self_modify_skip_commit(executor):
-    diff = """--- a/a3x/test.py
-+++ b/a3x/test.py
-@@ -0,0 +1 @@
-+print("self modify test")
-"""
-    executor.patch_manager.extract_paths.return_value = ['a3x/test.py']
+    diff = """--- a/a3x/executor.py
+    +++ b/a3x/executor.py
+    @@ -1,380 +1,400 @@
+    """ + "\n".join([f"+line {i}" for i in range(20)])  # >10 lines, core file
+    executor.patch_manager.extract_paths.return_value = ['a3x/executor.py']
     executor.patch_manager.apply.return_value = (True, "Applied")
     mock_pytest = Mock()
     mock_pytest.returncode = 0
     with patch('subprocess.run', return_value=mock_pytest) as mock_run:
         with patch('builtins.input', return_value='n'):
-            with patch.object(executor, '_resolve_workspace_path', return_value=Path('a3x/test.py')):
+            with patch.object(executor, '_resolve_workspace_path', return_value=Path('a3x/executor.py')):
                 with patch.object(executor, '_has_dangerous_self_change', return_value=False):
                     action = AgentAction(type="self_modify", diff=diff)
                     obs = executor._handle_self_modify(action)
     assert obs.success
-    assert "Commit skipped by user." in obs.output
+    assert "Commit skipped." in obs.output
+    mock_run.assert_called_once_with(["pytest", "-q", "tests/"], cwd=executor.workspace_root, capture_output=True, text=True, timeout=30)
     mock_run.assert_called_once_with(["pytest", "-q", "tests/"], cwd=executor.workspace_root, capture_output=True, text=True, timeout=30)
 
 
@@ -241,10 +241,73 @@ def test_handle_apply_patch_cleanup_old_diffs(executor):
         with patch('a3x.executor.os.path.getmtime', return_value=0):  # Old timestamp (1970)
             with patch('a3x.executor.shutil.move') as mock_move:
                 with patch('a3x.executor.re.findall', return_value=[]):  # No py files for simplicity
-                    action = AgentAction(type="apply_patch", diff=diff)
-                    obs = executor._handle_apply_patch(action)
-    
+                    with patch('pathlib.Path.exists', return_value=True):
+                        with patch('pathlib.Path.is_file', return_value=True):
+                            action = AgentAction(type="apply_patch", diff=diff)
+                            obs = executor._handle_apply_patch(action)
+
     assert obs.success
     assert mock_move.call_count == 2  # Both old files moved
     mock_move.assert_any_call('seed/changes/old1.diff', 'seed/archive/old1.diff')
     mock_move.assert_any_call('seed/changes/old2.diff', 'seed/archive/old2.diff')
+def test_handle_self_modify_low_risk_auto_approve(executor):
+    diff = """--- a/configs/test.yaml
++++ b/configs/test.yaml
+@@ -0,0 +1 @@
++key: value
+"""
+    # Low risk: non-core file, diff_lines=5 <10
+    executor.patch_manager.extract_paths.return_value = ['configs/test.yaml']
+    executor.patch_manager.apply.return_value = (True, "Applied")
+    mock_pytest = Mock()
+    mock_pytest.returncode = 0
+    mock_git_add = Mock()
+    mock_git_add.returncode = 0
+    mock_git_commit = Mock()
+    mock_git_commit.returncode = 0
+    mock_path = Mock()
+    mock_path.exists.return_value = True
+    mock_path.__str__ = Mock(return_value='configs/test.yaml')
+    with patch('subprocess.run', side_effect=[mock_pytest, mock_git_add, mock_git_commit]) as mock_run:
+        with patch.object(executor, '_resolve_workspace_path', return_value=mock_path):
+            with patch.object(executor, '_has_dangerous_self_change', return_value=False):
+                with patch('builtins.input') as mock_input:
+                    action = AgentAction(type="self_modify", diff=diff)
+                    obs = executor._handle_self_modify(action)
+    assert obs.success
+    assert "Auto-commit applied successfully." in obs.output
+    mock_input.assert_not_called()
+    mock_run.assert_any_call(["pytest", "-q", "tests/"], cwd=executor.workspace_root, capture_output=True, text=True, timeout=30)
+    mock_run.assert_any_call(['git', 'add', 'configs/test.yaml'], cwd=executor.workspace_root, check=True)
+    mock_run.assert_any_call(['git', 'commit', '-m', "Seed-applied: self-modify enhancement"], cwd=executor.workspace_root, check=True)
+
+
+def test_handle_self_modify_high_risk_prompt(executor):
+    # High risk: core file, large diff
+    diff = """--- a/a3x/executor.py
++++ b/a3x/executor.py
+@@ -1,380 +1,400 @@
+""" + "\n".join([f"+line {i}" for i in range(20)])  # >10 lines
+    executor.patch_manager.extract_paths.return_value = ['a3x/executor.py']
+    executor.patch_manager.apply.return_value = (True, "Applied")
+    mock_pytest = Mock()
+    mock_pytest.returncode = 0
+    mock_git_add = Mock()
+    mock_git_add.returncode = 0
+    mock_git_commit = Mock()
+    mock_git_commit.returncode = 0
+    mock_path = Mock()
+    mock_path.exists.return_value = True
+    mock_path.__str__ = Mock(return_value='a3x/executor.py')
+    with patch('subprocess.run', side_effect=[mock_pytest, mock_git_add, mock_git_commit]) as mock_run:
+        with patch.object(executor, '_resolve_workspace_path', return_value=mock_path):
+            with patch.object(executor, '_has_dangerous_self_change', return_value=False):
+                with patch('builtins.input', return_value='y') as mock_input:
+                    action = AgentAction(type="self_modify", diff=diff)
+                    obs = executor._handle_self_modify(action)
+    assert obs.success
+    assert mock_input.called
+    assert "Auto-commit applied successfully." in obs.output
+    mock_run.assert_any_call(["pytest", "-q", "tests/"], cwd=executor.workspace_root, capture_output=True, text=True, timeout=30)
+    mock_run.assert_any_call(['git', 'add', 'a3x/executor.py'], cwd=executor.workspace_root, check=True)
+    mock_run.assert_any_call(['git', 'commit', '-m', "Seed-applied: self-modify enhancement"], cwd=executor.workspace_root, check=True)
