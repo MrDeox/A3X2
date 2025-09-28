@@ -1,36 +1,37 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `a3x/` centraliza loop, CLI, executores e clientes; agrupe novas features em submódulos claros.
-- `configs/` mantém presets YAML; derive deles ao registrar novos modos ou provedores.
-- `docs/` concentra notas de arquitetura e manifestos; cite em issues em vez de duplicar conteúdo.
-- `seed/` armazena backlog, métricas e relatórios do ciclo autônomo; mantenha artefatos derivados em `seed/evaluations/`.
-- `tests/` espelha `a3x/`; adicione casos manuais ao lado dos módulos e não edite `tests/generated/` manualmente.
+- `a3x/`: núcleo do agente, com CLI, ciclo autônomo (`autoloop.py`), planners, executores e memória semântica (`memory/`).
+- `configs/`: presets YAML para runs (`sample.yaml`), pipelines de seeds e scripts manuais; derive sempre a partir deles.
+- `seed/`: backlog, métricas, relatos de execução e memória longa (`seed/memory/`). Artefatos derivados ficam em `seed/evaluations/`.
+- `tests/`: suíte pytest espelha `a3x/`; arquivos em `tests/generated/` são gerados automaticamente.
+- `docs/`: notas de arquitetura e roadmap; cite-os em issues em vez de duplicar conteúdo.
 
 ## Build, Test, and Development Commands
-- `python -m venv .venv && source .venv/bin/activate` prepara o ambiente isolado.
-- `pip install -e .[dev]` instala runtime e toolchain (`pytest`, `ruff`, `black`).
-- `a3x run --goal "Adicionar endpoint /health" --config configs/sample.yaml` executa um ciclo completo com o preset padrão.
-- `a3x seed run --config configs/seed_manual.yaml` processa seeds pendentes e atualiza relatórios.
-- `pytest` roda a suíte; use `pytest tests/generated -k nome` ao iterar sobre testes adaptativos.
-- `ruff check a3x tests` e `black a3x tests` fixam lint/format antes de abrir PR.
+- `python -m venv .venv && source .venv/bin/activate`: prepara ambiente isolado.
+- `pip install -e .[dev]`: instala runtime, pytest, ruff e black.
+- `a3x run --goal "Adicionar endpoint /health" --config configs/sample.yaml`: executa ciclo completo com preset padrão.
+- `a3x seed run --config configs/seed_manual.yaml`: drena a próxima seed pendente do backlog.
+- `a3x autopilot --cycles 3 --goals seed/goal_rotation.yaml`: alterna objetivos e monitora seeds automaticamente.
+- `pytest -q`, `ruff check a3x tests`, `black a3x tests`: valide antes de abrir PR.
 
 ## Coding Style & Naming Conventions
-- Código em Python 3.10+, indentação de 4 espaços e type hints para novas APIs públicas.
-- Funções e módulos em `snake_case`, classes em `PascalCase`, arquivos de config seguem `kebab-case` apenas quando serializados.
-- Prefira `dataclasses` ou `TypedDicts` para payloads estruturados e mantenha mensagens CLI voltadas ao usuário final em português.
-- Confie no `black`; use `# noqa` somente com comentário curto justificando o desvio.
+- Python 3.10+, indentação de 4 espaços; novas APIs públicas com type hints.
+- Funções/módulos em `snake_case`, classes em `PascalCase`, configs serializadas em kebab-case.
+- Prefira `dataclasses` ou `TypedDict` para payloads estruturados; mensagens CLI permanecem em português.
+- Confie no `black`; use `# noqa` apenas com justificativa curta.
 
 ## Testing Guidelines
-- Estruture arquivos como `test_<modulo>.py` e reutilize fixtures existentes para cobrir caminhos críticos.
-- Para novas capacidades, adicione testes manuais em `tests/` e deixe `tests/generated/` sob controle dos geradores.
-- Antes de commitar, execute `pytest -q`; inclua cenários negativos que validem decisões do agente ou safe-guards do executor.
+- Nomeie arquivos como `tests/test_<modulo>.py` e reutilize fixtures existentes.
+- Inclua cenários negativos para planners, executores e memória ao introduzir capacidades.
+- Rode `pytest -q` antes de commitar e mantenha `tests/generated/` sob controle automático.
 
 ## Commit & Pull Request Guidelines
-- Siga Conventional Commits (`feat:`, `fix:`, `refactor:`) com título objetivo; detalhe contexto extra em português no corpo.
-- Liste arquivos ou configs tocados (`configs/sample.yaml`, `seed/backlog.yaml`) e resultados de testes (`pytest`, `a3x run`) na descrição.
-- PRs devem apontar tickets relevantes, anexar logs que evidenciem mudanças de comportamento e mencionar impactos em seeds ou métricas.
+- Use Conventional Commits (`feat:`, `fix:`, `refactor:`) com título objetivo em português.
+- PRs devem listar arquivos/configs tocados, resultados (`pytest`, `a3x run`, `a3x autopilot`) e seeds impactadas.
+- Anexe logs relevantes e aponte tickets ou docs (`docs/roadmap_agi.md`) quando aplicável.
 
 ## Security & Configuration Tips
-- Não versionar segredos; carregue `OPENROUTER_API_KEY` via variáveis de ambiente ou `.env` ignorado.
-- Revise `configs/*.yaml` antes de habilitar comandos com efeitos colaterais; novos executores devem preservar timeouts e operações idempotentes.
+- Carregue `OPENROUTER_API_KEY` via `.env` ignorado; não versione segredos.
+- Revise `configs/*.yaml` antes de habilitar comandos com efeitos colaterais; mantenha timeouts e operações idempotentes.
+- Redija entradas de memória (`seed/memory/`) sem dados sensíveis e monitore tamanho para evitar deriva.

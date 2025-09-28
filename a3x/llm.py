@@ -25,7 +25,9 @@ class BaseLLMClient(ABC):
     def propose_action(self, state: AgentState) -> AgentAction:
         """Retorna a próxima ação a partir do estado atual."""
 
-    def notify_observation(self, observation_text: str) -> None:  # pragma: no cover - padrão vazio
+    def notify_observation(
+        self, observation_text: str
+    ) -> None:  # pragma: no cover - padrão vazio
         """Hook opcional após execução de uma ação."""
 
     def get_last_metrics(self) -> dict[str, float]:  # pragma: no cover - padrão vazio
@@ -100,7 +102,9 @@ class OpenRouterLLMClient(BaseLLMClient):
 
     def propose_action(self, state: AgentState) -> AgentAction:
         if not self._goal:
-            raise RuntimeError("Cliente OpenRouter não inicializado; chame start(goal) antes")
+            raise RuntimeError(
+                "Cliente OpenRouter não inicializado; chame start(goal) antes"
+            )
 
         messages = self._build_messages(state)
         response = self._send_request(messages)
@@ -156,7 +160,9 @@ class OpenRouterLLMClient(BaseLLMClient):
                         "llm_latency": time.perf_counter() - started_at,
                         "llm_retries": float(attempt),
                     }
-                    raise RuntimeError(f"Falha ao conectar com a OpenRouter: {exc}") from exc
+                    raise RuntimeError(
+                        f"Falha ao conectar com a OpenRouter: {exc}"
+                    ) from exc
                 time.sleep(delay)
                 delay *= self.retry_backoff
                 continue
@@ -165,7 +171,9 @@ class OpenRouterLLMClient(BaseLLMClient):
                     "llm_latency": time.perf_counter() - started_at,
                     "llm_retries": float(attempt),
                 }
-                raise RuntimeError(f"Falha ao conectar com a OpenRouter: {exc}") from exc
+                raise RuntimeError(
+                    f"Falha ao conectar com a OpenRouter: {exc}"
+                ) from exc
 
             if response.status_code >= 500 and attempt < self.max_retries:
                 attempt += 1
@@ -205,7 +213,9 @@ class OpenRouterLLMClient(BaseLLMClient):
         try:
             data = json.loads(content)
         except json.JSONDecodeError as exc:
-            raise RuntimeError(f"Resposta do LLM não é JSON válido: {exc}: {content}") from exc
+            raise RuntimeError(
+                f"Resposta do LLM não é JSON válido: {exc}: {content}"
+            ) from exc
 
         if not isinstance(data, dict):
             raise RuntimeError("JSON retornado pelo LLM deve ser um objeto")
@@ -239,6 +249,7 @@ class OpenRouterLLMClient(BaseLLMClient):
             path=data.get("path"),
             content=data.get("content"),
         )
+
 
 def build_llm_client(llm_config) -> BaseLLMClient:
     llm_type = (llm_config.type or "manual").lower()
@@ -296,7 +307,9 @@ def _entry_to_action(entry: dict, idx: int, path: Path) -> AgentAction:
         elif isinstance(command, list):
             parts = [str(part) for part in command]
         else:
-            raise ValueError(f"Ação command inválida na posição {idx}: use lista ou string")
+            raise ValueError(
+                f"Ação command inválida na posição {idx}: use lista ou string"
+            )
         cwd = entry.get("cwd")
         return AgentAction(type=action_type, command=parts, cwd=cwd)
 

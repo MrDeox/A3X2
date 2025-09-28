@@ -1,0 +1,27 @@
+- type: message
+  text: "Aplicando passo 1 do currículo de diff (anotação em demo.py)."
+- type: command
+  command:
+    - bash
+    - -lc
+    - |
+      python3 - <<'PY'
+      from pathlib import Path
+
+      def ensure_annotation(path: Path) -> None:
+          marker = "# curriculum step1: AST placeholder"
+          text = path.read_text(encoding="utf-8")
+          if marker in text:
+              return
+          lines = text.rstrip("\n").splitlines()
+          lines.append(marker)
+          path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+      file_path = Path("samples/core_tests_demo/demo.py")
+      if not file_path.exists():
+          raise SystemExit("Arquivo de demonstração não encontrado")
+      ensure_annotation(file_path)
+      PY
+  cwd: "."
+- type: finish
+  summary: "Currículo diff step 1 executado."

@@ -1,0 +1,16 @@
+llm:
+  type: manual
+  script: ../scripts/testing_curriculum_step1.yaml
+
+workspace:
+  root: ..
+  allow_outside_root: false
+
+limits:
+  max_iterations: 6
+  command_timeout: 300
+  max_failures: 2
+
+policies:
+  allow_network: false
+  allow_shell_write: true

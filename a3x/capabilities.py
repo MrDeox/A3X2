@@ -20,19 +20,29 @@ class Capability:
     maturity: str
     metrics: Dict[str, Optional[float]] = field(default_factory=dict)
     seeds: List[str] = field(default_factory=list)
+    requirements: Dict[str, str] = field(default_factory=dict)
+    activation: Dict[str, str] = field(default_factory=dict)
 
 
 class CapabilityRegistry:
     """Loads and serializes the capability graph from YAML files."""
 
-    def __init__(self, capabilities: Iterable[Capability]) -> None:
+    def __init__(
+        self, capabilities: Iterable[Capability], raw_entries: Dict[str, dict]
+    ) -> None:
         self._by_id = {cap.id: cap for cap in capabilities}
+        self._raw_entries = raw_entries
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "CapabilityRegistry":
-        data = _read_yaml(Path(path))
-        capabilities = [_deserialize_capability(item, path) for item in data]
-        return cls(capabilities)
+        entries = _read_yaml(Path(path))
+        capabilities = [_deserialize_capability(item, path) for item in entries]
+        raw_map = {
+            str(entry["id"]): entry
+            for entry in entries
+            if isinstance(entry, dict) and "id" in entry
+        }
+        return cls(capabilities, raw_map)
 
     def list(self) -> List[Capability]:
         return list(self._by_id.values())
@@ -51,6 +61,37 @@ class CapabilityRegistry:
             if cap.seeds:
                 lines.append("  Seeds: " + "; ".join(cap.seeds))
         return "\n".join(lines)
+
+    def update_metrics(self, updates: Dict[str, Dict[str, Optional[float]]]) -> None:
+        for cap_id, metric_values in updates.items():
+            if cap_id not in self._by_id:
+                continue
+            capability = self._by_id[cap_id]
+            for key, value in metric_values.items():
+                capability.metrics[key] = value
+        raw = self._raw_entries.get(cap_id)
+        if raw is not None:
+            raw_metrics = raw.setdefault("metrics", {})
+            for key, value in metric_values.items():
+                raw_metrics[key] = value
+
+    def update_maturity(self, updates: Dict[str, str]) -> None:
+        for cap_id, maturity in updates.items():
+            if cap_id not in self._by_id:
+                continue
+            capability = self._by_id[cap_id]
+            capability.maturity = maturity
+            raw = self._raw_entries.get(cap_id)
+            if raw is not None:
+                raw["maturity"] = maturity
+
+    def to_yaml(self, path: str | Path, header_comment: str | None = None) -> None:
+        data = [self._raw_entries[cap.id] for cap in self.list()]
+        output = ""
+        if header_comment:
+            output += header_comment.rstrip() + "\n"
+        output += yaml.safe_dump(data, allow_unicode=True, sort_keys=False)
+        Path(path).write_text(output, encoding="utf-8")
 
 
 def _read_yaml(path: Path) -> list[dict]:
@@ -77,6 +118,14 @@ def _deserialize_capability(entry: dict, source: Path) -> Capability:
     if not isinstance(seeds, list):
         raise ValueError(f"Campo seeds deve ser lista em {entry['id']}")
 
+    requirements = entry.get("requirements") or {}
+    if not isinstance(requirements, dict):
+        raise ValueError(f"Campo requirements deve ser objeto em {entry['id']}")
+
+    activation = entry.get("activation") or {}
+    if not isinstance(activation, dict):
+        raise ValueError(f"Campo activation deve ser objeto em {entry['id']}")
+
     metrics_normalized: Dict[str, Optional[float]] = {}
     for key, value in metrics.items():
         if value is None:
@@ -96,6 +145,8 @@ def _deserialize_capability(entry: dict, source: Path) -> Capability:
         maturity=str(entry["maturity"]),
         metrics=metrics_normalized,
         seeds=[str(seed) for seed in seeds],
+        requirements={str(k): str(v) for k, v in requirements.items()},
+        activation={str(k): str(v) for k, v in activation.items()},
     )
 
 

@@ -1,0 +1,16 @@
+- type: message
+  text: "Executando currículo de testes step 1 (pytest básico)."
+- type: command
+  command:
+    - bash
+    - -lc
+    - |
+      if [ ! -d ".venv" ]; then
+        echo "Ambiente .venv não encontrado" >&2
+        exit 1
+      fi
+      . .venv/bin/activate
+      pytest samples/core_tests_demo -q
+  cwd: "."
+- type: finish
+  summary: "Currículo testing step 1 executado."

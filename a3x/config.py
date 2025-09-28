@@ -21,7 +21,7 @@ class LLMConfig:
 
 @dataclass
 class WorkspaceConfig:
-    root: Path = Path('.')
+    root: Path = Path(".")
     allow_outside_root: bool = False
 
 
@@ -97,7 +97,11 @@ def load_config(path: str | Path) -> AgentConfig:
     script_value = llm_section.get("script")
     script_path = None
     if script_value is not None:
-        script_path = (base_dir / script_value).resolve() if not Path(script_value).is_absolute() else Path(script_value)
+        script_path = (
+            (base_dir / script_value).resolve()
+            if not Path(script_value).is_absolute()
+            else Path(script_value)
+        )
     llm = LLMConfig(
         type=str(llm_section.get("type", "manual")),
         model=llm_section.get("model"),
@@ -170,7 +174,12 @@ def load_config(path: str | Path) -> AgentConfig:
         seed_backlog=backlog_path,
         seed_config=seed_config_path,
         seed_interval=float(loop_section.get("seed_interval", 0.0)),
-        seed_max_runs=int(loop_section["seed_max_runs"]) if "seed_max_runs" in loop_section and loop_section["seed_max_runs"] is not None else None,
+        seed_max_runs=(
+            int(loop_section["seed_max_runs"])
+            if "seed_max_runs" in loop_section
+            and loop_section["seed_max_runs"] is not None
+            else None
+        ),
         stop_when_idle=bool(loop_section.get("stop_when_idle", True)),
     )
 

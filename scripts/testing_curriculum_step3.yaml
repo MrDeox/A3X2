@@ -1,0 +1,33 @@
+- type: message
+  text: "Currículo testing step 3: gerar testes negativos para função sub."
+- type: command
+  command:
+    - bash
+    - -lc
+    - |
+      python3 - <<'PY'
+      from pathlib import Path
+
+      test_path = Path("samples/core_tests_demo/test_demo.py")
+      snippet = """
+
+def test_sub_negative():
+    assert sub(-5, -3) == -2
+    assert sub(-1, 1) == -2
+"""
+      text = test_path.read_text(encoding="utf-8")
+      if "test_sub_negative" not in text:
+          text = text.rstrip("\n") + snippet
+          test_path.write_text(text + "\n", encoding="utf-8")
+      PY
+  cwd: ".."
+- type: command
+  command:
+    - bash
+    - -lc
+    - |
+      . .venv/bin/activate
+      pytest samples/core_tests_demo -q
+  cwd: ".."
+- type: finish
+  summary: "Currículo testing step 3 executado."

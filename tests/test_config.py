@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 import pytest
@@ -6,7 +5,9 @@ import pytest
 from a3x.config import load_config
 
 
-def test_load_openrouter_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_openrouter_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     config_path = tmp_path / "config.yaml"
     config_path.write_text(
         """

@@ -81,4 +81,3 @@ def _describe_observation(obs: Observation) -> str:
         err_excerpt = obs.error.strip().splitlines()[:2]
         details.append("ERR: " + " ".join(err_excerpt))
     return f"{prefix} ({', '.join(details)})" if details else prefix
-

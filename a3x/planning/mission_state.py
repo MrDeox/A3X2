@@ -78,7 +78,8 @@ class MissionTelemetry:
     def to_dict(self) -> Dict[str, object]:
         return {
             "metric_summaries": {
-                name: snapshot.to_dict() for name, snapshot in self.metric_summaries.items()
+                name: snapshot.to_dict()
+                for name, snapshot in self.metric_summaries.items()
             },
             "reflections": list(self.reflections),
             "discovered_gaps": list(self.discovered_gaps),
@@ -100,8 +101,12 @@ class Mission:
     capability_tags: List[str] = field(default_factory=list)
     milestones: List[MissionMilestone] = field(default_factory=list)
     telemetry: MissionTelemetry = field(default_factory=MissionTelemetry)
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    created_at: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
+    updated_at: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
 
     def touch(self) -> None:
         self.updated_at = datetime.now(timezone.utc).isoformat()
@@ -119,7 +124,8 @@ class Mission:
             "priority": self.priority,
             "success_criteria": list(self.success_criteria),
             "target_metrics": {
-                name: snapshot.to_dict() for name, snapshot in self.target_metrics.items()
+                name: snapshot.to_dict()
+                for name, snapshot in self.target_metrics.items()
             },
             "capability_tags": list(self.capability_tags),
             "milestones": [milestone.to_dict() for milestone in self.milestones],
@@ -134,7 +140,9 @@ class MissionState:
     """Persistent container for missions controlled by the multi-level planner."""
 
     missions: List[Mission] = field(default_factory=list)
-    generated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    generated_at: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
     version: str = "0.1"
 
     def add_mission(self, mission: Mission) -> None:

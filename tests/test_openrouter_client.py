@@ -64,7 +64,9 @@ def test_openrouter_client_parses_action(monkeypatch, agent_state) -> None:
     monkeypatch.setenv("OPENROUTER_API_KEY", "dummy")
     monkeypatch.setattr("httpx.Client", lambda timeout: dummy_client)
 
-    client = OpenRouterLLMClient(model="x-ai/grok-4-fast:free", base_url="https://example.com/api/v1")
+    client = OpenRouterLLMClient(
+        model="x-ai/grok-4-fast:free", base_url="https://example.com/api/v1"
+    )
     client.start("Teste")
 
     action = client.propose_action(agent_state)
@@ -76,15 +78,7 @@ def test_openrouter_client_parses_action(monkeypatch, agent_state) -> None:
 
 
 def test_openrouter_client_requires_json(monkeypatch, agent_state) -> None:
-    response_payload = {
-        "choices": [
-            {
-                "message": {
-                    "content": "not-json"
-                }
-            }
-        ]
-    }
+    response_payload = {"choices": [{"message": {"content": "not-json"}}]}
 
     dummy_client = DummyClient(response_payload)
     monkeypatch.setenv("OPENROUTER_API_KEY", "dummy")
@@ -97,14 +91,12 @@ def test_openrouter_client_requires_json(monkeypatch, agent_state) -> None:
         client.propose_action(agent_state)
 
 
-def test_openrouter_client_retries(monkeypatch, agent_state, monkeypatch_time_sleep) -> None:
+def test_openrouter_client_retries(
+    monkeypatch, agent_state, monkeypatch_time_sleep
+) -> None:
     response_payload = {
         "choices": [
-            {
-                "message": {
-                    "content": json.dumps({"type": "message", "text": "ok"})
-                }
-            }
+            {"message": {"content": json.dumps({"type": "message", "text": "ok"})}}
         ]
     }
 

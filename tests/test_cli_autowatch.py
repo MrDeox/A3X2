@@ -5,7 +5,9 @@ import pytest
 from a3x.cli import main as cli_main
 
 
-def test_cli_run_with_autowatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_run_with_autowatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # Prepare manual script and config
     ws = tmp_path / "ws"
     ws.mkdir()
@@ -71,25 +73,29 @@ limits:
     monkeypatch.chdir(tmp_path)
 
     # Run CLI com auto-watch apontando para backlog/config temporários
-    code = cli_main([
-        "run",
-        "--goal",
-        "noop",
-        "--config",
-        str(config),
-        "--auto-watch",
-        "--watch-backlog",
-        str(backlog),
-        "--watch-interval",
-        "0",
-        "--watch-max-runs",
-        "1",
-    ])
+    code = cli_main(
+        [
+            "run",
+            "--goal",
+            "noop",
+            "--config",
+            str(config),
+            "--auto-watch",
+            "--watch-backlog",
+            str(backlog),
+            "--watch-interval",
+            "0",
+            "--watch-max-runs",
+            "1",
+        ]
+    )
     assert code == 0
     assert (ws / "created.txt").exists()
 
 
-def test_cli_run_with_loop_autoseed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_run_with_loop_autoseed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     ws = tmp_path / "workspace"
     ws.mkdir()
 
@@ -162,13 +168,15 @@ loop:
 
     monkeypatch.chdir(tmp_path)
 
-    code = cli_main([
-        "run",
-        "--goal",
-        "noop",
-        "--config",
-        str(config),
-    ])
+    code = cli_main(
+        [
+            "run",
+            "--goal",
+            "noop",
+            "--config",
+            str(config),
+        ]
+    )
 
     assert code == 0
     assert (ws / "created.txt").exists()

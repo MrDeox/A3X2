@@ -10,6 +10,7 @@ from .mission_state import (
     MissionStatus,
     MissionTelemetry,
 )
+from .mission_planner import MissionPlanner
 
 __all__ = [
     "MissionState",
@@ -20,4 +21,5 @@ __all__ = [
     "MissionPriority",
     "MilestoneStatus",
     "MetricSnapshot",
+    "MissionPlanner",
 ]

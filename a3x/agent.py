@@ -38,8 +38,12 @@ class AgentOrchestrator:
         self.llm_client = llm_client
         self.executor = ActionExecutor(config)
         thresholds = PlannerThresholds(
-            apply_patch_success_rate=config.goals.get_threshold("apply_patch_success_rate", 0.8),
-            actions_success_rate=config.goals.get_threshold("actions_success_rate", 0.8),
+            apply_patch_success_rate=config.goals.get_threshold(
+                "apply_patch_success_rate", 0.8
+            ),
+            actions_success_rate=config.goals.get_threshold(
+                "actions_success_rate", 0.8
+            ),
             tests_success_rate=config.goals.get_threshold("tests_success_rate", 0.9),
         )
         self.auto_evaluator = auto_evaluator or AutoEvaluator(thresholds=thresholds)
@@ -76,7 +80,10 @@ class AgentOrchestrator:
                     errors.append("Limite de falhas excedido")
                     break
 
-            if action.type in {ActionType.APPLY_PATCH, ActionType.WRITE_FILE} and self.config.tests.auto:
+            if (
+                action.type in {ActionType.APPLY_PATCH, ActionType.WRITE_FILE}
+                and self.config.tests.auto
+            ):
                 self._run_auto_tests(history)
 
             if action.type is ActionType.FINISH:
@@ -132,7 +139,9 @@ class AgentOrchestrator:
             aggregated[f"{key}_avg"] = sum(values) / len(values)
         return aggregated
 
-    def _record_auto_evaluation(self, goal: str, result: AgentResult, started_at: float) -> None:
+    def _record_auto_evaluation(
+        self, goal: str, result: AgentResult, started_at: float
+    ) -> None:
         if not self.auto_evaluator:
             return
 
@@ -164,7 +173,10 @@ class AgentOrchestrator:
                     seed_type="analysis",
                 )
             )
-        if metrics.get("apply_patch_success_rate") is not None and metrics["apply_patch_success_rate"] < 1.0:
+        if (
+            metrics.get("apply_patch_success_rate") is not None
+            and metrics["apply_patch_success_rate"] < 1.0
+        ):
             seeds.append(
                 EvaluationSeed(
                     description="Investigar falhas ao aplicar patches e aprimorar heurísticas de edição.",
@@ -201,7 +213,9 @@ class AgentOrchestrator:
             capabilities=sorted(inferred_caps),
         )
 
-    def _analyze_history(self, result: AgentResult) -> tuple[Dict[str, float], Set[str]]:
+    def _analyze_history(
+        self, result: AgentResult
+    ) -> tuple[Dict[str, float], Set[str]]:
         events = result.history.events
         total_actions = len(events)
         success_actions = sum(1 for event in events if event.observation.success)
@@ -213,11 +227,17 @@ class AgentOrchestrator:
             metrics["actions_total"] = 0.0
             metrics["actions_success_rate"] = 0.0
 
-        apply_patch_events = [event for event in events if event.action.type is ActionType.APPLY_PATCH]
+        apply_patch_events = [
+            event for event in events if event.action.type is ActionType.APPLY_PATCH
+        ]
         if apply_patch_events:
-            success_count = sum(1 for event in apply_patch_events if event.observation.success)
+            success_count = sum(
+                1 for event in apply_patch_events if event.observation.success
+            )
             metrics["apply_patch_count"] = float(len(apply_patch_events))
-            metrics["apply_patch_success_rate"] = success_count / len(apply_patch_events)
+            metrics["apply_patch_success_rate"] = success_count / len(
+                apply_patch_events
+            )
         else:
             metrics["apply_patch_count"] = 0.0
 
@@ -253,7 +273,7 @@ class AgentOrchestrator:
             for event in events
             if event.action.type is ActionType.RUN_COMMAND
             and event.action.command
-            and "pytest" in event.action.command[0]
+            and any("pytest" in part for part in event.action.command)
         ]
         if test_runs:
             success = sum(1 for event in test_runs if event.observation.success)
@@ -267,7 +287,7 @@ class AgentOrchestrator:
             for event in events
             if event.action.type is ActionType.RUN_COMMAND
             and event.action.command
-            and any(cmd in event.action.command[0] for cmd in ("ruff", "black"))
+            and any(cmd in " ".join(event.action.command) for cmd in ("ruff", "black"))
         ]
         if lint_commands:
             success = sum(1 for event in lint_commands if event.observation.success)
@@ -291,7 +311,6 @@ def _infer_extension(action: AgentAction) -> str | None:
             path = match.group("path")
             return Path(path).suffix.lstrip(".") or None
     return None
-
 
     def _capture_llm_metrics(self) -> None:
         metrics = self.llm_client.get_last_metrics()

@@ -18,7 +18,9 @@ class PatchManager:
     def __init__(self, root: Path) -> None:
         self.root = root
         if not shutil.which("patch"):
-            raise PatchError("O utilitário 'patch' é necessário mas não foi encontrado no PATH")
+            raise PatchError(
+                "O utilitário 'patch' é necessário mas não foi encontrado no PATH"
+            )
 
     def apply(self, diff: str) -> tuple[bool, str]:
         """Aplica o diff e retorna (sucesso, saída combinada)."""
@@ -26,7 +28,9 @@ class PatchManager:
         if not diff.strip():
             return False, "Diff vazio, nenhuma alteração aplicada."
 
-        with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8", suffix=".diff") as tmp:
+        with tempfile.NamedTemporaryFile(
+            "w", delete=False, encoding="utf-8", suffix=".diff"
+        ) as tmp:
             tmp.write(diff)
             tmp_path = Path(tmp.name)
 
@@ -46,7 +50,9 @@ class PatchManager:
         finally:
             tmp_path.unlink(missing_ok=True)
 
-    def _run_patch(self, diff_path: Path, dry_run: bool, strip: int) -> subprocess.CompletedProcess[str]:
+    def _run_patch(
+        self, diff_path: Path, dry_run: bool, strip: int
+    ) -> subprocess.CompletedProcess[str]:
         args = [
             "patch",
             f"--strip={strip}",

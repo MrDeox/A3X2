@@ -9,6 +9,7 @@
 - [x] Criar planner leve que prioriza seeds com base em métricas/gaps.
 - [x] Registrar reflexão pós-run (report crítico) alimentando planner.
 - [x] Executar seeds automaticamente após runs sem intervenção manual.
+- [x] Atualizar missões SeedAI automaticamente com métricas agregadas.
 - [ ] Implementar metas declarativas (ex.: `apply_patch_success_rate >= 0.9`).
 
 ## Fase 3 – Ampliação

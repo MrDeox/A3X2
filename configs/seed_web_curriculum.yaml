@@ -1,0 +1,19 @@
+llm:
+  type: openrouter
+  model: x-ai/grok-4-fast:free
+  api_key: $OPENROUTER_API_KEY
+limits:
+  max_iterations: 10
+  command_timeout: 60
+  max_failures: 3
+tests:
+  auto: true
+  commands:
+    - pytest samples/web_demo -v
+    - ruff check samples/web_demo
+loop:
+  auto_seed: true
+  seed_backlog: seed/backlog.yaml
+  seed_config: configs/sample.yaml
+  seed_interval: 30
+  stop_when_idle: false

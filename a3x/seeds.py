@@ -98,6 +98,9 @@ class SeedBacklog:
     def list_pending(self) -> List[Seed]:
         return [seed for seed in self._seeds.values() if seed.status == "pending"]
 
+    def list_all_ids(self) -> List[str]:
+        return list(self._seeds.keys())
+
     def next_seed(self) -> Optional[Seed]:
         pending = self.list_pending()
         if not pending:
@@ -116,7 +119,9 @@ class SeedBacklog:
             eligible.append(seed)
         if not eligible:
             return None
-        eligible.sort(key=lambda seed: (seed.priority_rank, seed.metadata.get("created_at", "")))
+        eligible.sort(
+            key=lambda seed: (seed.priority_rank, seed.metadata.get("created_at", ""))
+        )
         return eligible[0]
 
     def update_seed(self, seed: Seed) -> None:
@@ -144,7 +149,9 @@ class SeedBacklog:
             next_time = datetime.now(timezone.utc) + timedelta(seconds=backoff_seconds)
             seed.next_run_at = next_time.isoformat()
             seed.status = "pending"
-            seed.mark_status("pending", notes=f"requeue after backoff {backoff_seconds}s")
+            seed.mark_status(
+                "pending", notes=f"requeue after backoff {backoff_seconds}s"
+            )
         self.save()
 
 

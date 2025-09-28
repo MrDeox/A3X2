@@ -1,0 +1,7 @@
+--- a/configs/doc.md
++++ b/configs/doc.md
+--- configs/doc.md
++++ configs/doc.md
+@@ -1,2 +1 @@
+ # Documento Seed
+-Linha adicionada pelo seed auto patch.

@@ -1,0 +1,29 @@
+- type: message
+  text: "Currículo diff step 2: transformar função add em AST (libcst)."
+- type: command
+  command:
+    - bash
+    - -lc
+    - |
+      python3 - <<'PY'
+      import libcst as cst
+      from pathlib import Path
+
+      class AddTransformer(cst.CSTTransformer):
+          def leave_FunctionDef(self, original_node: cst.FunctionDef, updated_node: cst.FunctionDef):
+              if original_node.name.value != "add":
+                  return updated_node
+              body = cst.parse_statement("""
+result = a + b
+return result
+""")
+              return updated_node.with_changes(body=cst.IndentedBlock([body]))
+
+      file_path = Path("samples/core_tests_demo/demo.py")
+      module = cst.parse_module(file_path.read_text(encoding="utf-8"))
+      new_module = module.visit(AddTransformer())
+      file_path.write_text(new_module.code, encoding="utf-8")
+      PY
+  cwd: ".."
+- type: finish
+  summary: "Currículo diff step 2 executado."

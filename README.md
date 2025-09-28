@@ -99,6 +99,12 @@ a3x seed run --config configs/seed_manual.yaml
 
 # Ou via módulo Python (útil para pipelines CI)
 python -m a3x.seed_runner --backlog seed/backlog.yaml --config configs/seed_manual.yaml
+
+# Loop autônomo (ex.: 2 ciclos com rotação definida em seed/goal_rotation.yaml)
+a3x autopilot --cycles 2 --goals seed/goal_rotation.yaml
+
+# Loop contínuo (script helper)
+nohup ./scripts/autonomous_loop.sh > seed_watch.log 2>&1 &
 ```
 
 As seeds vivem em `seed/backlog.yaml` com prioridade, configuração, status e histórico. Ao rodar, o seed runner marca o item como `in_progress`, executa o agente e atualiza para `completed`/`failed` com notas e timestamp, sustentando o ciclo de autoaprimoramento.
@@ -109,6 +115,10 @@ As seeds vivem em `seed/backlog.yaml` com prioridade, configuração, status e h
 - **Testes Adaptativos**: `tests/generated/test_metrics_growth.py` é recriado automaticamente para exigir evolução monotônica das métricas rastreadas.
 - **Relatórios**: `seed/reports/capability_report.md` resume uso de capacidades e melhores métricas.
 - **Capacidades**: `seed/capabilities.yaml` serve como grafo de habilidades com seeds e métricas desejadas.
+- **Memória Semântica**: `seed/memory/memory.jsonl` mantém resumos indexados dos runs; use `a3x memory search --query "texto"` para consultar.
+- **Missões**: `seed/missions.yaml` descreve objetivos multi-nível; milestones incompletas geram seeds `mission.*` automaticamente.
+- **Meta Capabilities**: entries `meta.*` em `seed/capabilities.yaml` disparam seeds de evolução quando requisitos de maturidade são atendidos (ex.: `meta.diffing.curriculum`).
+- Para habilitar embeddings locais, instale `sentence-transformers` (o modelo padrão `all-MiniLM-L6-v2` roda em CPU).
 
 ## Licença
 

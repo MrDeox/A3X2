@@ -26,7 +26,9 @@ def _metric_snapshot_from_dict(data: Dict[str, object]) -> MetricSnapshot:
     )
 
 
-def _metrics_from_dict(data: Dict[str, Dict[str, object]] | None) -> Dict[str, MetricSnapshot]:
+def _metrics_from_dict(
+    data: Dict[str, Dict[str, object]] | None,
+) -> Dict[str, MetricSnapshot]:
     metrics: Dict[str, MetricSnapshot] = {}
     if not data:
         return metrics
@@ -44,9 +46,11 @@ def _telemetry_from_dict(data: Dict[str, object] | None) -> MissionTelemetry:
         reflections=list(data.get("reflections", []) or []),
         discovered_gaps=list(data.get("discovered_gaps", []) or []),
         tools_required=list(data.get("tools_required", []) or []),
-        last_updated=str(data.get("last_updated"))
-        if data.get("last_updated")
-        else datetime.now(timezone.utc).isoformat(),
+        last_updated=(
+            str(data.get("last_updated"))
+            if data.get("last_updated")
+            else datetime.now(timezone.utc).isoformat()
+        ),
     )
     return telemetry
 
@@ -59,9 +63,11 @@ def _milestone_from_dict(data: Dict[str, object]) -> MissionMilestone:
         capability_tags=list(data.get("capability_tags", []) or []),
         dependencies=list(data.get("dependencies", []) or []),
         eta=str(data.get("eta")) if data.get("eta") is not None else None,
-        backlog_seed_id=str(data.get("backlog_seed_id"))
-        if data.get("backlog_seed_id") is not None
-        else None,
+        backlog_seed_id=(
+            str(data.get("backlog_seed_id"))
+            if data.get("backlog_seed_id") is not None
+            else None
+        ),
         metrics=_metrics_from_dict(data.get("metrics")),
         notes=str(data.get("notes")) if data.get("notes") is not None else None,
     )
@@ -107,11 +113,19 @@ def load_mission_state(path: str | Path) -> MissionState:
     payload = yaml.safe_load(path_obj.read_text(encoding="utf-8")) or {}
     missions_payload = payload.get("missions", []) if isinstance(payload, dict) else []
     state = MissionState(
-        missions=[_mission_from_dict(item) for item in missions_payload if isinstance(item, dict)],
-        generated_at=str(payload.get("generated_at"))
-        if isinstance(payload, dict) and payload.get("generated_at")
-        else datetime.now(timezone.utc).isoformat(),
-        version=str(payload.get("version", "0.1")) if isinstance(payload, dict) else "0.1",
+        missions=[
+            _mission_from_dict(item)
+            for item in missions_payload
+            if isinstance(item, dict)
+        ],
+        generated_at=(
+            str(payload.get("generated_at"))
+            if isinstance(payload, dict) and payload.get("generated_at")
+            else datetime.now(timezone.utc).isoformat()
+        ),
+        version=(
+            str(payload.get("version", "0.1")) if isinstance(payload, dict) else "0.1"
+        ),
     )
     return state
 
@@ -126,7 +140,9 @@ def save_mission_state(state: MissionState, path: str | Path) -> None:
     )
 
 
-def sync_mission_state(state: MissionState, missions: Iterable[Mission]) -> MissionState:
+def sync_mission_state(
+    state: MissionState, missions: Iterable[Mission]
+) -> MissionState:
     idx = {mission.id: mission for mission in state.missions}
     for mission in missions:
         idx[mission.id] = mission

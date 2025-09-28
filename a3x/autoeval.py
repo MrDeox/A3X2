@@ -10,8 +10,15 @@ from typing import Dict, List, Optional
 
 from .testgen import GrowthTestGenerator
 from .report import generate_capability_report
-from .seeds import SeedBacklog, Seed
+from .seeds import SeedBacklog
 from .planner import Planner, PlannerThresholds
+from .planning.mission_planner import MissionPlanner
+from .capabilities import CapabilityRegistry
+from .capability_metrics import compute_capability_metrics
+from .planning.storage import load_mission_state, save_mission_state
+from .memory.store import SemanticMemory
+from .memory.insights import build_insight_payload
+from .meta_capabilities import MetaCapabilityPlanner
 
 
 @dataclass
@@ -62,6 +69,9 @@ class AutoEvaluator:
             output_path=Path("tests/generated/test_metrics_growth.py"),
         )
         self.backlog_path = self.base_dir / "backlog.yaml"
+        self.capabilities_path = self.base_dir / "capabilities.yaml"
+        self.missions_path = self.base_dir / "missions.yaml"
+        self.memory_path = self.base_dir / "memory" / "memory.jsonl"
         self.thresholds = thresholds or PlannerThresholds()
 
     def record(
@@ -103,8 +113,18 @@ class AutoEvaluator:
         generate_capability_report(
             metrics_history=self.metrics_history_file,
         )
-        # Gera seeds automáticas se houver lacunas
-        self._maybe_generate_auto_seeds()
+        capability_metrics = compute_capability_metrics(self.log_file)
+        mission_state = (
+            load_mission_state(self.missions_path)
+            if self.missions_path.exists()
+            else None
+        )
+        registry = self._update_capability_metrics(capability_metrics)
+        self._update_missions(capability_metrics, mission_state)
+        # Gera seeds automáticas e meta-capabilities
+        self._maybe_generate_auto_seeds(capability_metrics, mission_state, registry)
+        # Armazena insight semântico
+        self._update_semantic_memory(evaluation, capability_metrics)
         # Atualiza painel simples
         self._write_run_status()
         # Registrar reflexão pós-run
@@ -230,11 +250,11 @@ class AutoEvaluator:
 
             lines: List[str] = ["# Run Reflection", ""]
             if last_eval:
-                status = "✅ concluído" if last_eval.get("completed") else "⚠️ não concluído"
-                lines.append(f"## Última Execução: {status}")
-                lines.append(
-                    f"- Objetivo: {last_eval.get('goal')}"
+                status = (
+                    "✅ concluído" if last_eval.get("completed") else "⚠️ não concluído"
                 )
+                lines.append(f"## Última Execução: {status}")
+                lines.append(f"- Objetivo: {last_eval.get('goal')}")
                 lines.append(
                     f"- Iterações: {last_eval.get('iterations')} | Falhas: {last_eval.get('failures')}"
                 )
@@ -268,9 +288,7 @@ class AutoEvaluator:
                     continue
                 last = values[-1]
                 status = "✅" if last >= threshold else "⚠️"
-                lines.append(
-                    f"- {status} {metric}: {last:.2f} (meta {threshold:.2f})"
-                )
+                lines.append(f"- {status} {metric}: {last:.2f} (meta {threshold:.2f})")
 
             reflection_path.write_text("\n".join(lines), encoding="utf-8")
         except Exception:
@@ -278,7 +296,12 @@ class AutoEvaluator:
 
     # Auto-seeds ---------------------------------------------------------------
 
-    def _maybe_generate_auto_seeds(self) -> None:
+    def _maybe_generate_auto_seeds(
+        self,
+        capability_metrics: Dict[str, Dict[str, float | int | None]],
+        mission_state,
+        registry: CapabilityRegistry | None,
+    ) -> None:
         history = self._read_metrics_history()
         if not history:
             return
@@ -299,9 +322,245 @@ class AutoEvaluator:
             manual_config_path=manual_config_path,
             tests_config_path=tests_config_path,
             lint_config_path=lint_config_path,
+            capability_metrics=capability_metrics,
         ):
             if not backlog.exists(seed.id):
                 backlog.add_seed(seed)
+
+        if mission_state:
+            mission_planner = MissionPlanner()
+            for seed in mission_planner.propose(
+                mission_state,
+                capability_metrics,
+                patch_config_path=patch_config_path,
+                manual_config_path=manual_config_path,
+                tests_config_path=tests_config_path,
+                lint_config_path=lint_config_path,
+            ):
+                if not backlog.exists(seed.id):
+                    backlog.add_seed(seed)
+
+        if registry:
+            config_map = {
+                "patch": patch_config_path,
+                "tests": tests_config_path,
+                "lint": lint_config_path,
+                "manual": manual_config_path,
+            }
+            meta_planner = MetaCapabilityPlanner(registry=registry)
+            existing_ids = backlog.list_all_ids()
+            for seed in meta_planner.propose(
+                capability_metrics,
+                backlog_existing=existing_ids,
+                config_map=config_map,
+            ):
+                if not backlog.exists(seed.id):
+                    backlog.add_seed(seed)
+
+    def _update_capability_metrics(
+        self, capability_metrics: Dict[str, Dict[str, float | int | None]]
+    ) -> CapabilityRegistry | None:
+        if not self.capabilities_path.exists() or not capability_metrics:
+            return None
+        registry = CapabilityRegistry.from_yaml(self.capabilities_path)
+        registry.update_metrics(capability_metrics)
+        maturity_updates = self._derive_maturity_updates(registry, capability_metrics)
+        if maturity_updates:
+            registry.update_maturity(maturity_updates)
+        header = None
+        try:
+            first_line = self.capabilities_path.read_text(
+                encoding="utf-8"
+            ).splitlines()[0]
+            if first_line.startswith("#"):
+                header = first_line
+        except Exception:
+            header = None
+        registry.to_yaml(self.capabilities_path, header_comment=header)
+        return registry
+
+    def _derive_maturity_updates(
+        self,
+        registry: CapabilityRegistry,
+        capability_metrics: Dict[str, Dict[str, float | int | None]],
+    ) -> Dict[str, str]:
+        updates: Dict[str, str] = {}
+
+        diff = capability_metrics.get("core.diffing", {})
+        success_rate = diff.get("success_rate")
+        if isinstance(success_rate, (int, float)):
+            if success_rate >= 0.95:
+                updates["core.diffing"] = "advanced"
+            elif success_rate >= 0.9:
+                updates["core.diffing"] = "established"
+            else:
+                updates["core.diffing"] = "baseline"
+
+        testing = capability_metrics.get("core.testing", {})
+        auto_rate = testing.get("auto_trigger_rate")
+        failures = testing.get("failures_detected")
+        if isinstance(auto_rate, (int, float)):
+            if auto_rate >= 0.85 and not failures:
+                updates["core.testing"] = "advanced"
+            elif auto_rate >= 0.7 and (not failures or failures == 0):
+                updates["core.testing"] = "established"
+            else:
+                updates["core.testing"] = "baseline"
+
+        python_cap = capability_metrics.get("horiz.python", {})
+        tasks_completed = python_cap.get("tasks_completed")
+        regression_rate = python_cap.get("regression_rate")
+        if isinstance(tasks_completed, (int, float)):
+            if tasks_completed >= 25 and (regression_rate in (0, 0.0, None)):
+                updates["horiz.python"] = "advanced"
+            elif tasks_completed >= 10 and (
+                regression_rate is None or regression_rate <= 0.05
+            ):
+                updates["horiz.python"] = "established"
+            else:
+                updates["horiz.python"] = "baseline"
+
+        docs_cap = capability_metrics.get("horiz.docs", {})
+        docs_generated = docs_cap.get("docs_generated")
+        if isinstance(docs_generated, (int, float)):
+            if docs_generated >= 20:
+                updates["horiz.docs"] = "advanced"
+            elif docs_generated >= 8:
+                updates["horiz.docs"] = "established"
+            else:
+                updates["horiz.docs"] = "baseline"
+
+        # preserve existing maturity when no change
+        final_updates: Dict[str, str] = {}
+        for cap_id, maturity in updates.items():
+            try:
+                current = registry.get(cap_id).maturity
+            except KeyError:
+                continue
+            if current != maturity:
+                final_updates[cap_id] = maturity
+        return final_updates
+
+    def _update_missions(
+        self,
+        capability_metrics: Dict[str, Dict[str, float | int | None]],
+        mission_state,
+    ) -> None:
+        if mission_state is None or not capability_metrics:
+            return
+        state = mission_state
+        changed = False
+
+        def resolve(metric_ref: str) -> float | None:
+            if not metric_ref:
+                return None
+            if "." in metric_ref:
+                capability, metric = metric_ref.rsplit(".", 1)
+            else:
+                capability, metric = metric_ref, ""
+            data = capability_metrics.get(capability)
+            if not data:
+                return None
+            if metric:
+                value = data.get(metric)
+            else:
+                value = None
+            if isinstance(value, (int, float)):
+                return float(value)
+            return None
+
+        for mission in state.missions:
+            # Atualiza métricas-alvo de missão
+            for metric_name, snapshot in mission.target_metrics.items():
+                value = resolve(metric_name)
+                if value is None:
+                    continue
+                if snapshot.current != value:
+                    snapshot.current = value
+                    changed = True
+                snapshot.samples = int(snapshot.samples or 0) + 1
+                snapshot.best = (
+                    value if snapshot.best is None else max(snapshot.best, value)
+                )
+
+            # Atualiza milestones
+            for milestone in mission.milestones:
+                all_met = True
+                some_progress = False
+                for metric_name, snapshot in milestone.metrics.items():
+                    value = resolve(metric_name)
+                    if value is None:
+                        all_met = False
+                        continue
+                    if snapshot.current != value:
+                        snapshot.current = value
+                        changed = True
+                    snapshot.samples = int(snapshot.samples or 0) + 1
+                    snapshot.best = (
+                        value if snapshot.best is None else max(snapshot.best, value)
+                    )
+                    target = snapshot.target
+                    if target is not None and value < target:
+                        all_met = False
+                    if value > 0:
+                        some_progress = True
+                prev_status = milestone.status
+                if all_met and milestone.metrics:
+                    milestone.status = "completed"
+                elif some_progress:
+                    milestone.status = "in_progress"
+                else:
+                    milestone.status = milestone.status or "planned"
+                if milestone.status != prev_status:
+                    changed = True
+
+            prev_status = mission.status
+            if mission.milestones and all(
+                m.status == "completed" for m in mission.milestones
+            ):
+                mission.status = "completed"
+            elif any(
+                m.status in {"in_progress", "completed"} for m in mission.milestones
+            ):
+                mission.status = "active"
+            else:
+                mission.status = mission.status or "draft"
+            if mission.status != prev_status:
+                changed = True
+
+            # Telemetria
+            metric_items = []
+            for name, snapshot in mission.target_metrics.items():
+                metric_items.append((name, snapshot))
+            mission.telemetry.merge_metrics(metric_items)
+
+        if changed:
+            save_mission_state(state, self.missions_path)
+
+    def _update_semantic_memory(
+        self,
+        evaluation: RunEvaluation,
+        capability_metrics: Dict[str, Dict[str, float | int | None]],
+    ) -> None:
+        try:
+            store = SemanticMemory(self.memory_path)
+            title, content, tags, metadata = build_insight_payload(
+                evaluation, capability_metrics
+            )
+            # Avoid duplicates by basic check (goal + timestamp)
+            key = {"goal": evaluation.goal, "timestamp": evaluation.timestamp}
+            if any(
+                entry.metadata.get("goal") == key["goal"]
+                and entry.metadata.get("timestamp") == key["timestamp"]
+                for entry in store.entries
+            ):
+                return
+            store.add(title, content, tags=tags, metadata=metadata)
+        except RuntimeError:
+            # sentence-transformers not installed; skip silently
+            return
+        except Exception:
+            return
 
 
 __all__ = [

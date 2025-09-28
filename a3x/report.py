@@ -46,7 +46,9 @@ def generate_capability_report(
 
     registry = CapabilityRegistry.from_yaml(capabilities_path)
     usage_map: Dict[str, CapabilityUsage] = {
-        cap.id: CapabilityUsage(capability_id=cap.id, name=cap.name, category=cap.category)
+        cap.id: CapabilityUsage(
+            capability_id=cap.id, name=cap.name, category=cap.category
+        )
         for cap in registry.list()
     }
 
@@ -69,7 +71,9 @@ def generate_capability_report(
                         usage.register(bool(record.get("completed")))
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    report = _render_report(usage_map.values(), evaluation_count, completed_count, metrics_summary)
+    report = _render_report(
+        usage_map.values(), evaluation_count, completed_count, metrics_summary
+    )
     output_path.write_text(report, encoding="utf-8")
 
 
@@ -97,7 +101,9 @@ def _render_report(
 ) -> str:
     lines = ["# SeedAI Capability Report"]
     lines.append("")
-    lines.append(f"Total evaluations: {evaluation_count} | Completed: {completed_count}")
+    lines.append(
+        f"Total evaluations: {evaluation_count} | Completed: {completed_count}"
+    )
     if evaluation_count:
         completion_rate = completed_count / evaluation_count
         lines.append(f"Overall completion rate: {completion_rate:.2%}")
@@ -137,4 +143,3 @@ def _render_report(
 
 
 __all__ = ["generate_capability_report"]
-

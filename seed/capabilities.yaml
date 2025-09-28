@@ -3,46 +3,84 @@
   name: Edição por diffs unificados
   category: vertical
   description: Aplicar patches gerados pelo LLM usando utilitário `patch` com dry-run.
-  maturity: baseline
+  maturity: established
   metrics:
-    success_rate: null
-    avg_iterations: null
+    success_rate: 0.25
+    avg_iterations: 3.5
+    runs: 12
+    completed_runs: 11
   seeds:
-    - Implementar fallback AST-aware para linguagens específicas.
-    - Monitorar taxa de conflitos ao aplicar patches.
-
+  - Implementar fallback AST-aware para linguagens específicas.
+  - Monitorar taxa de conflitos ao aplicar patches.
 - id: core.testing
   name: Execução de testes automatizados
   category: vertical
-  description: "Rodar comandos de teste (ex.: pytest) após modificações conforme configuração."
+  description: 'Rodar comandos de teste (ex.: pytest) após modificações conforme configuração.'
   maturity: baseline
   metrics:
-    auto_trigger_rate: null
-    failures_detected: null
+    auto_trigger_rate: 0.615
+    failures_detected: 4
+    runs: 13
+    completed_runs: 13
   seeds:
-    - Integrar coleta de cobertura de testes.
-    - Permitir configuração de prioridades por tipo de teste.
-
+  - Integrar coleta de cobertura de testes.
+  - Permitir configuração de prioridades por tipo de teste.
 - id: horiz.python
   name: Suporte a projetos Python
   category: horizontal
-  description: "Manipular arquivos Python, dependências PyPI e executar pytest/ruff/black."
+  description: Manipular arquivos Python, dependências PyPI e executar pytest/ruff/black.
   maturity: established
   metrics:
-    tasks_completed: null
-    regression_rate: null
+    tasks_completed: 16
+    regression_rate: 0.0
+    runs: 16
+    completed_runs: 16
   seeds:
-    - Expandir para frameworks (Flask, FastAPI) com blueprints dedicados.
-    - Adicionar verificação automática de requisitos (pip freeze).
-
+  - Expandir para frameworks (Flask, FastAPI) com blueprints dedicados.
+  - Adicionar verificação automática de requisitos (pip freeze).
 - id: horiz.docs
   name: Produção de documentação técnica
   category: horizontal
-  description: Gerar e atualizar documentação Markdown baseada em pesquisas ou diffs produzidos.
-  maturity: baseline
+  description: Gerar e atualizar documentação Markdown baseada em pesquisas ou diffs
+    produzidos.
+  maturity: advanced
   metrics:
-    docs_generated: null
+    docs_generated: 11
     human_feedback: null
+    runs: 12
+    completed_runs: 11
   seeds:
-    - Criar templates de relatórios de progresso.
-    - Medir clareza por meio de checklist automatizada.
+  - Criar templates de relatórios de progresso.
+  - Medir clareza por meio de checklist automatizada.
+- id: meta.diffing.curriculum
+  name: Currículo AST-aware
+  category: meta
+  description: Planejar e executar seeds para edição AST-aware após dominar diffs.
+  maturity: baseline
+  metrics: {}
+  seeds:
+  - Propor fallback AST-aware por linguagem prioritária.
+  requirements:
+    core.diffing: advanced
+  activation:
+    goal: Desenhar plano de fallback AST-aware
+    priority: high
+    type: mission
+    config: manual
+    max_steps: 6
+- id: meta.testing.hardening
+  name: Hardening de Testes
+  category: meta
+  description: Expandir cobertura automatizada e testes avançados quando core.testing
+    estiver maduro.
+  maturity: baseline
+  metrics: {}
+  seeds:
+  - Introduzir testes de carga ou propriedades.
+  requirements:
+    core.testing: established
+  activation:
+    goal: Expandir suíte de testes avançados
+    priority: medium
+    type: mission
+    config: tests

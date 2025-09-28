@@ -1,151 +1,32 @@
-- id: benchmark.diff_manifesto
-  goal: Atualize docs/seed_manifesto.md com uma seção curta sobre seeds automáticas.
+ - id: meta.prompt.advanced
+  goal: Evoluir prompt tuning com auto-geração de variações baseadas em memória e ROI
   priority: high
-  status: completed
-  type: benchmark_diff
-  config: configs/seed_patch.yaml
-  max_steps: 5
+  status: pending
+  type: meta
+  config: configs/sample.yaml
+  max_steps: 20
   metadata:
-    description: Exercício controlado para aplicar um diff real via script manual.
-    created_at: '2024-09-25 00:00:00+00:00'
-  history:
-  - status: in_progress
-    timestamp: '2025-09-26T19:01:10.300138+00:00'
-  - status: completed
-    timestamp: '2025-09-26T19:01:10.316305+00:00'
+    description: Usar reflection para gerar/testar prompts dinâmicos, otimizando para novos domínios.
+    phase: 4
+    created_at: '2025-09-28T23:00:00+00:00'
+  history: []
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-- id: benchmark.report_refresh
-  goal: Regenerar relatório SeedAI para testar ciclo seed-run.
-  priority: medium
-  status: completed
-  type: benchmark_report
-  config: configs/seed_manual.yaml
-  max_steps: 3
-  metadata:
-    description: Garante atualização de arquivos sem edição manual.
-    created_at: '2024-09-25 00:00:00+00:00'
-  history:
-  - status: in_progress
-    timestamp: '2025-09-26T17:03:14.839326+00:00'
-  - status: completed
-    timestamp: '2025-09-26T17:03:14.852450+00:00'
-  attempts: 0
-  max_attempts: 3
-  next_run_at: null
-  last_error: null
-- id: auto.benchmark.diff
-  goal: Atualize docs/seed_manifesto.md com uma seção curta sobre seeds automáticas.
+
+ - id: meta.selfmodify.v1
+  goal: Implementar self-modify controlado com diffs validados e auditoria ética
   priority: high
-  status: completed
-  type: benchmark_diff
-  config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
-  max_steps: 6
+  status: pending
+  type: meta
+  config: configs/sample.yaml
+  max_steps: 15
   metadata:
-    description: Seed auto-gerada para provocar um diff real
-    created_at: '2025-09-26T16:52:08.483461+00:00'
-  history:
-  - status: in_progress
-    timestamp: '2025-09-26T17:03:14.387392+00:00'
-  - status: completed
-    timestamp: '2025-09-26T17:03:14.836769+00:00'
-  attempts: 0
-  max_attempts: 3
-  next_run_at: null
-  last_error: null
-- id: auto.benchmark.report
-  goal: Regenerar relatório SeedAI para testar ciclo seed-run.
-  priority: medium
-  status: completed
-  type: benchmark_report
-  config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
-  max_steps: 3
-  metadata:
-    description: Seed auto-gerada para refresh de relatórios
-    created_at: '2025-09-26T16:52:08.484840+00:00'
-  history:
-  - status: in_progress
-    timestamp: '2025-09-26T17:05:45.092989+00:00'
-  - status: completed
-    timestamp: '2025-09-26T17:05:45.103794+00:00'
-  attempts: 0
-  max_attempts: 3
-  next_run_at: null
-  last_error: null
-- id: auto.patch.success
-  goal: Atualizar configs/doc.md adicionando uma linha final de validação
-  priority: high
-  status: completed
-  type: benchmark_diff
-  config: configs/seed_patch.yaml
-  max_steps: 5
-  metadata:
-    description: Seed para garantir patch com --strip fallback
-    created_at: '2025-09-26 17:10:00+00:00'
-  history:
-  - status: in_progress
-    timestamp: '2025-09-26T17:39:46.339408+00:00'
-  - status: completed
-    timestamp: '2025-09-26T17:39:46.354793+00:00'
-  attempts: 0
-  max_attempts: 3
-  next_run_at: null
-  last_error: null
-- id: auto.actions.recovery
-  goal: Verificar logs de seeds falhas e propor correção
-  priority: medium
-  status: completed
-  type: analysis
-  config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
-  max_steps: 4
-  metadata:
-    description: Seed diagnóstica quando actions_success_rate cai.
-    created_at: '2025-09-27T02:58:16.480133+00:00'
-  history:
-  - status: in_progress
-    timestamp: '2025-09-27T22:43:32.359199+00:00'
-  - status: completed
-    timestamp: '2025-09-27T22:43:32.381448+00:00'
-  attempts: 0
-  max_attempts: 3
-  next_run_at: null
-  last_error: null
-- id: auto.tests.run
-  goal: Executar suíte de testes Pytest para garantir integridade.
-  priority: high
-  status: completed
-  type: benchmark_tests
-  config: /home/arthur/Projetos/A3X/configs/seed_tests.yaml
-  max_steps: 6
-  metadata:
-    description: Seed auto-gerada para rodar pytest e diagnosticar falhas.
-    created_at: '2025-09-27T02:58:16.480137+00:00'
-  history:
-  - status: in_progress
-    timestamp: '2025-09-27T22:43:32.336253+00:00'
-  - status: completed
-    timestamp: '2025-09-27T22:43:32.355241+00:00'
-  attempts: 0
-  max_attempts: 3
-  next_run_at: null
-  last_error: null
-- id: auto.lint.run
-  goal: Executar lint (ruff/black) para garantir estilo consistente.
-  priority: medium
-  status: completed
-  type: benchmark_lint
-  config: /home/arthur/Projetos/A3X/configs/seed_lint.yaml
-  max_steps: 6
-  metadata:
-    description: Seed auto-gerada para rodar lint e corrigir estilo.
-    created_at: '2025-09-27T03:12:54.468172+00:00'
-  history:
-  - status: in_progress
-    timestamp: '2025-09-27T22:43:32.385801+00:00'
-  - status: completed
-    timestamp: '2025-09-27T22:43:32.523563+00:00'
+    description: Permitir agente editar próprio código via policies, com human approval para core.
+    phase: 4
+    created_at: '2025-09-28T23:00:00+00:00'
+  history: []
   attempts: 0
   max_attempts: 3
   next_run_at: null

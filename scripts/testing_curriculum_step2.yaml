@@ -1,0 +1,22 @@
+- type: message
+  text: "Currículo testing step 2: executar pytest com cobertura e salvar relatório."
+- type: command
+  command:
+    - bash
+    - -lc
+    - |
+      . .venv/bin/activate
+      pytest samples/core_tests_demo --cov=samples/core_tests_demo --cov-report xml
+  cwd: ".."
+- type: command
+  command:
+    - bash
+    - -lc
+    - |
+      mkdir -p seed/reports
+      if [ -f coverage.xml ]; then
+        mv coverage.xml seed/reports/coverage.xml
+      fi
+  cwd: ".."
+- type: finish
+  summary: "Currículo testing step 2 executado."

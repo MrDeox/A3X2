@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from .actions import ActionType, AgentAction, Observation
+from .actions import AgentAction, Observation
 from .config import AgentConfig
 from .patch import PatchManager, PatchError
 from .change_log import ChangeLogger
@@ -32,7 +32,9 @@ class ActionExecutor:
         handler_name = f"_handle_{action.type.name.lower()}"
         handler = getattr(self, handler_name, None)
         if handler is None:
-            return Observation(success=False, output="", error=f"Ação não suportada: {action.type}")
+            return Observation(
+                success=False, output="", error=f"Ação não suportada: {action.type}"
+            )
         return handler(action)
 
     # Handlers -----------------------------------------------------------------
@@ -45,10 +47,16 @@ class ActionExecutor:
 
     def _handle_read_file(self, action: AgentAction) -> Observation:
         if not action.path:
-            return Observation(success=False, error="Caminho não informado", type="read_file")
+            return Observation(
+                success=False, error="Caminho não informado", type="read_file"
+            )
         target = self._resolve_workspace_path(action.path)
         if not target.exists():
-            return Observation(success=False, error=f"Arquivo não encontrado: {target}", type="read_file")
+            return Observation(
+                success=False,
+                error=f"Arquivo não encontrado: {target}",
+                type="read_file",
+            )
         try:
             content = target.read_text(encoding="utf-8")
         except Exception as exc:  # pragma: no cover - leitura raramente falha
@@ -57,7 +65,9 @@ class ActionExecutor:
 
     def _handle_write_file(self, action: AgentAction) -> Observation:
         if not action.path:
-            return Observation(success=False, error="Caminho não informado", type="write_file")
+            return Observation(
+                success=False, error="Caminho não informado", type="write_file"
+            )
         target = self._resolve_workspace_path(action.path)
         target.parent.mkdir(parents=True, exist_ok=True)
         before = ""
@@ -71,7 +81,9 @@ class ActionExecutor:
         except Exception as exc:
             return Observation(success=False, error=str(exc), type="write_file")
         try:
-            self.change_logger.log_write(target, before, action.content or "", note="write_file")
+            self.change_logger.log_write(
+                target, before, action.content or "", note="write_file"
+            )
         except Exception:
             pass
         return Observation(success=True, output=f"Escrito {target}", type="write_file")
@@ -92,10 +104,16 @@ class ActionExecutor:
 
     def _handle_run_command(self, action: AgentAction) -> Observation:
         if not action.command:
-            return Observation(success=False, error="Comando não informado", type="run_command")
+            return Observation(
+                success=False, error="Comando não informado", type="run_command"
+            )
 
         if not self._command_allowed(action.command):
-            return Observation(success=False, error="Comando bloqueado por política", type="run_command")
+            return Observation(
+                success=False,
+                error="Comando bloqueado por política",
+                type="run_command",
+            )
 
         cwd = self._resolve_cwd(action.cwd)
         start = time.perf_counter()
@@ -131,7 +149,7 @@ class ActionExecutor:
             )
 
         duration = time.perf_counter() - start
-        output = (proc.stdout or "")
+        output = proc.stdout or ""
         error = proc.stderr or None
         success = proc.returncode == 0
         return Observation(
@@ -151,8 +169,16 @@ class ActionExecutor:
         return self.workspace_root
 
     def _resolve_workspace_path(self, path: str) -> Path:
-        candidate = (self.workspace_root / path).resolve() if not Path(path).is_absolute() else Path(path).resolve()
-        if not self.config.workspace.allow_outside_root and self.workspace_root not in candidate.parents and candidate != self.workspace_root:
+        candidate = (
+            (self.workspace_root / path).resolve()
+            if not Path(path).is_absolute()
+            else Path(path).resolve()
+        )
+        if (
+            not self.config.workspace.allow_outside_root
+            and self.workspace_root not in candidate.parents
+            and candidate != self.workspace_root
+        ):
             raise PermissionError(f"Acesso negado fora do workspace: {candidate}")
         return candidate
 

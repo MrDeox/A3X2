@@ -77,7 +77,8 @@ def test_auto_seeds_created(tmp_path: Path) -> None:
 
     # 2) patches executados mas taxa de sucesso baixa -> auto.patch.success
     (metrics_dir / "history.json").write_text(
-        '{"apply_patch_count": [0, 1], "apply_patch_success_rate": [0.0]}', encoding="utf-8"
+        '{"apply_patch_count": [0, 1], "apply_patch_success_rate": [0.0]}',
+        encoding="utf-8",
     )
     evaluator.record(
         goal="patch",

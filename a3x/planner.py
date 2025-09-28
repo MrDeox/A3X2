@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from .seeds import Seed
 
@@ -29,8 +29,14 @@ class Planner:
         manual_config_path: str,
         tests_config_path: str,
         lint_config_path: str,
+        capability_metrics: Optional[Dict[str, Dict[str, float | int | None]]] = None,
     ) -> List[Seed]:
         seeds: List[Seed] = []
+        capability_metrics = capability_metrics or {}
+
+        def latest(metric: str) -> Optional[float]:
+            values = history.get(metric, [])
+            return values[-1] if values else None
 
         def ensure_seed(id: str, seed: Seed) -> None:
             # Caller decides dedup with backlog; here we just list proposals
@@ -73,24 +79,38 @@ class Planner:
             ),
         )
 
-        ap_success = history.get("apply_patch_success_rate", [])
-        if apc and max(apc) > 0 and (not ap_success or ap_success[-1] < self.thresholds.apply_patch_success_rate):
-            ensure_seed(
-                "auto.patch.success",
-                Seed(
-                    id="auto.patch.success",
-                    goal="Atualizar configs/doc.md adicionando uma linha final de validação",
-                    priority="high",
-                    status="pending",
-                    type="benchmark_diff",
-                    config=patch_config_path,
-                    max_steps=5,
-                    metadata={
-                        "description": "Seed corretiva para garantir sucesso no apply_patch",
-                        "created_at": datetime.now(timezone.utc).isoformat(),
-                    },
-                ),
-            )
+        ap_success_last = latest("apply_patch_success_rate")
+        diff_metrics = capability_metrics.get("core.diffing", {})
+        diff_success_rate = diff_metrics.get("success_rate")
+        if apc and max(apc) > 0:
+            needs_patch_seed = False
+            if (
+                ap_success_last is None
+                or ap_success_last < self.thresholds.apply_patch_success_rate
+            ):
+                needs_patch_seed = True
+            if (
+                isinstance(diff_success_rate, (int, float))
+                and diff_success_rate < self.thresholds.apply_patch_success_rate
+            ):
+                needs_patch_seed = True
+            if needs_patch_seed:
+                ensure_seed(
+                    "auto.patch.success",
+                    Seed(
+                        id="auto.patch.success",
+                        goal="Atualizar configs/doc.md adicionando uma linha final de validação",
+                        priority="high",
+                        status="pending",
+                        type="benchmark_diff",
+                        config=patch_config_path,
+                        max_steps=5,
+                        metadata={
+                            "description": "Seed corretiva para garantir sucesso no apply_patch",
+                            "created_at": datetime.now(timezone.utc).isoformat(),
+                        },
+                    ),
+                )
 
         actions_rate = history.get("actions_success_rate", [])
         if actions_rate and actions_rate[-1] < self.thresholds.actions_success_rate:
@@ -113,7 +133,19 @@ class Planner:
 
         tests_rate = history.get("tests_success_rate", [])
         tests_count = history.get("tests_run_count", [])
-        if tests_count and max(tests_count) > 0 and (not tests_rate or tests_rate[-1] < self.thresholds.tests_success_rate):
+        testing_metrics = capability_metrics.get("core.testing", {})
+        tests_failures = testing_metrics.get("failures_detected")
+        needs_tests_seed = False
+        if tests_count and max(tests_count) > 0:
+            last_tests_rate = tests_rate[-1] if tests_rate else None
+            if (
+                last_tests_rate is None
+                or last_tests_rate < self.thresholds.tests_success_rate
+            ):
+                needs_tests_seed = True
+            if isinstance(tests_failures, (int, float)) and tests_failures > 0:
+                needs_tests_seed = True
+        if needs_tests_seed:
             ensure_seed(
                 "auto.tests.run",
                 Seed(
@@ -133,7 +165,11 @@ class Planner:
 
         lint_rate = history.get("lint_success_rate", [])
         lint_count = history.get("lint_run_count", [])
-        if lint_count and max(lint_count) > 0 and (not lint_rate or lint_rate[-1] < self.thresholds.lint_success_rate):
+        if (
+            lint_count
+            and max(lint_count) > 0
+            and (not lint_rate or lint_rate[-1] < self.thresholds.lint_success_rate)
+        ):
             ensure_seed(
                 "auto.lint.run",
                 Seed(

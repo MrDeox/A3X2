@@ -23,6 +23,9 @@ dev = [
   "ruff>=0.4",
   "black>=24.3"
 ]
+memory = [
+  "sentence-transformers>=2.2.0"
+]
 
 [project.scripts]
 a3x = "a3x.cli:main"
