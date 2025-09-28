@@ -6,6 +6,10 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
+import json
+import yaml
+from .llm import LLM
+
 from .seeds import Seed
 
 
@@ -17,9 +21,40 @@ class PlannerThresholds:
     lint_success_rate: float = 0.9
 
 
+@dataclass
+class PromptTemplate:
+    base: str = """Propose seeds to improve the A3X agent based on current metrics and history."""
+    low_rate: str = """The actions_success_rate is {rate:.2f}, which is below the target of 0.9. Prioritize seeds that enhance action selection, planning, and execution. Consider self-modification for tuning prompts in planner.py or agent.py to enable better recursion and reduce failures."""
+    examples: str = """Examples of high-ROI actions and seeds:
+
+High-ROI for low patch success:
+- id: auto.benchmark.diff
+  goal: "Apply a simple unified diff to update a documentation file."
+  priority: high
+  type: benchmark_diff
+  config: configs/scripts/seed_patch.yaml
+  max_steps: 5
+  metadata:
+    description: "Benchmark seed to practice and improve diff application success."
+
+For self-modify to tune planning:
+- id: meta.planner_tune
+  goal: "Enhance prompt templates in a3x/planner.py with chain-of-thought reasoning and examples for high-ROI action selection."
+  priority: high
+  type: refactor
+  config: configs/scripts/seed_patch.yaml
+  max_steps: 8
+  metadata:
+    description: "Refactor to dynamically refine prompts based on actions_success_rate for full recursion enablement."
+    target_files: ["a3x/planner.py"]
+"""
+
+
 class Planner:
     def __init__(self, *, thresholds: PlannerThresholds | None = None) -> None:
         self.thresholds = thresholds or PlannerThresholds()
+        self.llm = LLM()
+        self.prompts = PromptTemplate()
 
     def propose(
         self,
@@ -187,7 +222,49 @@ class Planner:
                 ),
             )
 
+        # Integrate dynamic metric feedback and enhanced prompts for low actions_rate
+        actions_rate = latest("actions_success_rate")
+        if actions_rate is not None and actions_rate < 0.9:
+            feedback = self.prompts.low_rate.format(rate=actions_rate)
+            prompt = f"""{self.prompts.base}
+
+{feedback}
+
+History summary: {json.dumps({k: v[-1] if isinstance(v, list) and v else None for k, v in history.items()}, indent=2) if history else 'No history available'}
+
+Capability metrics: {json.dumps(capability_metrics or {}, indent=2)}
+
+Use chain-of-thought reasoning step-by-step:
+1. Analyze gaps: Why is actions_success_rate low? (e.g., suboptimal action selection, lack of examples in prompts, insufficient planning for recursion).
+2. Reason about improvements: For self-modify, detail how to add CoT and examples to prompts in planner.py to boost ROI and enable full real recursion (depth >=5).
+3. Propose high-ROI seeds: Focus on benchmarks for practice, refactors for prompt tuning, ensuring they target the low rate directly.
+
+{self.prompts.examples}
+
+Available configs: patch={patch_config_path}, manual={manual_config_path}, tests={tests_config_path}, lint={lint_config_path}
+
+Output ONLY a valid YAML list of 1-3 new seeds. Each seed must include: id (unique), goal (in Portuguese), priority ('high'), type ('refactor' or 'benchmark_diff' etc.), config (one of the available), max_steps (5-8), metadata (dict with 'description' and 'created_at' optional)."""
+
+            try:
+                response = self.llm.chat(prompt)
+                parsed_seeds = yaml.safe_load(response)
+                if isinstance(parsed_seeds, list):
+                    for data in parsed_seeds:
+                        if isinstance(data, dict) and 'id' in data and 'goal' in data:
+                            data.setdefault('priority', 'high')
+                            data.setdefault('status', 'pending')
+                            data.setdefault('max_steps', 6)
+                            data.setdefault('config', manual_config_path)
+                            data.setdefault('metadata', {})
+                            data['metadata'].setdefault('description', 'LLM-optimized seed for actions_rate improvement')
+                            data['metadata'].setdefault('created_at', datetime.now(timezone.utc).isoformat())
+                            seeds.append(Seed(**data))
+            except Exception:
+                # Fallback to rule-based proposals if LLM fails
+                pass
+
         return seeds
+
 
 
 __all__ = ["Planner", "PlannerThresholds"]
