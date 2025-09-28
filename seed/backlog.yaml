@@ -233,3 +233,105 @@
   max_attempts: 3
   next_run_at: null
   last_error: null
+- id: core.diffing_ast_fallback
+  goal: Implementar fallback AST-aware em executor.py para elevar success_rate >0.8
+    em diffs
+  priority: high
+  status: completed
+  type: refactor
+  config: configs/seed_patch.yaml
+  max_steps: 8
+  metadata:
+    description: Implementar fallback usando módulo ast do Python para validação e
+      aplicação semântica de patches, melhorando taxa de sucesso em diffs.
+  history:
+  - status: in_progress
+    timestamp: '2025-09-28T17:31:19.714104+00:00'
+  - status: completed
+    timestamp: '2025-09-28T17:31:19.999161+00:00'
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
+- id: meta.auto_commit
+  goal: Adicionar auto-commit pós-aprovação em executor.py para reduzir simulação
+    em self-modify
+  priority: high
+  status: in_progress
+  type: enhancement
+  config: configs/seed_patch.yaml
+  max_steps: 5
+  metadata:
+    description: Habilitar commits reais no git após aprovação em ações self-modify
+      para reduzir dependência de simulação
+  history:
+  - status: in_progress
+    timestamp: '2025-09-28T17:39:00+00:00'
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
+- id: meta.meta.auto_commit
+  goal: Adicionar auto-commit pós-aprovação em executor.py para reduzir simulação
+    em self-modify
+  priority: high
+  status: completed
+  type: enhancement
+  config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
+  max_steps: 5
+  metadata:
+    meta_capability: meta.auto_commit
+    description: Habilitar commits reais no git após aprovação do usuário e sucesso
+      em pytest para ações self-modify, reduzindo dependência de simulação.
+    created_at: '2025-09-28T17:40:42.709059+00:00'
+  history:
+  - status: in_progress
+    timestamp: '2025-09-28T17:40:48.423517+00:00'
+  - status: completed
+    timestamp: '2025-09-28T17:40:48.711388+00:00'
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
+- id: meta.curriculum_thresholds
+  goal: Atualizar thresholds no curriculum para success_rate >0.9 e recursion_depth
+    >=5
+  priority: medium
+  status: completed
+  type: config
+  config: configs/manual.yaml
+  max_steps: 3
+  metadata:
+    description: Atualizar thresholds de sucesso no currículo de autoaperfeiçoamento
+      para exigir >0.9 em métricas chave e adicionar recursion_depth >=5.
+    created_at: '2025-09-28T17:47:39.261Z'
+  history:
+  - status: in_progress
+    timestamp: '2025-09-28T17:48:03.051268+00:00'
+  - status: completed
+    timestamp: '2025-09-28T17:48:03.347456+00:00'
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
+- id: meta.meta.curriculum
+  goal: Validate new curriculum thresholds in self-improvement runs
+  priority: medium
+  status: completed
+  type: config
+  config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
+  max_steps: 3
+  metadata:
+    meta_capability: meta.curriculum
+    description: Updated self-improvement curriculum thresholds to enforce success_rate
+      >0.9 for key metrics and recursion_depth >=5 for advanced recursion.
+    created_at: '2025-09-28T17:49:12.003873+00:00'
+  history:
+  - status: in_progress
+    timestamp: '2025-09-28T17:49:17.382442+00:00'
+  - status: completed
+    timestamp: '2025-09-28T17:49:17.674702+00:00'
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null

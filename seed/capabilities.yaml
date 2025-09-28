@@ -3,7 +3,7 @@
   name: Edição por diffs unificados
   category: vertical
   description: Aplicar patches gerados pelo LLM usando utilitário `patch` com dry-run.
-  maturity: established
+  maturity: advanced
   metrics:
     success_rate: 0.25
     avg_iterations: 3.5
@@ -115,3 +115,47 @@
   seeds:
   - Implementar monitoramento de taxa de fallback em métricas de run.
   - Expandir para outros modelos locais se necessário.
+- id: meta.auto_commit
+  name: Auto-Commit Pós-Aprovação em Self-Modify
+  category: meta
+  description: Habilitar commits reais no git após aprovação do usuário e sucesso
+    em pytest para ações self-modify, reduzindo dependência de simulação.
+  maturity: baseline
+  metrics:
+    success_rate: 0.95
+    runs: 0
+    completed_runs: 0
+  seeds:
+  - Integrar métricas de taxa de auto-commits em relatórios de run.
+  requirements:
+    meta.self_modification: baseline
+  activation:
+    goal: Adicionar auto-commit pós-aprovação em executor.py para reduzir simulação
+      em self-modify
+    priority: high
+    type: enhancement
+    config: seed_patch.yaml
+    max_steps: 5
+- id: meta.curriculum
+  name: Curriculum Thresholds Enhancement
+  category: meta
+  description: Updated self-improvement curriculum thresholds to enforce success_rate
+    >0.9 for key metrics and recursion_depth >=5 for advanced recursion.
+  maturity: advanced
+  metrics:
+    actions_success_rate: 0.95
+    apply_patch_success_rate: 0.95
+    self_patch_success_rate: 0.95
+    recursion_depth: 5
+    runs: 0
+    completed_runs: 0
+  seeds:
+  - Monitor and validate curriculum progression in autoeval reports.
+  requirements:
+    meta.self_modification: baseline
+  activation:
+    goal: Validate new curriculum thresholds in self-improvement runs
+    priority: medium
+    type: config
+    config: seed_self_improvement_curriculum.yaml
+    max_steps: 3

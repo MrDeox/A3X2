@@ -249,6 +249,7 @@ class AutoEvaluator:
             reflection_path.parent.mkdir(parents=True, exist_ok=True)
 
             lines: List[str] = ["# Run Reflection", ""]
+
             if last_eval:
                 status = (
                     "✅ concluído" if last_eval.get("completed") else "⚠️ não concluído"
@@ -290,10 +291,42 @@ class AutoEvaluator:
                 status = "✅" if last >= threshold else "⚠️"
                 lines.append(f"- {status} {metric}: {last:.2f} (meta {threshold:.2f})")
 
+            # Curriculum thresholds validation
+            curriculum_thresholds = {
+                "actions_success_rate": 0.95,
+                "apply_patch_success_rate": 0.95,
+                "recursion_depth": 5.0,
+            }
+            validation_status = self._validate_curriculum_thresholds(history)
+            lines.append("")
+            lines.append("## Validação de Curriculum Thresholds")
+            lines.append(f"- Status Geral: {'✅ Passou' if validation_status else '❌ Falhou'}")
+            for metric, target in curriculum_thresholds.items():
+                values = history.get(metric, [])
+                if values:
+                    last = values[-1]
+                    status = "✅" if (metric != "recursion_depth" and last >= target) or (metric == "recursion_depth" and last >= target) else "⚠️"
+                    lines.append(f"- {status} {metric}: {last} (alvo {target})")
+
             reflection_path.write_text("\n".join(lines), encoding="utf-8")
         except Exception:
             pass
 
+    def _validate_curriculum_thresholds(self, history: Dict[str, List[float]]) -> bool:
+        """Validate post-run metrics against curriculum thresholds."""
+        thresholds = {
+            "actions_success_rate": 0.95,
+            "apply_patch_success_rate": 0.95,
+        }
+        for metric, target in thresholds.items():
+            values = history.get(metric, [])
+            if values and values[-1] < target:
+                return False
+        # Check recursion_depth >=5
+        recursion_values = history.get("recursion_depth", [])
+        if recursion_values and recursion_values[-1] < 5:
+            return False
+        return True
     # Auto-seeds ---------------------------------------------------------------
 
     def _maybe_generate_auto_seeds(

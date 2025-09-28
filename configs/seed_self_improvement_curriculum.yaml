@@ -1,0 +1,143 @@
+# Currículo de Autoaperfeiçoamento para SeedAI no A3X
+# Este arquivo define um currículo de seeds focado em evolução vertical (eficiência em loops existentes) e horizontal (novas capacidades como auto-modificação e integração de LLM local).
+# Baseado no roadmap_agi.md e capabilities.yaml, com ativação meta-recursiva.
+# Uso: a3x seed run --config configs/seed_self_improvement_curriculum.yaml
+
+version: 1.0
+name: Self-Improvement Curriculum towards SeedAI
+description: |
+  Plano iterativo para aproximar o A3X de uma SeedAI com autoaperfeiçoamento recursivo controlado.
+  Fases sequenciais: Vertical (otimizar loops atuais), Horizontal (expandir domínios), Meta (auto-geração de seeds para modificação do agente).
+  Cada fase gera métricas e novas seeds para retroalimentação.
+
+phases:
+  - id: vertical_efficiency
+    name: Eficiência Vertical em Loops
+    description: Melhorar performance em tarefas existentes (reduzir iterações, aumentar taxa de sucesso).
+    prerequisites:
+      - core.diffing: established
+      - core.testing: baseline
+    goals:
+      - Reduzir avg_iterations para < 3.0 em tarefas de codificação Python.
+      - Aumentar actions_success_rate para > 0.95.
+      - Aumentar apply_patch_success_rate para > 0.95.
+    seeds:
+      - id: vertical.loop_optimization
+        description: Otimizar o loop em a3x/agent.py para truncar histórico mais inteligentemente e priorizar ações de alto ROI.
+        priority: high
+        type: refactor
+        target_files:
+          - a3x/agent.py
+        metrics_target:
+          avg_iterations: 2.5
+          actions_success_rate: 0.95
+          apply_patch_success_rate: 0.95
+      - id: vertical.evaluation_enhance
+        description: Aprimorar _analyze_history em agent.py para incluir métricas de custo de tokens e tempo por iteração.
+        priority: medium
+        type: enhancement
+        target_files:
+          - a3x/agent.py
+        metrics_target:
+          llm_token_cost_avg: "< 500"
+    activation:
+      type: mission
+      config: sample.yaml
+      max_steps: 8
+
+  - id: horizontal_expansion
+    name: Expansão Horizontal de Capacidades
+    description: Adicionar suporte a auto-modificação e LLM local para reduzir dependência externa.
+    prerequisites:
+      - vertical_efficiency: completed
+      - horiz.python: established
+    goals:
+      - Implementar capability para o agente modificar seu próprio código via seeds auto-geradas.
+      - Integrar LLM local (ex.: via Ollama) como fallback para loops autônomos.
+    seeds:
+      - id: horizontal.self_modification
+        description: Adicionar ActionType.SELF_MODIFY em actions.py e lógica em agent.py para aplicar patches ao próprio codebase (com safeguards como dry-run e aprovação humana).
+        priority: high
+        type: new_feature
+        target_files:
+          - a3x/actions.py
+          - a3x/agent.py
+          - a3x/executor.py
+        safeguards:
+          - Sempre requer --dry-run para self-patches.
+          - Limitar a arquivos em a3x/ e configs/.
+        metrics_target:
+          self_patch_success_rate: 0.95
+          apply_patch_success_rate: 0.95
+      - id: horizontal.local_llm
+        description: Integrar cliente LLM local (Ollama com modelo como Llama 3) em a3x/llm.py, com fallback para OpenRouter.
+        priority: high
+        type: integration
+        target_files:
+          - a3x/llm.py
+          - configs/sample.yaml  # Adicionar opção local_model
+        dependencies:
+          - pip install ollama
+        metrics_target:
+          local_execution_rate: "> 0.5"
+          token_cost_reduction: "50%"
+    activation:
+      type: mission
+      config: seed_manual.yaml
+      max_steps: 12
+
+  - id: meta_recursion
+    name: Meta-Autoaperfeiçoamento Recursivo
+    description: Habilitar geração e aplicação automática de seeds para evolução do agente, simulando explosão de inteligência controlada.
+    prerequisites:
+      - horizontal_expansion: completed
+    goals:
+      - Seeds que analisam memória e métricas para gerar novas seeds meta-recursivas.
+      - Loop autônomo que ativa self-modification baseado em gaps identificados.
+    seeds:
+      - id: meta.seed_generator
+        description: Expandir auto_evaluator para gerar EvaluationSeed's que se auto-aplicam via self-modification, focando em gaps de capabilities.yaml.
+        priority: high
+        type: enhancement
+        target_files:
+          - a3x/autoeval.py
+          - a3x/agent.py  # Integrar em _record_auto_evaluation
+        example_output: Nova seed em seed/backlog.yaml para "Implementar capability X baseada em métrica Y baixa".
+        metrics_target:
+          seed_generation_rate: "> 1 por run"
+          recursion_depth: 5  # Máximo para evitar loops infinitos
+      - id: meta.alignment_safeguards
+        description: "Adicionar verificações de alinhamento em agent.py (ex.: scan por mudanças em arquivos sensíveis, métricas de drift ético)."
+        priority: critical
+        type: safety
+        target_files:
+          - a3x/agent.py
+          - a3x/config.py  # Políticas de alinhamento em YAML
+        safeguards:
+          - Human approval para qualquer self-modify em core files.
+          - Métricas de "value alignment" via prompts éticos.
+    activation:
+      type: autopilot
+      config: goal_rotation.yaml
+      cycles: 5
+      max_recursion: 5  # Limitar para controle
+
+evaluation:
+  metrics:
+    - success_rate: "> 0.95"
+    - avg_iterations: "< 4"
+    - new_capabilities_added: "> 2 por fase"
+    - safety_violations: 0
+    - recursion_depth: ">= 5"
+  thresholds:
+    vertical: 0.95
+    horizontal: 0.95
+    meta: 0.95
+  post_phase:
+    - Atualizar seed/capabilities.yaml com novas entries.
+    - Gerar relatório em seed/reports/self_improvement.md.
+    - Adicionar seeds derivadas para próxima iteração.
+
+roadmap_integration:
+  aligns_with: roadmap_agi.md phases 1-4
+  next_steps: Após esta fase, ativar phase 5 (Auto-Planejamento Estratégico) com goal generation.
