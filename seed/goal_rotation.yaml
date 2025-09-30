@@ -10,3 +10,6 @@
 - goal: "Currículo testing step 1"
   config: configs/seed_testing_curriculum.yaml
   max_steps: 6
+- goal: "Self-modify: Optimize loop in agent.py for efficiency"
+  config: configs/manual.yaml
+  max_steps: 20

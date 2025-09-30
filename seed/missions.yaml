@@ -3,16 +3,16 @@ generated_at: '2025-09-27T23:07:14.568540+00:00'
 missions:
 - id: core-diffing-growth
   vision: "Garantir edi\xE7\xE3o por patches com sucesso consistente"
-  status: completed
+  status: active
   priority: high
   success_criteria:
   - Manter success_rate >= 0.95 por 5 runs consecutivos
   target_metrics:
     core.diffing.success_rate:
-      current: 0.956
+      current: 0.945
       target: 0.95
-      best: 0.956
-      samples: 205
+      best: 0.957
+      samples: 215
   capability_tags:
   - core.diffing
   milestones:
@@ -26,14 +26,14 @@ missions:
     backlog_seed_id: null
     metrics:
       core.diffing.success_rate:
-        current: 0.956
+        current: 0.945
         target: 0.9
-        best: 0.956
-        samples: 205
+        best: 0.957
+        samples: 215
     notes: ''
   - id: diff-advanced
     goal: Sustentar success_rate >= 0.95
-    status: completed
+    status: in_progress
     capability_tags:
     - core.diffing
     dependencies:
@@ -42,22 +42,22 @@ missions:
     backlog_seed_id: null
     metrics:
       core.diffing.success_rate:
-        current: 0.956
+        current: 0.945
         target: 0.95
-        best: 0.956
-        samples: 205
+        best: 0.957
+        samples: 215
     notes: ''
   telemetry:
     metric_summaries:
       core.diffing.success_rate:
-        current: 0.956
+        current: 0.945
         target: 0.95
-        best: 0.956
-        samples: 205
+        best: 0.957
+        samples: 215
     reflections: []
     discovered_gaps: []
     tools_required: []
-    last_updated: '2025-09-28T18:04:53.012264+00:00'
+    last_updated: '2025-09-28T20:05:01.928170+00:00'
   created_at: '2025-09-27T23:07:14.568502+00:00'
   updated_at: '2025-09-27T23:07:14.568508+00:00'
 - id: core-testing-growth
@@ -71,7 +71,7 @@ missions:
       current: 0.688
       target: 0.85
       best: 0.688
-      samples: 205
+      samples: 215
   capability_tags:
   - core.testing
   milestones:
@@ -88,7 +88,7 @@ missions:
         current: 0.688
         target: 0.7
         best: 0.688
-        samples: 205
+        samples: 215
     notes: ''
   - id: tests-zero-fail
     goal: Eliminar falhas detectadas em testes automatizados
@@ -104,7 +104,7 @@ missions:
         current: 7.0
         target: 0.0
         best: 7.0
-        samples: 205
+        samples: 215
     notes: ''
   telemetry:
     metric_summaries:
@@ -112,10 +112,10 @@ missions:
         current: 0.688
         target: 0.85
         best: 0.688
-        samples: 205
+        samples: 215
     reflections: []
     discovered_gaps: []
     tools_required: []
-    last_updated: '2025-09-28T18:04:53.012287+00:00'
+    last_updated: '2025-09-28T20:05:01.928189+00:00'
   created_at: '2025-09-27T23:07:14.568528+00:00'
   updated_at: '2025-09-27T23:07:14.568529+00:00'

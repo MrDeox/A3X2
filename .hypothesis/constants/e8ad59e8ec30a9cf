@@ -1,0 +1,4 @@
+# file: /home/arthur/Projetos/A3X/a3x/llm.py
+# hypothesis_version: 6.140.2
+
+[0.0, 0.1, 1.0, 2.0, 60.0, 500.0, 400, 429, 500, '/', 'A3X Agent', 'Authorization', 'Content-Type', 'OPENROUTER_API_KEY', 'X-Title', 'application/json', 'apply_patch', 'assistant', 'choices', 'command', 'content', 'cwd', 'diff', 'finish', 'json_object', 'llama3', 'llm_fallback_used', 'llm_latency', 'llm_retries', 'llm_status_code', 'manual', 'message', 'messages', 'model', 'ollama_error', 'ollama_latency', 'openrouter', 'patch', 'path', 'r', 'read_file', 'response_format', 'role', 'run_command', 'summary', 'system', 'temperature', 'text', 'type', 'user', 'utf-8', 'write_file']

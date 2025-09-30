@@ -1,0 +1,4 @@
+# file: /home/arthur/Projetos/A3X/a3x/executor.py
+# hypothesis_version: 6.140.2
+
+['+.*sudo', '-.*_is_safe_command', '-m', '-q', '.diff', '.py', '.py.bak', '/bin/sh', '/tmp/a3x_sandbox/', '1', 'Diff vazio', 'HOME', 'LD_LIBRARY_PATH', 'LD_PRELOAD', 'NO_NETWORK', 'PATH', 'SHELL', '^--- a/(.+\\.py)$', 'a3x', 'a3x/agent.py', 'a3x/executor.py', 'add', 'apply_patch', 'commit', 'configs', 'curl', 'curl.*|wget.*http', 'dd if=', 'finish', 'git', 'http', 'message', 'mkfs', 'mount', 'pytest', 'read_file', 'rm -rf', 'run_command', 'seed/archive', 'seed/changes', 'self_modify', 'su', 'sudo', 'tests/', 'umount', 'utf-8', 'wget', 'write_file', 'y']

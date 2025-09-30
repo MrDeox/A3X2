@@ -74,17 +74,23 @@ def _milestone_from_dict(data: Dict[str, object]) -> MissionMilestone:
     return milestone
 
 
-def _mission_from_dict(data: Dict[str, object]) -> Mission:
-    created_at = (
-        str(data.get("created_at"))
-        if data.get("created_at") is not None
-        else datetime.now(timezone.utc).isoformat()
-    )
-    updated_at = (
-        str(data.get("updated_at"))
-        if data.get("updated_at") is not None
-        else datetime.now(timezone.utc).isoformat()
-    )
+def _mission_from_dict(data: Dict[str, object]) -> Mission | None:
+    try:
+        created_at = (
+            str(data.get("created_at"))
+            if data.get("created_at") is not None
+            else datetime.now(timezone.utc).isoformat()
+        )
+        updated_at = (
+            str(data.get("updated_at"))
+            if data.get("updated_at") is not None
+            else datetime.now(timezone.utc).isoformat()
+        )
+        datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+        datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+
     mission = Mission(
         id=str(data["id"]),
         vision=str(data.get("vision", "")),
@@ -112,12 +118,13 @@ def load_mission_state(path: str | Path) -> MissionState:
         return MissionState()
     payload = yaml.safe_load(path_obj.read_text(encoding="utf-8")) or {}
     missions_payload = payload.get("missions", []) if isinstance(payload, dict) else []
+    missions = [
+        mission
+        for item in missions_payload
+        if isinstance(item, dict) and (mission := _mission_from_dict(item)) is not None
+    ]
     state = MissionState(
-        missions=[
-            _mission_from_dict(item)
-            for item in missions_payload
-            if isinstance(item, dict)
-        ],
+        missions=missions,
         generated_at=(
             str(payload.get("generated_at"))
             if isinstance(payload, dict) and payload.get("generated_at")

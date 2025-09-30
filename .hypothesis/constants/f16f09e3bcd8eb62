@@ -1,0 +1,4 @@
+# file: /home/arthur/Projetos/A3X/a3x/planning/mission_state.py
+# hypothesis_version: 6.140.2
+
+['0.1', 'MetricSnapshot', 'MilestoneStatus', 'Mission', 'MissionMilestone', 'MissionPriority', 'MissionState', 'MissionStatus', 'MissionTelemetry', 'active', 'backlog_seed_id', 'best', 'blocked', 'capability_tags', 'completed', 'created_at', 'current', 'dependencies', 'discovered_gaps', 'draft', 'eta', 'generated_at', 'goal', 'high', 'id', 'in_progress', 'last_updated', 'low', 'medium', 'metric_summaries', 'metrics', 'milestones', 'missions', 'moonshot', 'notes', 'paused', 'planned', 'priority', 'reflections', 'samples', 'status', 'success_criteria', 'target', 'target_metrics', 'telemetry', 'tools_required', 'updated_at', 'version', 'vision']

@@ -34,7 +34,7 @@ class LimitsConfig:
 
 
 @dataclass
-class TestsConfig:
+class TestSettings:
     auto: bool = False
     commands: List[List[str]] = field(default_factory=list)
 
@@ -77,7 +77,7 @@ class AgentConfig:
     llm: LLMConfig
     workspace: WorkspaceConfig
     limits: LimitsConfig
-    tests: TestsConfig
+    tests: TestSettings
     policies: PoliciesConfig
     goals: GoalsConfig
     loop: LoopConfig
@@ -137,7 +137,7 @@ def load_config(path: str | Path) -> AgentConfig:
             commands.append([str(part) for part in entry])
         elif isinstance(entry, str):
             commands.append(entry.split())
-    tests = TestsConfig(
+    tests = TestSettings(
         auto=bool(tests_section.get("auto", False)),
         commands=commands,
     )

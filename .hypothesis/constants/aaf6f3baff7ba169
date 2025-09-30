@@ -1,0 +1,4 @@
+# file: /home/arthur/Projetos/A3X/a3x/patch.py
+# hypothesis_version: 6.140.2
+
+['--batch', '--dry-run', '--forward', '--input', '.diff', 'patch', 'utf-8', 'w']

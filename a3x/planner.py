@@ -8,7 +8,7 @@ from typing import Dict, List, Optional
 
 import json
 import yaml
-from .llm import LLM
+from .llm import OpenRouterLLMClient
 
 from .seeds import Seed
 
@@ -53,7 +53,7 @@ For self-modify to tune planning:
 class Planner:
     def __init__(self, *, thresholds: PlannerThresholds | None = None) -> None:
         self.thresholds = thresholds or PlannerThresholds()
-        self.llm = LLM()
+        self.llm = OpenRouterLLMClient(model="x-ai/grok-4-fast:free")
         self.prompts = PromptTemplate()
 
     def propose(
@@ -235,11 +235,22 @@ History summary: {json.dumps({k: v[-1] if isinstance(v, list) and v else None fo
 Capability metrics: {json.dumps(capability_metrics or {}, indent=2)}
 
 Use chain-of-thought reasoning step-by-step:
-1. Analyze gaps: Why is actions_success_rate low? (e.g., suboptimal action selection, lack of examples in prompts, insufficient planning for recursion).
-2. Reason about improvements: For self-modify, detail how to add CoT and examples to prompts in planner.py to boost ROI and enable full real recursion (depth >=5).
-3. Propose high-ROI seeds: Focus on benchmarks for practice, refactors for prompt tuning, ensuring they target the low rate directly.
+1. Analyze gaps: Why is actions_success_rate low? (e.g., suboptimal action selection, lack of examples in prompts, insufficient planning for recursion). Consider recent failures in executor.py like patch applications or command executions.
+2. Reason about improvements: For self-modify, detail how to add CoT and examples to prompts in planner.py to boost ROI and enable full real recursion (depth >=5). Also, suggest fixes for executor.py to improve patch success via better AST handling or simplified auto-commit logic.
+3. Propose high-ROI seeds: Focus on benchmarks for practice (e.g., simple file writes/patches), refactors for prompt tuning in planner.py, and targeted fixes in executor.py for reliable commits and error recovery. Ensure seeds include safeguards and validation steps.
 
 {self.prompts.examples}
+
+Additional examples for executor fixes:
+- id: meta.executor_patch_fix
+  goal: "Simplificar lógica de auto-commit em a3x/executor.py removendo duplicações e garantindo git add/commit para low-risk self-modify sem prompts manuais."
+  priority: high
+  type: refactor
+  config: configs/seed_patch.yaml
+  max_steps: 8
+  metadata:
+    description: "Refactor to boost apply_patch_success_rate by streamlining auto-commit and AST fallback."
+    target_files: ["a3x/executor.py"]
 
 Available configs: patch={patch_config_path}, manual={manual_config_path}, tests={tests_config_path}, lint={lint_config_path}
 

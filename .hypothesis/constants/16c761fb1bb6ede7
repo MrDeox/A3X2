@@ -1,0 +1,4 @@
+# file: /home/arthur/Projetos/A3X/a3x/seeds.py
+# hypothesis_version: 6.140.2
+
+['+00:00', 'Seed', 'SeedBacklog', 'Z', 'attempts', 'completed', 'config', 'created_at', 'failed', 'generic', 'goal', 'high', 'history', 'id', 'in_progress', 'last_error', 'low', 'max_attempts', 'max_steps', 'medium', 'metadata', 'next_run_at', 'notes', 'pending', 'priority', 'r', 'status', 'timestamp', 'type', 'utf-8', 'w']

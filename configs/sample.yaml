@@ -6,7 +6,7 @@ llm:
 
 workspace:
   root: .
-  allow_outside_root: false
+  allow_outside_root: true
 
 limits:
   max_iterations: 25

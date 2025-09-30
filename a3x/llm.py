@@ -304,6 +304,14 @@ class OpenRouterLLMClient(BaseLLMClient):
             }
             raise RuntimeError(f"Falha no fallback Ollama: {exc}") from exc
 
+    def chat(self, prompt: str) -> str:
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant that proposes YAML lists of seeds for A3X optimization based on metrics and history."},
+            {"role": "user", "content": prompt},
+        ]
+        response = self._send_request(messages)
+        return self._extract_content(response)
+
 
 def build_llm_client(llm_config) -> BaseLLMClient:
     llm_type = (llm_config.type or "manual").lower()

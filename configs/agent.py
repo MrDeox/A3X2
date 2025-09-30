@@ -1,0 +1,136 @@
+# Basic Agent for Dynamic Recursion Monitoring with Metrics Feedback
+print("Debug: entering main loop for debugging")
+import json
+import os
+import sys
+import git  # Assuming gitpython is installed for commits
+
+class MetricsTracker:
+    def __init__(self):
+        self.actions_total = 0
+        self.actions_success = 0
+        self.max_depth = 1
+        self.current_depth = 0
+        self.success_rate = 0.0
+
+    def update_action(self, success=True):
+        self.actions_total += 1
+        if success:
+            self.actions_success += 1
+        self.success_rate = self.actions_success / self.actions_total if self.actions_total > 0 else 0.0
+
+    def enter_recursion(self):
+        self.current_depth += 1
+        self.max_depth = max(self.max_depth, self.current_depth)
+
+    def exit_recursion(self):
+        self.current_depth -= 1
+
+    def should_adjust_depth(self):
+        return self.max_depth > 5 and self.success_rate < 0.8  # Auto-adjust if depth high and success low
+
+    def auto_commit(self, repo_path):
+        if self.success_rate > 0.9:
+            try:
+                repo = git.Repo(repo_path)
+                repo.git.add('.')
+                repo.index.commit('Auto-commit: High success rate achieved')
+                print('Auto-commit performed.')
+                return True
+            except Exception as e:
+                print(f'Commit failed: {e}')
+                return False
+        return False
+
+class Agent:
+    def __init__(self, repo_path='/home/arthur/Projetos/A3X/configs'):
+        self.metrics = MetricsTracker()
+        self.repo_path = repo_path
+        self.max_recursion_depth = 10  # Initial max depth
+
+    def execute_action(self, action_type, **kwargs):
+        self.metrics.update_action(success=False)  # Assume fail initially
+        try:
+            if action_type == 'read_file':
+                content = self.read_file(kwargs['path'])
+                self.metrics.update_action(success=True)
+                return content
+            elif action_type == 'write_file':
+                success = self.write_file(kwargs['path'], kwargs['content'])
+                self.metrics.update_action(success=success)
+                return success
+            # Add more action types as needed
+        except Exception as e:
+            print(f'Action failed: {e}')
+            self.metrics.update_action(success=False)
+            return None
+
+    def recursive_task(self, task, depth=0):
+        if depth >= self.max_recursion_depth:
+            print('Max recursion depth reached.')
+            return None
+
+        self.metrics.enter_recursion()
+
+        # Simulate task execution
+        result = self._perform_task(task)
+
+        if self.metrics.should_adjust_depth():
+            self.max_recursion_depth = max(5, int(self.max_recursion_depth * self.metrics.success_rate))
+            print(f'Adjusted max depth to {self.max_recursion_depth} based on success rate {self.metrics.success_rate:.2f}')
+
+        if result and depth < 3:  # Example: recurse up to 3 levels
+            sub_result = self.recursive_task(f'Subtask of {task}', depth + 1)
+            if sub_result:
+                result += f' | {sub_result}'
+
+        self.metrics.exit_recursion()
+
+        if depth == 0:  # Top level, check for auto-commit
+            self.metrics.auto_commit(self.repo_path)
+
+        return result
+
+    def _perform_task(self, task):
+        # Placeholder for actual task
+        print(f'Performing task: {task} at depth {self.metrics.current_depth}')
+        return f'Result of {task}'
+
+    def read_file(self, path):
+        if os.path.exists(path):
+            with open(path, 'r') as f:
+                return f.read()
+        raise FileNotFoundError(f'File not found: {path}')
+
+    def write_file(self, path, content):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'w') as f:
+            f.write(content)
+        return True
+
+# Tests
+def run_tests():
+    agent = Agent()
+    # Test 1: Basic action
+    agent.execute_action('write_file', path='/tmp/test.txt', content='test')
+    content = agent.execute_action('read_file', path='/tmp/test.txt')
+    assert content == 'test'
+    print('Test 1 passed')
+
+    # Test 2: Recursion and metrics
+    result = agent.recursive_task('Main Task')
+    assert agent.metrics.actions_total > 0
+    assert agent.metrics.success_rate > 0
+    print('Test 2 passed')
+
+    # Test 3: Auto-adjust (simulate high depth low success)
+    agent.metrics.max_depth = 6
+    agent.metrics.success_rate = 0.7
+    old_depth = agent.max_recursion_depth
+    agent.recursive_task('Adjust Test')
+    assert agent.max_recursion_depth <= old_depth
+    print('Test 3 passed')
+
+if __name__ == '__main__':
+    run_tests()
+    print('All tests completed. Current success rate:', Agent().metrics.success_rate)

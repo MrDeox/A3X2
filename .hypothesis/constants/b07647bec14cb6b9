@@ -1,0 +1,4 @@
+# file: /home/arthur/Projetos/A3X/a3x/planning/storage.py
+# hypothesis_version: 6.140.2
+
+[0.0, '+00:00', '0.1', 'Z', 'backlog_seed_id', 'best', 'capability_tags', 'created_at', 'current', 'dependencies', 'discovered_gaps', 'draft', 'eta', 'generated_at', 'goal', 'id', 'last_updated', 'load_mission_state', 'medium', 'metric_summaries', 'metrics', 'milestones', 'missions', 'notes', 'planned', 'priority', 'reflections', 'samples', 'save_mission_state', 'status', 'success_criteria', 'sync_mission_state', 'target', 'target_metrics', 'telemetry', 'tools_required', 'updated_at', 'utf-8', 'version', 'vision']

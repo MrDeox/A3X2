@@ -17,6 +17,11 @@ class ActionType(Enum):
     READ_FILE = auto()
     SELF_MODIFY = auto()
     FINISH = auto()
+    # Data analysis actions
+    ANALYZE_DATA = auto()
+    VISUALIZE_DATA = auto()
+    CLEAN_DATA = auto()
+    STATISTICS = auto()
 
 
 @dataclass

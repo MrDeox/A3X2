@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import ast
 import json
+import subprocess
+import tempfile
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,7 +21,8 @@ from .capability_metrics import compute_capability_metrics
 from .planning.storage import load_mission_state, save_mission_state
 from .memory.store import SemanticMemory
 from .memory.insights import build_insight_payload
-from .meta_capabilities import MetaCapabilityPlanner
+# Import MetaCapabilityPlanner locally to avoid circular import
+# from .meta_capabilities import MetaCapabilityPlanner
 
 
 @dataclass
@@ -109,6 +113,15 @@ class AutoEvaluator:
         with self.log_file.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
         self._update_metric_history(evaluation.metrics)
+        
+        # Analyze code quality and add to metrics
+        code_quality_metrics = self._analyze_code_quality(evaluation)
+        evaluation.metrics.update(code_quality_metrics)
+        
+        # Generate seeds based on code quality issues
+        quality_seeds = self._check_code_quality_issues(code_quality_metrics)
+        evaluation.seeds.extend(quality_seeds)
+        
         self._growth_test_generator.ensure_tests()
         generate_capability_report(
             metrics_history=self.metrics_history_file,
@@ -380,6 +393,8 @@ class AutoEvaluator:
                 "lint": lint_config_path,
                 "manual": manual_config_path,
             }
+            # Import MetaCapabilityPlanner locally to avoid circular import
+            from .meta_capabilities import MetaCapabilityPlanner
             meta_planner = MetaCapabilityPlanner(registry=registry)
             existing_ids = backlog.list_all_ids()
             for seed in meta_planner.propose(
@@ -570,6 +585,116 @@ class AutoEvaluator:
         if changed:
             save_mission_state(state, self.missions_path)
 
+    def _analyze_code_quality(self, evaluation: RunEvaluation) -> Dict[str, float]:
+        """Analyze code quality metrics from the evaluation."""
+        # Calculate code quality metrics based on the actions and metrics in the evaluation
+        quality_metrics = {}
+        
+        # Look for write file or patch apply actions in metrics
+        if 'apply_patch_count' in evaluation.metrics:
+            patch_count = evaluation.metrics['apply_patch_count']
+            if patch_count > 0:
+                # For now just record the count, but we can expand to analyze patch content
+                quality_metrics['apply_patch_count'] = float(patch_count)
+        
+        # Look for any code-related metrics that could indicate quality
+        if 'unique_file_extensions' in evaluation.metrics:
+            extensions = evaluation.metrics['unique_file_extensions']
+            # Value Python files higher for quality analysis
+            if extensions > 0:
+                quality_metrics['file_diversity'] = float(extensions)
+        
+        # Analyze actual code changes if possible by looking at the history
+        # This would require access to the actual patch/diff content which normally comes from the history
+        # For now, we'll add a placeholder and enhance it later
+        
+        # Add more quality metrics based on what we can infer from the evaluation
+        # Calculate failure rate as an indicator of "quality" of implementation
+        if evaluation.iterations > 0:
+            failure_rate = evaluation.failures / evaluation.iterations if evaluation.iterations > 0 else 0.0
+            quality_metrics['failure_rate'] = float(failure_rate)
+            quality_metrics['success_rate'] = 1.0 - failure_rate
+            
+        return quality_metrics
+
+    def analyze_code_complexity_from_patch(self, patch_content: str) -> Dict[str, float]:
+        """Analyze code complexity from a patch/diff content."""
+        complexity_metrics = {}
+        
+        # Extract Python code changes from the patch
+        python_changes = self._extract_python_code_from_patch(patch_content)
+        
+        if python_changes:
+            # Analyze the Python code for complexity
+            try:
+                tree = ast.parse(python_changes)
+                complexity_info = self._analyze_ast_complexity(tree)
+                complexity_metrics.update(complexity_info)
+            except SyntaxError:
+                # If parsing fails, skip complexity analysis for this patch
+                pass
+        
+        return complexity_metrics
+
+    def _extract_python_code_from_patch(self, patch_content: str) -> str:
+        """Extract actual Python code from patch content."""
+        lines = patch_content.split('\n')
+        python_code = []
+        
+        in_diff = False
+        for line in lines:
+            if line.startswith('+++ ') and line.endswith('.py'):
+                in_diff = True
+                continue
+            elif line.startswith('--- '):
+                in_diff = False
+                continue
+            
+            if in_diff and line.startswith('+'):
+                # This is a line being added
+                code_line = line[1:]  # Remove the '+' prefix
+                python_code.append(code_line)
+            elif in_diff and line.startswith(' '):
+                # This is a context line
+                code_line = line[1:]  # Remove the space prefix
+                python_code.append(code_line)
+        
+        return '\n'.join(python_code)
+
+    def _analyze_ast_complexity(self, tree: ast.AST) -> Dict[str, float]:
+        """Analyze AST for complexity metrics."""
+        stats = {
+            'function_count': 0,
+            'class_count': 0,
+            'total_nodes': 0,
+            'max_depth': 0,
+        }
+        
+        def count_nodes(node, depth=0):
+            stats['total_nodes'] += 1
+            stats['max_depth'] = max(stats['max_depth'], depth)
+            
+            if isinstance(node, ast.FunctionDef):
+                stats['function_count'] += 1
+            elif isinstance(node, ast.ClassDef):
+                stats['class_count'] += 1
+            
+            for child in ast.iter_child_nodes(node):
+                count_nodes(child, depth + 1)
+        
+        for node in ast.iter_child_nodes(tree):
+            count_nodes(node)
+        
+        # Convert counts to floats for metrics
+        complexity_metrics = {
+            'ast_function_count': float(stats['function_count']),
+            'ast_class_count': float(stats['class_count']),
+            'ast_total_nodes': float(stats['total_nodes']),
+            'ast_max_depth': float(stats['max_depth']),
+        }
+        
+        return complexity_metrics
+
     def _update_semantic_memory(
         self,
         evaluation: RunEvaluation,
@@ -594,6 +719,49 @@ class AutoEvaluator:
             return
         except Exception:
             return
+
+    def _check_code_quality_issues(self, quality_metrics: Dict[str, float]) -> List[EvaluationSeed]:
+        """Generate seeds based on code quality issues."""
+        seeds = []
+        
+        # Check if there are too many failures (indicating poor implementation quality)
+        if quality_metrics.get('failure_rate', 0) > 0.3:  # More than 30% failure rate
+            seeds.append(
+                EvaluationSeed(
+                    description="Reduzir taxa de falhas durante execução (alta taxa de falhas detectada).",
+                    priority="high",
+                    capability="core.execution",
+                    seed_type="quality",
+                    data={"metric": "failure_rate", "value": str(quality_metrics.get('failure_rate', 0))}
+                )
+            )
+        
+        # Check if too many patches are being applied without proper success
+        if (quality_metrics.get('apply_patch_count', 0) > 5 and 
+            quality_metrics.get('success_rate', 1) < 0.7):
+            seeds.append(
+                EvaluationSeed(
+                    description="Melhorar qualidade das alterações de código aplicadas (muitos patches com baixa taxa de sucesso).",
+                    priority="medium",
+                    capability="core.diffing",
+                    seed_type="quality",
+                    data={"metric": "apply_patch_success_rate", "value": str(quality_metrics.get('success_rate', 1))}
+                )
+            )
+        
+        # Check if the system is not diversifying file types enough (might indicate lack of features)
+        if quality_metrics.get('file_diversity', 0) < 2 and quality_metrics.get('apply_patch_count', 0) > 10:
+            seeds.append(
+                EvaluationSeed(
+                    description="Expandir diversidade de tipos de arquivos manipulados (sistema focado em poucos tipos de arquivos).",
+                    priority="low",
+                    capability="horiz.file_handling",
+                    seed_type="quality",
+                    data={"metric": "file_diversity", "value": str(quality_metrics.get('file_diversity', 0))}
+                )
+            )
+            
+        return seeds
 
 
 __all__ = [

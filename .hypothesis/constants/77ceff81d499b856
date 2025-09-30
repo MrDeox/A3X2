@@ -1,0 +1,4 @@
+# file: /home/arthur/Projetos/A3X/a3x/data_analysis.py
+# hypothesis_version: 6.140.2
+
+[0.0, 0.25, 0.7, 0.75, 1.0, 100, 150, '## Amostra dos Dados', '## Colunas', '## Colunas Removidas', '## Resumo Geral', '.csv', '.json', '.parquet', '.xlsx', 'Contagem', 'DataAnalysisResult', 'DataAnalyzer', 'Frequência', 'all', 'count', 'data', 'data_analysis', 'data_columns', 'data_completeness', 'data_missing_values', 'data_numeric_columns', 'data_rows', 'data_type_diversity', 'float64', 'ignore', 'int64', 'max', 'mean', 'median', 'min', 'missing', 'missing_percentage', 'most_frequent', 'most_frequent_count', 'object', 'q1', 'q3', 'records', 'reports', 'right', 'std', 'tight', 'unique', 'utf-8', 'visualizations']

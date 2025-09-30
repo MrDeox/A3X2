@@ -1,0 +1,98 @@
+--- a/agent.py
++++ b/agent.py
+--- agent.py
++++ agent.py
+@@ -1,25 +1,76 @@
+-# Basic Agent Skeleton for Recursion Monitoring
++# Basic Agent Skeleton for Recursion Monitoring with Dynamic Metrics
++
++import json
++import os
+ 
+ class Agent:
+-    def __init__(self):
+-        self.depth = 0
+-        self.max_depth = 5
+-        self.actions_success_rate = 1.0  # Placeholder
++    def __init__(self, max_depth=10):
++        self.max_depth = max_depth
++        self.current_depth = 0
++        self.actions_total = 0
++        self.actions_success = 0
++        self.success_rate = 1.0
++        self.metrics_history = []
++        self.auto_commit_threshold = 0.9
+ 
+-    def perform_action(self):
+-        # Placeholder for actions
+-        return True
++    def track_recursion(self):
++        self.current_depth += 1
++        if self.current_depth > 5:
++            self.adjust_depth()
++        return self.current_depth <= self.max_depth
+ 
+-    def recurse(self):
+-        if self.depth > self.max_depth:
+-            return False
+-        self.depth += 1
+-        success = self.perform_action()
++    def adjust_depth(self):
++        if self.success_rate < 0.8:
++            self.max_depth = max(1, self.max_depth - 1)
++            print(f"Adjusted max_depth to {self.max_depth} due to low success_rate {self.success_rate}")
++        elif self.success_rate > 0.95:
++            self.max_depth += 1
++            print(f"Increased max_depth to {self.max_depth} due to high success_rate {self.success_rate}")
++
++    def log_action(self, success=True):
++        self.actions_total += 1
+         if success:
+-            self.recurse()
+-        self.depth -= 1
+-        return success
++            self.actions_success += 1
++        self.success_rate = self.actions_success / self.actions_total if self.actions_total > 0 else 1.0
++        self.metrics_history.append({
++            'depth': self.current_depth,
++            'success_rate': self.success_rate,
++            'total_actions': self.actions_total
++        })
+ 
+-if __name__ == '__main__':
++        if self.success_rate > self.auto_commit_threshold:
++            self.auto_commit()
++
++    def auto_commit(self):
++        # Simulate commit with tests
++        test_result = self.run_tests()
++        if test_result:
++            commit_msg = f"Auto-commit: success_rate {self.success_rate:.2f}, depth {self.current_depth}"
++            print(f"Committing changes: {commit_msg}")
++            # In real impl, use git commit
++        else:
++            print("Tests failed, skipping commit")
++
++    def run_tests(self):
++        # Placeholder for tests
++        return True  # Assume success for now
++
++    def get_metrics(self):
++        return {
++            'current_depth': self.current_depth,
++            'max_depth': self.max_depth,
++            'success_rate': self.success_rate,
++            'actions_total': self.actions_total,
++            'history_length': len(self.metrics_history)
++        }
++
++# Example usage
++if __name__ == "__main__":
+     agent = Agent()
+-    agent.recurse()+    for i in range(10):
++        if agent.track_recursion():
++            agent.log_action(success=(i % 3 != 0))  # Simulate some failures
++        else:
++            print("Recursion depth exceeded")
++            break
++    print(json.dumps(agent.get_metrics(), indent=2))

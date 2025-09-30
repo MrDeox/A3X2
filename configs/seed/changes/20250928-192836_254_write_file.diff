@@ -1,0 +1,236 @@
+--- a/agent.py
++++ b/agent.py
+--- agent.py
++++ agent.py
+@@ -1,121 +1,158 @@
+ # Basic Agent for Dynamic Recursion Monitoring with Metrics Feedback
+-
+ import json
+ import os
+ import sys
+ from typing import Dict, Any, List
+ 
+-class MetricsTracker:
++class MetricsMonitor:
+     def __init__(self):
+         self.actions_total = 0
+         self.actions_success = 0
+-        self.recursion_depth = 0
++        self.success_rate = 0.0
+         self.max_depth = 5
+-        self.success_rate = 0.0
++        self.current_depth = 0
+         self.history: List[Dict[str, Any]] = []
+ 
+-    def record_action(self, success: bool, depth: int):
++    def update_action(self, success: bool, depth: int = 0):
+         self.actions_total += 1
+         if success:
+             self.actions_success += 1
+-        self.recursion_depth = max(self.recursion_depth, depth)
+-        self.update_success_rate()
++        self.current_depth = max(self.current_depth, depth)
++        self.success_rate = self.actions_success / self.actions_total if self.actions_total > 0 else 0.0
++        self._auto_adjust_depth()
+         self.history.append({
+-            'success': success,
++            'total': self.actions_total,
++            'success': self.actions_success,
++            'rate': self.success_rate,
+             'depth': depth,
+-            'total': self.actions_total,
+-            'rate': self.success_rate
++            'success': success
+         })
+ 
+-    def update_success_rate(self):
+-        if self.actions_total > 0:
+-            self.success_rate = self.actions_success / self.actions_total
+-        else:
+-            self.success_rate = 0.0
+-
+-    def adjust_depth(self):
+-        if self.success_rate > 0.9 and self.max_depth < 10:  # Auto-adjust up to 10
++    def _auto_adjust_depth(self):
++        if self.success_rate > 0.9 and self.max_depth < 10:
+             self.max_depth += 1
+             print(f"Auto-adjusted max_depth to {self.max_depth} based on success_rate {self.success_rate:.2f}")
+-        elif self.success_rate < 0.7 and self.max_depth > 3:
++        elif self.success_rate < 0.8 and self.max_depth > 3:
+             self.max_depth -= 1
+-            print(f"Auto-adjusted max_depth to {self.max_depth} based on success_rate {self.success_rate:.2f}")
++            print(f"Auto-reduced max_depth to {self.max_depth} due to low success_rate {self.success_rate:.2f}")
+ 
+     def should_recurse(self, current_depth: int) -> bool:
+-        return current_depth < self.max_depth
++        return current_depth < self.max_depth and self.success_rate > 0.85
+ 
+     def get_metrics(self) -> Dict[str, Any):
+         return {
+             'actions_total': self.actions_total,
+             'actions_success_rate': self.success_rate,
+-            'recursion_depth': self.recursion_depth,
+             'max_depth': self.max_depth,
++            'current_depth': self.current_depth,
+             'history_length': len(self.history)
+         }
+ 
+ class RecursiveAgent:
+-    def __init__(self, metrics_tracker: MetricsTracker = None):
+-        self.metrics = metrics_tracker or MetricsTracker()
++    def __init__(self, monitor: MetricsMonitor = None):
++        self.monitor = monitor or MetricsMonitor()
+         self.base_path = '/home/arthur/Projetos/A3X/configs'
+ 
+-    def execute_task(self, task: str, current_depth: int = 0) -> Dict[str, Any]:
+-        if not self.metrics.should_recurse(current_depth):
+-            return {'status': 'depth_limit', 'message': f'Depth {current_depth} exceeds max {self.metrics.max_depth}'}
++    def execute_action(self, action_type: str, params: Dict[str, Any]) -> bool:
++        success = False
++        try:
++            if action_type == 'read_file':
++                success = self._read_file(params.get('path'))
++            elif action_type == 'write_file':
++                success = self._write_file(params.get('path'), params.get('content'))
++            elif action_type == 'run_command':
++                success = self._run_command(params.get('command'), params.get('cwd'))
++            # Add more action types as needed
++        except Exception as e:
++            print(f"Action {action_type} failed: {e}")
++            success = False
++        finally:
++            self.monitor.update_action(success, self.monitor.current_depth)
++        return success
+ 
+-        print(f"Executing task: {task} at depth {current_depth}")
++    def _read_file(self, path: str) -> bool:
++        full_path = os.path.join(self.base_path, path)
++        if os.path.exists(full_path):
++            with open(full_path, 'r') as f:
++                content = f.read()
++            print(f"Read {path}: {content[:100]}...")
++            return True
++        else:
++            print(f"File not found: {full_path}")
++            return False
+ 
+-        # Simulate action execution
+-        success = self._simulate_action(task, current_depth)
+-        self.metrics.record_action(success, current_depth)
+-        self.metrics.adjust_depth()
++    def _write_file(self, path: str, content: str) -> bool:
++        full_path = os.path.join(self.base_path, path)
++        os.makedirs(os.path.dirname(full_path), exist_ok=True)
++        try:
++            with open(full_path, 'w') as f:
++                f.write(content)
++            print(f"Written {path}")
++            return True
++        except Exception as e:
++            print(f"Write failed: {e}")
++            return False
+ 
+-        if success and self.metrics.should_recurse(current_depth + 1):
+-            # Recursive call for sub-tasks
+-            sub_result = self.execute_task(f"Sub-task of {task}", current_depth + 1)
+-            return {'status': 'success', 'sub_result': sub_result, 'metrics': self.metrics.get_metrics()}
+-        else:
+-            if self.metrics.success_rate > 0.9:
+-                self._auto_commit()
+-            return {'status': 'success' if success else 'failure', 'metrics': self.metrics.get_metrics()}
++    def _run_command(self, command: str, cwd: str = None) -> bool:
++        try:
++            import subprocess
++            result = subprocess.run(command, shell=True, cwd=cwd or self.base_path, capture_output=True, text=True)
++            print(f"Command '{command}' output: {result.stdout}")
++            if result.stderr:
++                print(f"Errors: {result.stderr}")
++            return result.returncode == 0
++        except Exception as e:
++            print(f"Run command failed: {e}")
++            return False
+ 
+-    def _simulate_action(self, task: str, depth: int) -> bool:
+-        # Placeholder for actual action; assume high success for testing
+-        return True  # Simulate 100% success initially
++    def recursive_task(self, task: str, depth: int = 0) -> Dict[str, Any]:
++        if not self.monitor.should_recurse(depth):
++            print(f"Stopping recursion at depth {depth}")
++            return {'status': 'stopped', 'metrics': self.monitor.get_metrics()}
+ 
+-    def _auto_commit(self):
+-        try:
+-            os.system('git add . && git commit -m "Auto-commit: High success rate achieved"')
+-            print("Auto-commit executed.")
+-        except Exception as e:
+-            print(f"Auto-commit failed: {e}")
++        print(f"Executing task '{task}' at depth {depth}")
++        # Simulate task execution
++        action_success = self.execute_action('write_file', {'path': 'agent.py', 'content': f"Updated at depth {depth}"})
+ 
+-# Test suite
+-def run_tests():
+-    agent = RecursiveAgent()
+-    results = []
++        if action_success and self.monitor.success_rate > 0.9:
++            # Auto-commit if success rate high
++            commit_success = self._run_command('git add . && git commit -m "Auto-commit: success_rate >0.9 at depth {depth}"')
++            if commit_success:
++                print("Auto-commit successful")
+ 
+-    # Test 1: Basic execution at depth 0
+-    result1 = agent.execute_task("Test Task 1", 0)
+-    results.append(result1)
++        # Recursive sub-task
++        sub_result = self.recursive_task(f"Sub-task of {task}", depth + 1)
+ 
+-    # Test 2: Recursion up to depth 3
+-    result2 = agent.execute_task("Test Task 2", 0)
+-    results.append(result2)
++        return {'status': 'completed', 'depth': depth, 'metrics': self.monitor.get_metrics(), 'sub_result': sub_result}
+ 
+-    # Test 3: Force depth >5 to check adjustment
+-    agent.metrics.max_depth = 6
+-    result3 = agent.execute_task("Deep Test Task", 0)
+-    results.append(result3)
+-
+-    # Simulate some failures to test rate
+-    agent.metrics.record_action(False, 1)
+-    agent.metrics.record_action(True, 2)
+-    agent.metrics.adjust_depth()
+-
+-    print("Test Results:", results)
+-    print("Final Metrics:", agent.metrics.get_metrics())
+-    assert agent.metrics.success_rate >= 0.8, "Success rate too low"
+-    print("All tests passed!")
++    def run_tests(self) -> bool:
++        print("Running unit tests for recursion monitoring...")
++        # Simple test suite
++        test_success = True
++        # Test 1: Basic action
++        if not self.execute_action('read_file', {'path': 'agent.py'}):
++            test_success = False
++        # Test 2: Metrics update
++        self.monitor.update_action(True)
++        if self.monitor.success_rate != 1.0:
++            test_success = False
++        # Test 3: Depth adjustment
++        for _ in range(10):
++            self.monitor.update_action(True)
++        if self.monitor.max_depth != 6:  # Should increase once
++            test_success = False
++        print(f"Tests passed: {test_success}")
++        return test_success
+ 
+ if __name__ == "__main__":
+-    run_tests()+    monitor = MetricsMonitor()
++    agent = RecursiveAgent(monitor)
++    # Run initial task
++    result = agent.recursive_task("Implement recursion monitoring")
++    print(json.dumps(result, indent=2))
++    # Run tests
++    tests_passed = agent.run_tests()
++    if tests_passed and monitor.success_rate > 0.9:
++        print("All good! Ready for auto-commit.")
++    else:
++        print("Needs more work.")

@@ -1,0 +1,15 @@
+--- a/README.md
++++ b/README.md
+--- README.md
++++ README.md
+@@ -1,9 +1,3 @@
+ # Simple README
+-New line added in iteration 13.
+-Added a new line in iteration 6.
+-Added a new line in iteration 18.
+-Added a line for testing.
+-
+-Added line in iteration 10.
+-
+-This is an additional line.+New line added in iteration 20.
++Added a new line in iteration 6.

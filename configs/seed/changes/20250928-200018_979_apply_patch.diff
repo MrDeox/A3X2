@@ -1,0 +1,5 @@
+--- a/agent.py
++++ b/agent.py
+@@ -1 +1,2 @@
+ # Basic Agent for Dynamic Recursion Monitoring with Metrics Feedback import json import os
++print("Debug: entering main loop for debugging")

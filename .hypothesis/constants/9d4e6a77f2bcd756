@@ -1,0 +1,4 @@
+# file: /home/arthur/Projetos/A3X/a3x/config.py
+# hypothesis_version: 6.140.2
+
+[0.0, 120, '.', 'A3X', 'allow_network', 'allow_outside_root', 'allow_shell_write', 'api_key_env', 'audit', 'auto', 'auto_seed', 'base_url', 'command_timeout', 'commands', 'commit_prefix', 'deny_commands', 'enable_file_log', 'enable_git_commit', 'endpoint', 'file_dir', 'goals', 'limits', 'llm', 'loop', 'manual', 'max_failures', 'max_iterations', 'min', 'model', 'policies', 'r', 'root', 'script', 'seed/backlog.yaml', 'seed/changes', 'seed_backlog', 'seed_config', 'seed_interval', 'seed_max_runs', 'stop_when_idle', 'tests', 'total_timeout', 'type', 'utf-8', 'workspace']

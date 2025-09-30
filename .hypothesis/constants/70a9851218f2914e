@@ -1,0 +1,4 @@
+# file: /home/arthur/Projetos/A3X/a3x/capability_metrics.py
+# hypothesis_version: 6.140.2
+
+[0.0, 1.0, 'auto_trigger_rate', 'avg_iterations', 'capabilities', 'completed', 'completed_runs', 'core.diffing', 'core.testing', 'docs_generated', 'failures_detected', 'horiz.docs', 'horiz.python', 'iterations', 'metrics', 'r', 'regression_rate', 'runs', 'success_rate', 'tasks_completed', 'tests_run_count', 'tests_success_rate', 'utf-8']

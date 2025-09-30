@@ -1,0 +1,5 @@
+recursion: advanced
+core:
+  diffing: true
+horiz:
+  docs: true

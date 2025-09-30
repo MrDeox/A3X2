@@ -1,0 +1,4 @@
+# file: /home/arthur/Projetos/A3X/a3x/planner.py
+# hypothesis_version: 6.140.2
+
+[0.8, 0.9, 'Planner', 'PlannerThresholds', 'actions_success_rate', 'analysis', 'apply_patch_count', 'auto.benchmark.diff', 'auto.lint.run', 'auto.patch.success', 'auto.tests.run', 'benchmark_diff', 'benchmark_lint', 'benchmark_report', 'benchmark_tests', 'config', 'core.diffing', 'core.testing', 'created_at', 'description', 'failures_detected', 'goal', 'high', 'id', 'lint_run_count', 'lint_success_rate', 'max_steps', 'medium', 'metadata', 'pending', 'priority', 'status', 'success_rate', 'tests_run_count', 'tests_success_rate']

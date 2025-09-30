@@ -1,0 +1,4 @@
+# file: /home/arthur/Projetos/A3X/a3x/change_log.py
+# hypothesis_version: 6.140.2
+
+['%Y%m%d-%H%M%S', '-A', '-m', '.git', 'A3X', 'ChangeLogger', 'add', 'commit', 'git', 'seed/changes', 'utf-8']

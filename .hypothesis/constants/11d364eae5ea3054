@@ -1,0 +1,4 @@
+# file: /home/arthur/Projetos/A3X/a3x/meta_capabilities.py
+# hypothesis_version: 6.140.2
+
+['advanced', 'config', 'created_at', 'description', 'goal', 'manual', 'max_steps', 'medium', 'meta', 'meta_capability', 'pending', 'priority', 'seed_id', 'type']

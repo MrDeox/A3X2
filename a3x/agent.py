@@ -48,6 +48,7 @@ class AgentOrchestrator:
         )
         self.auto_evaluator = auto_evaluator or AutoEvaluator(thresholds=thresholds)
         self._llm_metrics: Dict[str, List[float]] = {}
+        self.recursion_depth: int = 3
 
     def run(self, goal: str) -> AgentResult:
         history = AgentHistory()
@@ -55,7 +56,22 @@ class AgentOrchestrator:
 
         failures = 0
         errors: List[str] = []
-        max_iterations = self.config.limits.max_iterations
+        # Dynamically adjust recursion_depth based on previous success_rate
+        metrics_history = self.auto_evaluator._read_metrics_history()
+        actions_rates = metrics_history.get("actions_success_rate", [0.0])
+        avg_success_rate = sum(actions_rates[-3:]) / len(actions_rates[-3:]) if len(actions_rates) >= 3 else actions_rates[-1] if actions_rates else 0.0
+        if avg_success_rate > 0.85:
+            self.recursion_depth = min(10, self.recursion_depth + 1)
+        elif avg_success_rate < 0.6:
+            self.recursion_depth = max(3, self.recursion_depth - 1)
+        # Stabilize at higher depth for target >=5
+        if self.recursion_depth < 5 and avg_success_rate > 0.8:
+            self.recursion_depth = 5
+
+        print("Debug: Agent running iteration")
+
+        base_iterations = 10  # Base iterations per recursion level
+        max_iterations = base_iterations * self.recursion_depth
         started_at = time.perf_counter()
         context_summary = self.auto_evaluator.latest_summary()
 
@@ -267,6 +283,7 @@ class AgentOrchestrator:
 
         metrics["failures"] = float(result.failures)
         metrics["iterations"] = float(result.iterations)
+        metrics["recursion_depth"] = float(self.recursion_depth)
 
         test_runs = [
             event

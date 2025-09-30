@@ -3,7 +3,7 @@
   name: Edição por diffs unificados
   category: vertical
   description: Aplicar patches gerados pelo LLM usando utilitário `patch` com dry-run.
-  maturity: advanced
+  maturity: established
   metrics:
     success_rate: 0.8
     avg_iterations: 3.5
@@ -29,12 +29,12 @@
   name: Suporte a projetos Python
   category: horizontal
   description: Manipular arquivos Python, dependências PyPI e executar pytest/ruff/black.
-  maturity: established
+  maturity: baseline
   metrics:
-    tasks_completed: 17
-    regression_rate: 0.0
-    runs: 17
-    completed_runs: 17
+    tasks_completed: 18
+    regression_rate: 0.1
+    runs: 20
+    completed_runs: 18
   seeds:
   - Expandir para frameworks (Flask, FastAPI) com blueprints dedicados.
   - Adicionar verificação automática de requisitos (pip freeze).
@@ -122,7 +122,7 @@
     em pytest para ações self-modify, reduzindo dependência de simulação.
   maturity: baseline
   metrics:
-    success_rate: 0.9
+    success_rate: 1.0
     runs: 0
     completed_runs: 0
   seeds:
@@ -168,6 +168,7 @@
     growth_rate: 1.5
     avg_success_rate: 0.85
     simulation_reduction: 20
+    application_success_rate: 1.0
   seeds: []
 - id: meta.file_management
   name: Automated File Management and Cleanup

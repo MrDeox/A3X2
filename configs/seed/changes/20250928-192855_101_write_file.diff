@@ -1,0 +1,262 @@
+--- a/agent.py
++++ b/agent.py
+--- agent.py
++++ agent.py
+@@ -2,157 +2,134 @@
+ import json
+ import os
+ import sys
+-from typing import Dict, Any, List
++import git  # Assuming gitpython is installed for commits
+ 
+-class MetricsMonitor:
++class MetricsTracker:
+     def __init__(self):
+         self.actions_total = 0
+         self.actions_success = 0
++        self.max_depth = 1
++        self.current_depth = 0
+         self.success_rate = 0.0
+-        self.max_depth = 5
+-        self.current_depth = 0
+-        self.history: List[Dict[str, Any]] = []
+ 
+-    def update_action(self, success: bool, depth: int = 0):
++    def update_action(self, success=True):
+         self.actions_total += 1
+         if success:
+             self.actions_success += 1
+-        self.current_depth = max(self.current_depth, depth)
+         self.success_rate = self.actions_success / self.actions_total if self.actions_total > 0 else 0.0
+-        self._auto_adjust_depth()
+-        self.history.append({
+-            'total': self.actions_total,
+-            'success': self.actions_success,
+-            'rate': self.success_rate,
+-            'depth': depth,
+-            'success': success
+-        })
+ 
+-    def _auto_adjust_depth(self):
+-        if self.success_rate > 0.9 and self.max_depth < 10:
+-            self.max_depth += 1
+-            print(f"Auto-adjusted max_depth to {self.max_depth} based on success_rate {self.success_rate:.2f}")
+-        elif self.success_rate < 0.8 and self.max_depth > 3:
+-            self.max_depth -= 1
+-            print(f"Auto-reduced max_depth to {self.max_depth} due to low success_rate {self.success_rate:.2f}")
++    def enter_recursion(self):
++        self.current_depth += 1
++        self.max_depth = max(self.max_depth, self.current_depth)
+ 
+-    def should_recurse(self, current_depth: int) -> bool:
+-        return current_depth < self.max_depth and self.success_rate > 0.85
++    def exit_recursion(self):
++        self.current_depth -= 1
+ 
+-    def get_metrics(self) -> Dict[str, Any):
+-        return {
+-            'actions_total': self.actions_total,
+-            'actions_success_rate': self.success_rate,
+-            'max_depth': self.max_depth,
+-            'current_depth': self.current_depth,
+-            'history_length': len(self.history)
+-        }
++    def should_adjust_depth(self):
++        return self.max_depth > 5 and self.success_rate < 0.8  # Auto-adjust if depth high and success low
+ 
+-class RecursiveAgent:
+-    def __init__(self, monitor: MetricsMonitor = None):
+-        self.monitor = monitor or MetricsMonitor()
+-        self.base_path = '/home/arthur/Projetos/A3X/configs'
++    def auto_commit(self, repo_path):
++        if self.success_rate > 0.9:
++            try:
++                repo = git.Repo(repo_path)
++                repo.git.add('.')
++                repo.index.commit('Auto-commit: High success rate achieved')
++                print('Auto-commit performed.')
++                return True
++            except Exception as e:
++                print(f'Commit failed: {e}')
++                return False
++        return False
+ 
+-    def execute_action(self, action_type: str, params: Dict[str, Any]) -> bool:
+-        success = False
++class Agent:
++    def __init__(self, repo_path='/home/arthur/Projetos/A3X/configs'):
++        self.metrics = MetricsTracker()
++        self.repo_path = repo_path
++        self.max_recursion_depth = 10  # Initial max depth
++
++    def execute_action(self, action_type, **kwargs):
++        self.metrics.update_action(success=False)  # Assume fail initially
+         try:
+             if action_type == 'read_file':
+-                success = self._read_file(params.get('path'))
++                content = self.read_file(kwargs['path'])
++                self.metrics.update_action(success=True)
++                return content
+             elif action_type == 'write_file':
+-                success = self._write_file(params.get('path'), params.get('content'))
+-            elif action_type == 'run_command':
+-                success = self._run_command(params.get('command'), params.get('cwd'))
++                success = self.write_file(kwargs['path'], kwargs['content'])
++                self.metrics.update_action(success=success)
++                return success
+             # Add more action types as needed
+         except Exception as e:
+-            print(f"Action {action_type} failed: {e}")
+-            success = False
+-        finally:
+-            self.monitor.update_action(success, self.monitor.current_depth)
+-        return success
++            print(f'Action failed: {e}')
++            self.metrics.update_action(success=False)
++            return None
+ 
+-    def _read_file(self, path: str) -> bool:
+-        full_path = os.path.join(self.base_path, path)
+-        if os.path.exists(full_path):
+-            with open(full_path, 'r') as f:
+-                content = f.read()
+-            print(f"Read {path}: {content[:100]}...")
+-            return True
+-        else:
+-            print(f"File not found: {full_path}")
+-            return False
++    def recursive_task(self, task, depth=0):
++        if depth >= self.max_recursion_depth:
++            print('Max recursion depth reached.')
++            return None
+ 
+-    def _write_file(self, path: str, content: str) -> bool:
+-        full_path = os.path.join(self.base_path, path)
+-        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+-        try:
+-            with open(full_path, 'w') as f:
+-                f.write(content)
+-            print(f"Written {path}")
+-            return True
+-        except Exception as e:
+-            print(f"Write failed: {e}")
+-            return False
++        self.metrics.enter_recursion()
+ 
+-    def _run_command(self, command: str, cwd: str = None) -> bool:
+-        try:
+-            import subprocess
+-            result = subprocess.run(command, shell=True, cwd=cwd or self.base_path, capture_output=True, text=True)
+-            print(f"Command '{command}' output: {result.stdout}")
+-            if result.stderr:
+-                print(f"Errors: {result.stderr}")
+-            return result.returncode == 0
+-        except Exception as e:
+-            print(f"Run command failed: {e}")
+-            return False
++        # Simulate task execution
++        result = self._perform_task(task)
+ 
+-    def recursive_task(self, task: str, depth: int = 0) -> Dict[str, Any]:
+-        if not self.monitor.should_recurse(depth):
+-            print(f"Stopping recursion at depth {depth}")
+-            return {'status': 'stopped', 'metrics': self.monitor.get_metrics()}
++        if self.metrics.should_adjust_depth():
++            self.max_recursion_depth = max(5, int(self.max_recursion_depth * self.metrics.success_rate))
++            print(f'Adjusted max depth to {self.max_recursion_depth} based on success rate {self.metrics.success_rate:.2f}')
+ 
+-        print(f"Executing task '{task}' at depth {depth}")
+-        # Simulate task execution
+-        action_success = self.execute_action('write_file', {'path': 'agent.py', 'content': f"Updated at depth {depth}"})
++        if result and depth < 3:  # Example: recurse up to 3 levels
++            sub_result = self.recursive_task(f'Subtask of {task}', depth + 1)
++            if sub_result:
++                result += f' | {sub_result}'
+ 
+-        if action_success and self.monitor.success_rate > 0.9:
+-            # Auto-commit if success rate high
+-            commit_success = self._run_command('git add . && git commit -m "Auto-commit: success_rate >0.9 at depth {depth}"')
+-            if commit_success:
+-                print("Auto-commit successful")
++        self.metrics.exit_recursion()
+ 
+-        # Recursive sub-task
+-        sub_result = self.recursive_task(f"Sub-task of {task}", depth + 1)
++        if depth == 0:  # Top level, check for auto-commit
++            self.metrics.auto_commit(self.repo_path)
+ 
+-        return {'status': 'completed', 'depth': depth, 'metrics': self.monitor.get_metrics(), 'sub_result': sub_result}
++        return result
+ 
+-    def run_tests(self) -> bool:
+-        print("Running unit tests for recursion monitoring...")
+-        # Simple test suite
+-        test_success = True
+-        # Test 1: Basic action
+-        if not self.execute_action('read_file', {'path': 'agent.py'}):
+-            test_success = False
+-        # Test 2: Metrics update
+-        self.monitor.update_action(True)
+-        if self.monitor.success_rate != 1.0:
+-            test_success = False
+-        # Test 3: Depth adjustment
+-        for _ in range(10):
+-            self.monitor.update_action(True)
+-        if self.monitor.max_depth != 6:  # Should increase once
+-            test_success = False
+-        print(f"Tests passed: {test_success}")
+-        return test_success
++    def _perform_task(self, task):
++        # Placeholder for actual task
++        print(f'Performing task: {task} at depth {self.metrics.current_depth}')
++        return f'Result of {task}'
+ 
+-if __name__ == "__main__":
+-    monitor = MetricsMonitor()
+-    agent = RecursiveAgent(monitor)
+-    # Run initial task
+-    result = agent.recursive_task("Implement recursion monitoring")
+-    print(json.dumps(result, indent=2))
+-    # Run tests
+-    tests_passed = agent.run_tests()
+-    if tests_passed and monitor.success_rate > 0.9:
+-        print("All good! Ready for auto-commit.")
+-    else:
+-        print("Needs more work.")+    def read_file(self, path):
++        if os.path.exists(path):
++            with open(path, 'r') as f:
++                return f.read()
++        raise FileNotFoundError(f'File not found: {path}')
++
++    def write_file(self, path, content):
++        os.makedirs(os.path.dirname(path), exist_ok=True)
++        with open(path, 'w') as f:
++            f.write(content)
++        return True
++
++# Tests
++def run_tests():
++    agent = Agent()
++    # Test 1: Basic action
++    agent.execute_action('write_file', path='/tmp/test.txt', content='test')
++    content = agent.execute_action('read_file', path='/tmp/test.txt')
++    assert content == 'test'
++    print('Test 1 passed')
++
++    # Test 2: Recursion and metrics
++    result = agent.recursive_task('Main Task')
++    assert agent.metrics.actions_total > 0
++    assert agent.metrics.success_rate > 0
++    print('Test 2 passed')
++
++    # Test 3: Auto-adjust (simulate high depth low success)
++    agent.metrics.max_depth = 6
++    agent.metrics.success_rate = 0.7
++    old_depth = agent.max_recursion_depth
++    agent.recursive_task('Adjust Test')
++    assert agent.max_recursion_depth <= old_depth
++    print('Test 3 passed')
++
++if __name__ == '__main__':
++    run_tests()
++    print('All tests completed. Current success rate:', Agent().metrics.success_rate)
