@@ -1,0 +1,5 @@
+# Este é o projeto A3X - Ferramenta Autônoma de Codificação Local
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"

@@ -1,21 +1,30 @@
+
 llm:
-  type: manual
-  script: scripts/seed_patch.yaml
+  type: "manual"
+  script: "scripts/demo_plan.yaml"
 
 workspace:
-  root: .
-  allow_outside_root: false
+  root: "."
 
 limits:
-  max_iterations: 10
-  command_timeout: 120
-  max_failures: 3
+  max_iterations: 20
 
 tests:
   auto: false
-  commands: []
 
 policies:
   allow_network: false
   allow_shell_write: true
+  deny_commands: ["rm", "mv", "dd", "kill", "reboot", "shutdown"]
 
+goals:
+  apply_patch_success_rate: 0.7
+
+loop:
+  auto_seed: true
+  seed_backlog: "seed/backlog.yaml"
+
+audit:
+  enable_file_log: true
+  file_dir: "seed/changes"
+  enable_git_commit: false

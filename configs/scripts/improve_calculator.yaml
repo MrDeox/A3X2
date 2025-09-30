@@ -20,7 +20,7 @@
 - type: message
   text: "Aplicando refatoração inteligente para melhorar o código..."
 
-- type: apply_patch
+- type: patch
   diff: |
     --- a/test_calculator.py
     +++ b/test_calculator.py

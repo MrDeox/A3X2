@@ -1,0 +1,17 @@
+
+# Objetivos de exemplo para autopilot
+- goal: "Auto-avaliar minhas capacidades atuais e identificar lacunas"
+  config: "configs/seed_manual.yaml"
+  priority: "high"
+- goal: "Implementar melhoria em análise de complexidade ciclomática"
+  config: "configs/seed_manual.yaml"
+  priority: "medium"
+- goal: "Melhorar sistema de detecção de más práticas de codificação"
+  config: "configs/seed_manual.yaml"
+  priority: "medium"
+- goal: "Expandir para análise de linguagens além de Python"
+  config: "configs/seed_manual.yaml"
+  priority: "low"
+- goal: "Aprimorar minhas habilidades de auto-modificação segura"
+  config: "configs/seed_manual.yaml"
+  priority: "high"

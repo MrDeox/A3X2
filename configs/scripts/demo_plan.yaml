@@ -1,10 +1,24 @@
-# Script de exemplo para ManualLLMClient
-- type: message
-  text: "Iniciando demonstração: verificando ambiente."
-- type: command
-  command: ["ls"]
-  cwd: "."
-- type: message
-  text: "Nenhuma alteração realizada; encerrando."
-- type: finish
-  summary: "Demo concluída sem modificações."
+
+# Plano de demonstração para SeedAI
+- type: "message"
+  text: "Iniciando autoavaliação de minhas próprias capacidades"
+- type: "read_file"
+  path: "a3x/__init__.py"
+- type: "message" 
+  text: "Analisando minhas capacidades atuais..."
+- type: "command"
+  command: ["python", "-c", "import a3x; print('SeedAI está funcionando corretamente')"]
+- type: "message"
+  text: "Identificando oportunidades de melhoria..."
+- type: "patch"
+  diff: |
+    --- a/README.md
+    +++ b/README.md
+    @@ -1,5 +1,6 @@
+     # A3X – Ferramenta Autônoma de Codificação Local
+    
+     A3X é um esqueleto de ferramenta CLI desenhada para orquestrar um agente de codificação local inspirado no Replit Agent 3 e em iniciativas open-source como OpenHands, SWE-Agent e GPT-Engineer.
+- type: "message"
+  text: "Auto-aperfeiçoamento realizado com sucesso!"
+- type: "finish"
+  text: "Concluído auto-aperfeiçoamento inicial"

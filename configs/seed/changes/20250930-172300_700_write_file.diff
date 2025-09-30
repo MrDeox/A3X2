@@ -1,0 +1,10 @@
+--- a/pyproject.toml
++++ b/pyproject.toml
+--- pyproject.toml
++++ pyproject.toml
+@@ -0,0 +1,5 @@
++# Este é o projeto A3X
++
++[build-system]
++requires = ["setuptools>=45", "wheel"]
++build-backend = "setuptools.build_meta"

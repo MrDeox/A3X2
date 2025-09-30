@@ -1,6 +1,6 @@
 llm:
   type: manual
-  script: configs/scripts/improve_calculator.yaml
+  script: /home/arthur/Projetos/A3X/configs/scripts/improve_calculator.yaml
 
 workspace:
   root: .

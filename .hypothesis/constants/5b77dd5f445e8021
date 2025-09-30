@@ -1,0 +1,4 @@
+# file: /home/arthur/Projetos/A3X/a3x/self_directed_evolution.py
+# hypothesis_version: 6.140.2
+
+[-0.1, 0.0, 0.1, 0.3, 0.4, 0.45, 0.5, 0.6, 0.65, 0.7, 0.8, 0.9, 1.0, 3.0, 5.0, 7.0, 8.0, 30.0, 60.0, 90.0, 180.0, 100, 999, '.', '; ', 'EvolutionGoal', 'EvolutionPlan', 'SelfAssessment', 'StrategicGap', '_improving', 'active', 'assessments', 'core', 'critical', 'data_sets', 'development_time', 'evolution', 'gaps', 'goals', 'high', 'horiz.integration', 'important', 'improving', 'long_term', 'low', 'medium', 'medium_term', 'meta.capabilities', 'meta.evolution', 'nice_to_have', 'pending', 'plans', 'research_resources', 'seed', 'short_term', 'utf-8', 'w']

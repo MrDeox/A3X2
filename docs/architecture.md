@@ -91,20 +91,20 @@ Ações suportadas inicialmente:
 
 O `Executor` escolhe handler conforme tipo. Cada execução gera `Observation` com status (`success/failure`), saída textual e metadados (tempo, código de saída).
 
-### 6. Test Harness (`a3x.testing`)
+### 6. Test Harness (Integrado em `a3x.executor` e `a3x.autoeval`)
 
-- Facilita execução de suites definidas no config (`commands: ["pytest", "ruff ."]`).
-- Pode ser invocado automaticamente após ações que alteraram arquivos.
+- Execução de suítes de teste (ex.: pytest, ruff) via ações `RunCommand`, configuradas em presets YAML.
+- Invocado automaticamente após ações que modificaram arquivos através de hooks de auto-avaliação em `a3x.autoeval.py`.
 
-### 7. Policy Engine (`a3x.policy`)
+### 7. Policy Engine (Integrado em `a3x.config` e `a3x.executor`)
 
-- Regras configuráveis para validar ações antes da execução (ex.: bloqueio de `rm -rf /`).
-- Integrado ao Executor; recusa ações violadoras e retorna observação de erro ao LLM.
+- Regras configuráveis em YAML para validação de ações (ex.: negar writes fora do workspace, timeouts de comando).
+- Integrado ao Executor; rejeita ações violadoras e retorna observação de erro ao LLM.
 
-### 8. Telemetria (`a3x.telemetry`)
+### 8. Telemetria (Via `a3x.report`, `a3x.history` e seed/reports/`)
 
-- Logger estruturado (JSON ou texto) com níveis.
-- Hooks para exporters futuros.
+- Logging estruturado para ações, observações e métricas em history e reports.
+- Persistência JSONL em `seed/evaluations/` e `seed/memory/`; níveis básicos com hooks para exporters futuros.
 
 ## Fluxo de Controle Detalhado
 

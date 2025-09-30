@@ -1,0 +1,6 @@
+--- a/test_a3x.txt
++++ b/test_a3x.txt
+--- test_a3x.txt
++++ test_a3x.txt
+@@ -0,0 +1 @@
++Este é um teste do A3X em execução real

@@ -1,10 +1,10 @@
-# QWEN.md - Contexto Instrucional para Interações Futuras
+# A3X - Ferramenta Autônoma de Codificação Local
 
-## 🎯 Visão Geral do Projeto A3X
+## Visão Geral
 
-O **A3X** é um agente autônomo de codificação local baseado no conceito de **SeedAI** - uma inteligência artificial que evolui continuamente através de ciclos de auto-aprimoramento. O objetivo é criar um sistema que possa executar ciclos autônomos de edição → teste → correção em projetos locais, com foco em segurança, controlabilidade e crescimento contínuo.
+O A3X é um agente autônomo de codificação local projetado para orquestrar um ciclo contínuo de edição → teste → correção em projetos locais, com foco em segurança, controlabilidade e crescimento contínuo. Inspirado em projetos como Replit Agent 3, OpenHands, SWE-Agent e GPT-Engineer, o A3X implementa o conceito de SeedAI - uma inteligência artificial que evolui continuamente através de ciclos de autoaprimoramento.
 
-### 🧠 Arquitetura Principal
+## Arquitetura
 
 ```
 +----------------------+        +---------------------+
@@ -28,111 +28,63 @@ O **A3X** é um agente autônomo de codificação local baseado no conceito de *
 +--------------------+      +-----------------------+    +----------------------+
 ```
 
-## 🏗️ Estrutura do Código
+## Componentes Principais
 
-```
-A3X/
-├── a3x/                    # Módulo principal
-│   ├── cli.py             # Interface em linha de comando
-│   ├── agent.py           # Orquestrador principal do agente
-│   ├── executor.py        # Executor de ações (ApplyPatch, RunCommand, etc.)
-│   ├── actions.py         # Definições de ações e observações
-│   ├── config.py          # Carregamento e validação de configuração
-│   ├── history.py         # Histórico de ações/observações com resumos
-│   ├── patch.py           # Aplicação de diffs unificados
-│   ├── llm.py            # Clientes LLM (OpenAI, Manual, etc.)
-│   ├── autoeval.py       # Auto-avaliação e geração de seeds
-│   ├── testgen.py        # Gerador de testes adaptativos
-│   ├── report.py         # Relatórios de capacidades e métricas
-│   ├── seeds.py          # Gerenciamento de backlog de seeds
-│   ├── planning/         # Planejamento e missões
-│   ├── memory/           # Memória semântica
-│   └── meta_capabilities.py # Capacidades meta para auto-criação de habilidades
-├── tests/                # Suite de testes
-│   ├── unit/             # Testes unitários
-│   │   └── a3x/          # Testes para cada módulo
-│   └── generated/        # Testes gerados automaticamente
-├── seed/                 # Artefatos SeedAI
-│   ├── backlog.yaml      # Backlog de seeds propostas
-│   ├── capabilities.yaml # Grafo de capacidades
-│   ├── missions.yaml     # Missões e objetivos
-│   ├── evaluations/      # Avaliações de execuções
-│   ├── metrics/          # Métricas históricas
-│   ├── reports/          # Relatórios de capacidades
-│   └── memory/           # Memória semântica indexada
-├── configs/              # Configurações do agente
-├── docs/                 # Documentação
-└── samples/              # Exemplos e demos
-```
-
-## 🧩 Componentes Principais
-
-### 1. **Interface CLI (`a3x.cli`)**
+### 1. Interface CLI (`a3x.cli`)
 - Aceita objetivo, arquivo de configuração e modo (dry-run, execução real)
 - Comandos principais: `run`, `seed`, `autopilot`, `memory`
 
-### 2. **Orquestrador do Agente (`a3x.agent`)**
+### 2. Orquestrador do Agente (`a3x.agent`)
 - Implementa o loop de decisão/execução
 - Gerencia limite de iterações, critérios de parada e coleta de métricas
 - Coordena interação entre LLM, executor e histórico
 
-### 3. **Cliente LLM (`a3x.llm`)**
+### 3. Cliente LLM (`a3x.llm`)
 - Abstração para modelos de linguagem
 - Implementa clientes para OpenAI, Manual (roteiros YAML), OpenRouter
+- Cliente OpenRouter inclui fallback para Ollama quando necessário (inicializado sob demanda)
 - Suporte a formatação de resposta JSON e testes com HTTP mockado
 
-### 4. **Executor de Ações (`a3x.executor`)**
+### 4. Executor de Ações (`a3x.executor`)
 - Aplica ações: `ApplyPatch`, `RunCommand`, `ReadFile`, `WriteFile`, `Message`, `Finish`
 - Controle de timeout e captura estruturada de stdout/stderr
 - Análise de impacto pré-aplicação com validação de segurança
 
-### 5. **Patch Manager (`a3x.patch`)**
+### 5. Patch Manager (`a3x.patch`)
 - Aplica diffs unificados via `patch(1)` ou fallback em Python
 - Validação de segurança e reversão automática em caso de falha
 
-### 6. **Histórico (`a3x.history`)**
+### 6. Histórico (`a3x.history`)
 - Estruturas para logar ações/observações
 - Gera resumos e snapshots do contexto para o LLM
 - Truncamento por tokens aproximados para gerenciar contexto
 
-### 7. **Auto-avaliação (`a3x.autoeval`)**
+### 7. Auto-avaliação (`a3x.autoeval`)
 - Registra métricas de cada execução em `seed/evaluations/`
 - Analisa código para identificar gaps de capacidades
 - Gera seeds automáticas baseadas em métricas e desempenho
 
-### 8. **Gerador de Testes (`a3x.testgen`)**
+### 8. Gerador de Testes (`a3x.testgen`)
 - Gera testes adaptativos em `tests/generated/`
 - Garante crescimento contínuo das métricas rastreadas
 - Cria testes que exigem evolução monotônica das métricas
 
-### 9. **Planejamento e Missões (`a3x.planning`)**
+### 9. Planejamento e Missões (`a3x.planning`)
 - Sistema de missões multi-nível com milestones
 - Planejador que gera seeds baseadas em objetivos e capacidades
 - Armazenamento persistente de estado de missões
 
-### 10. **Memória Semântica (`a3x.memory`)**
+### 10. Memória Semântica (`a3x.memory`)
 - Armazena resumos indexados dos runs em `seed/memory/memory.jsonl`
 - Busca semântica por lembranças similares
 - Integração com embeddings locais via sentence-transformers
 
-### 11. **Capacidades Meta (`a3x.meta_capabilities`)**
+### 11. Capacidades Meta (`a3x.meta_capabilities`)
 - Sistema de auto-criação de habilidades
 - Capacidades que permitem ao agente criar novas habilidades autonomamente
 - Análise estática de código e geração de sugestões de otimização
 
-## 🧪 Testes e Qualidade
-
-### Estrutura de Testes
-- **Testes Unitários**: Cobertura abrangente para cada módulo em `tests/unit/a3x/`
-- **Testes Gerados**: Testes adaptativos que evoluem com o sistema em `tests/generated/`
-- **Testes de Integração**: Verificação de fluxo completo do sistema
-
-### Métricas de Qualidade
-- **Cobertura de Testes**: 92+ testes passando com cobertura abrangente
-- **Análise Estática**: Detecção de más práticas de código (números mágicos, variáveis globais, etc.)
-- **Complexidade Ciclomática**: Monitoramento contínuo de complexidade de código
-
-## 🔧 Comandos Principais
+## Comandos Básicos
 
 ### Execução Básica
 ```bash
@@ -157,74 +109,34 @@ a3x autopilot --cycles 2 --goals seed/goal_rotation.yaml
 nohup ./scripts/autonomous_loop.sh > seed_watch.log 2>&1 &
 ```
 
-## 🌱 Conceito SeedAI
+## Artefatos SeedAI
 
-### Filosofia
+- **Logs & Métricas**: `seed/evaluations/run_evaluations.jsonl` e `seed/metrics/history.json` agregam métricas por execução.
+- **Testes Adaptativos**: `tests/generated/test_metrics_growth.py` é recriado automaticamente para exigir evolução monotônica das métricas rastreadas.
+- **Relatórios**: `seed/reports/capability_report.md` resume uso de capacidades e melhores métricas.
+- **Capacidades**: `seed/capabilities.yaml` serve como grafo de habilidades com seeds e métricas desejadas.
+- **Memória Semântica**: `seed/memory/memory.jsonl` mantém resumos indexados dos runs; use `a3x memory search --query "texto"` para consultar.
+- **Missões**: `seed/missions.yaml` descreve objetivos multi-nível; milestones incompletas geram seeds `mission.*` automaticamente.
+- **Meta Capabilities**: entries `meta.*` em `seed/capabilities.yaml` disparam seeds de evolução quando requisitos de maturidade são atendidos (ex.: `meta.diffing.curriculum`).
+
+## Filosofia SeedAI
+
 O A3X implementa o ciclo de autoaprimoramento contínuo SeedAI:
-1. **Edição incremental dirigida por diffs**
-2. **Loop de auto-teste** com feedback estruturado
-3. **Histórico compacto e contextualizado**
-4. **Execução segura** com limites e isolamento
+1. **Edição incremental dirigida por diffs**: o agente gera patches unificados aplicados ao workspace.
+2. **Loop de auto-teste**: comandos e suítes (ex.: `pytest`) são executados a cada iteração, e os resultados alimentam o próximo passo.
+3. **Histórico compacto e contextualizado**: histórico de ações/observações com resumos para caber no contexto do modelo.
+4. **Execução segura**: limites de tempo e isolamento opcional para comandos, mitigando riscos.
 
-### Artefatos SeedAI
-- **Logs & Métricas**: `seed/evaluations/run_evaluations.jsonl`
-- **Testes Adaptativos**: `tests/generated/test_metrics_growth.py`
-- **Relatórios**: `seed/reports/capability_report.md`
-- **Capacidades**: `seed/capabilities.yaml` (grafo de habilidades)
-- **Memória Semântica**: `seed/memory/memory.jsonl`
-- **Missões**: `seed/missions.yaml` (objetivos multi-nível)
-- **Meta Capabilities**: entries `meta.*` em capabilities.yaml
+## Manifesto SeedAI
 
-## 🚀 Roadmap de Evolução
+O projeto segue os princípios:
+- **Human-first**: toda evolução deve aumentar a confiança e a utilidade para quem usa.
+- **Seeds iterativas**: cada tarefa gera sementes de melhoria que alimentam o backlog evolutivo.
+- **Aprendizado verificável**: todo aprimoramento passa por testes automatizados e revisão humana opcional.
+- **Autonomia controlada**: o agente pode propor e executar mudanças, mas sempre respeitando políticas de segurança.
+- **Memória auditável**: decisões, métricas e aprendizados ficam registrados em formato legível.
 
-### Fases Completas
-1. ✅ **Análise Estática de Código**: Detecção de más práticas com análise AST
-2. ✅ **Auto-otimização de Código**: Sugestões automáticas de refatoração
-3. ✅ **Refatoração Inteligente**: Aplicação automática de melhorias de código
-4. ✅ **Análise de Complexidade**: Monitoramento de complexidade ciclomática
-5. ✅ **Rollback Automático**: Reversão inteligente de mudanças problemáticas
-
-### Próximas Fases
-1. 🔄 **Expansão Horizontal**: Aplicação do SeedAI a domínios além de desenvolvimento
-2. 🔄 **Capacidades Meta**: Desenvolvimento de habilidades para auto-criação de novas habilidades
-3. 🔄 **Aprendizado Transferível**: Capacidade de aplicar conhecimento entre domínios
-4. 🔄 **Evolução Autodirigida**: Sistema que escolhe autonomamente quais capacidades desenvolver
-5. 🔄 **Monetização**: Geração de receita através de valor entregue
-
-## 📊 Métricas-Chave Monitoradas
-
-### Métricas de Desempenho
-- `apply_patch_success_rate`: Taxa de sucesso na aplicação de diffs
-- `actions_success_rate`: Taxa de sucesso geral nas ações
-- `tests_success_rate`: Taxa de sucesso nos testes automatizados
-- `failure_rate`: Taxa de falhas nas execuções
-
-### Métricas de Qualidade de Código
-- `magic_numbers`: Contagem de números mágicos detectados
-- `global_vars`: Contagem de variáveis globais
-- `file_diversity`: Diversidade de tipos de arquivos modificados
-- `complexity_score`: Pontuação de complexidade ciclomática
-
-### Métricas de Aprendizado
-- `capability_maturity`: Maturidade das diferentes capacidades
-- `learning_curve`: Curva de aprendizado por domínio
-- `skill_diversity`: Diversidade de habilidades desenvolvidas
-
-## 🛡️ Segurança e Controle
-
-### Políticas de Execução
-- **Limites de Tempo**: Timeout configurável para comandos
-- **Isolamento Opcional**: Sandboxing em containers Docker
-- **Lista de Permissões/Negações**: Controle granular de comandos
-- **Auditoria**: Log detalhado de todas as ações
-
-### Validação de Segurança
-- **Análise Estática Pré-execução**: Detecção de código perigoso
-- **Verificação de Alinhamento**: Checagem de mudanças desalinhadas
-- **Análise de Impacto**: Avaliação de consequências antes da aplicação
-- **Rollback Automático**: Reversão inteligente de mudanças problemáticas
-
-## 🧠 Conceitos-Chave
+## Conceitos-Chave
 
 ### SeedAI (Inteligência Artificial Semeada)
 Um sistema de IA que evolui continuamente através de ciclos de auto-aprimoramento, gerando automaticamente "seeds" (sementes) de melhoria que são cultivadas para expandir suas capacidades.
@@ -241,20 +153,6 @@ Capacidade do sistema de identificar e aplicar automaticamente melhorias de cód
 ### Rollback Automático Inteligente
 Sistema que reverte automaticamente mudanças problemáticas com base em métricas de qualidade e desempenho.
 
-### Aprendizado Transferível
-Capacidade de aplicar conhecimento e habilidades adquiridas em um domínio para resolver problemas em outros domínios.
+## Desenvolvimento e Contribuição
 
-## 📈 Estado Atual
-
-O A3X está atualmente em estado de **protótipo avançado** com:
-
-- ✅ **Loop autônomo completo**: Edição → Teste → Correção
-- ✅ **Análise estática robusta**: Detecção de más práticas de código
-- ✅ **Auto-otimização**: Sugestões e aplicação automática de melhorias
-- ✅ **Refatoração inteligente**: Capacidade de melhorar automaticamente o código
-- ✅ **Rollback automático**: Proteção contra degradação de qualidade
-- ✅ **Sistema de seeds**: Geração automática de tarefas de melhoria
-- ✅ **Testes abrangentes**: 92+ testes passando com cobertura completa
-- ✅ **Segurança integrada**: Políticas rigorosas de segurança e controle
-
-O sistema está pronto para evoluir para **domínios além do desenvolvimento de software** e implementar **capacidades meta de auto-criação de habilidades**.
+O A3X é licenciado sob a licença MIT e aceita contribuições via pull requests. O projeto segue práticas modernas de engenharia de software, com testes automatizados, CI/CD e documentação abrangente.

@@ -31,10 +31,10 @@
   description: Manipular arquivos Python, dependências PyPI e executar pytest/ruff/black.
   maturity: baseline
   metrics:
-    tasks_completed: 18
-    regression_rate: 0.1
-    runs: 20
-    completed_runs: 18
+    tasks_completed: 21
+    regression_rate: 0.087
+    runs: 23
+    completed_runs: 21
   seeds:
   - Expandir para frameworks (Flask, FastAPI) com blueprints dedicados.
   - Adicionar verificação automática de requisitos (pip freeze).

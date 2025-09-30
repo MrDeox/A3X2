@@ -39,16 +39,27 @@ Com base na pesquisa "Ferramenta Autônoma de Codificação Local – Pesquisa e
 
 - `a3x.cli`: Interface em linha de comando; aceita objetivo, arquivo de configuração e modo (dry-run, execução real, etc.).
 - `a3x.agent`: Implementa o loop de decisão/execução, incluindo limite de iterações, critérios de parada e coleta de métricas.
-- `a3x.llm`: Abstração para o modelo de linguagem. Inclui `ManualLLMClient` (roteiros YAML) e `OpenRouterLLMClient`, pronto para Grok 4 Fast ou outros modelos disponíveis na OpenRouter.
-- `a3x.executor`: Aplicação de ações (`ApplyPatch`, `RunCommand`, `ReadFile`, `Message`) com controle de timeout e captura de stdout/stderr.
+- `a3x.llm`: Abstração para o modelo de linguagem. Inclui `ManualLLMClient` (roteiros YAML) e `OpenRouterLLMClient`, pronto para Grok 4 Fast ou outros modelos disponíveis na OpenRouter. O OpenRouterLLMClient inclui fallback para Ollama quando necessário (inicializado sob demanda).
+- `a3x.executor`: Aplicação de ações (`ApplyPatch`, `RunCommand`, `ReadFile`, `WriteFile`, `Message`, `Finish`) com controle de timeout e captura de stdout/stderr.
 - `a3x.patch`: Utilitário que aplica diffs unificados via `patch(1)` ou usando fallback em Python.
 - `a3x.history`: Estruturas para logar ações/observações, gerar resumos e snapshots do contexto para o LLM.
 - `a3x.config`: Carrega arquivo YAML declarando ferramentas habilitadas, limites de recursos e prompts iniciais.
+- `a3x.seeds`: Gerenciamento de backlog de seeds autônomas em `seed/backlog.yaml`.
+- `a3x.seed_runner`: Executor de seeds autônomas com base em objetivos de melhoria.
+- `a3x.seed_daemon`: Daemon para execução contínua de seeds (loop de autoaprimoramento).
+- `a3x.autoloop`: Loop autônomo de objetivos e seeds para evolução contínua.
 - `docs/seed_manifesto.md`: Manifesto SeedAI descrevendo o ciclo de autoaprimoramento contínuo (horizontal e vertical).
 - `seed/capabilities.yaml`: Grafo de capacidades monitoradas com seeds propostas e métricas alvo.
-- `a3x.autoeval`: Esqueleto de autoavaliação que registra métricas de cada execução em `seed/evaluations/`.
+- `a3x.autoeval`: Sistema de autoavaliação que registra métricas de cada execução em `seed/evaluations/`.
 - `a3x.testgen`: Gera testes adaptativos em `tests/generated/` para garantir crescimento contínuo das métricas.
 - `a3x.report`: Consolida relatórios de uso de capacidades e métricas em `seed/reports/`.
+- `a3x.planning/`: Sistema de planejamento com missões e milestones multi-nível.
+- `a3x.memory/`: Sistema de memória semântica com indexação e busca por similaridade.
+- `a3x.meta_capabilities`: Capacidades meta para auto-criação e evolução de habilidades.
+- `a3x.data_analysis`: Análise de dados e geração de insights para tomada de decisão.
+- `a3x.autonomous_monetization`: Sistema de monetização autônoma para geração de receita.
+- `a3x.transfer_learning`: Implementação de aprendizado por transferência entre domínios.
+- `a3x.self_directed_evolution`: Sistema de evolução autodirigida com autoavaliação contínua.
 
 ## Fluxo Operacional
 

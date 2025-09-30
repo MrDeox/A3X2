@@ -1,0 +1,10 @@
+--- a/basic_test.py
++++ b/basic_test.py
+--- basic_test.py
++++ basic_test.py
+@@ -0,0 +1,5 @@
++print('Basic functionality test: Hello, World!')
++
++# Simple arithmetic
++result = 2 + 2
++print(f'2 + 2 = {result}')
