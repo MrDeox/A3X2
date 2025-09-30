@@ -1,0 +1,134 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -1,106 +1,29 @@
+ #!/usr/bin/env python3
+ import sys
+ import os
+-import subprocess
+-import tempfile
+-import shutil
+-from pathlib import Path
+-import re
+ 
+-# Security checks constants
+-ALLOWED_EXTENSIONS = {'.py', '.txt', '.md'}
+-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+-BLOCKED_PATHS = ['/etc/', '/var/log/', '/root/', '/proc/']
++# Security checks
++def validate_input(file_path):
++    if not os.path.exists(file_path):
++        raise ValueError(f"File {file_path} does not exist.")
++    if not os.access(file_path, os.R_OK):
++        raise PermissionError(f"No read permission for {file_path}.")
++    return True
+ 
+-class SecurePatcher:
+-    def __init__(self):
+-        self.temp_dir = None
+-
+-    def validate_patch_content(self, patch_content):
+-        """Validate patch content for security risks."""
+-        # Check for potentially dangerous commands
+-        dangerous_patterns = [
+-            r'\s*(rm|del|format|mkfs|dd if=/dev/zero)',
+-            r'\s*(chmod\s+777|chown\s+0:0)',
+-            r'\s*(eval|exec|system\()',
+-        ]
+-        for pattern in dangerous_patterns:
+-            if re.search(pattern, patch_content, re.IGNORECASE):
+-                raise ValueError(f"Dangerous content detected: {pattern}")
+-        # Check size
+-        if len(patch_content) > MAX_FILE_SIZE:
+-            raise ValueError("Patch too large")
+-        return True
+-
+-    def validate_target_path(self, target_path):
+-        """Validate target file path."""
+-        path = Path(target_path)
+-        # Check extension
+-        if path.suffix not in ALLOWED_EXTENSIONS:
+-            raise ValueError(f"Unsupported file extension: {path.suffix}")
+-        # Check for blocked paths
+-        abs_path = path.resolve()
+-        for blocked in BLOCKED_PATHS:
+-            if str(abs_path).startswith(blocked):
+-                raise ValueError(f"Blocked path: {abs_path}")
+-        # Ensure it's writable
+-        if not os.access(path.parent, os.W_OK):
+-            raise ValueError(f"Cannot write to directory: {path.parent}")
+-        return True
+-
+-    def apply_patch(self, patch_file, target_file):
+-        """Apply patch securely."""
+-        try:
+-            # Validate target
+-            self.validate_target_path(target_file)
+-
+-            # Read and validate patch
+-            with open(patch_file, 'r') as f:
+-                patch_content = f.read()
+-            self.validate_patch_content(patch_content)
+-
+-            # Create backup
+-            backup_file = target_file + '.backup'
+-            shutil.copy2(target_file, backup_file)
+-
+-            # Use patch command with restrictions
+-            cmd = ['patch', '-p1', '--input=' + patch_file, target_file, '--backup', '--verbose']
+-            # Run in a controlled environment
+-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+-
+-            if result.returncode != 0:
+-                # Restore backup on failure
+-                shutil.copy2(backup_file, target_file)
+-                raise RuntimeError(f"Patch failed: {result.stderr}")
+-
+-            # Clean up backup if successful
+-            os.unlink(backup_file)
+-            print("Patch applied successfully.")
+-
+-        except Exception as e:
+-            print(f"Security error or failure: {e}")
+-            if self.temp_dir:
+-                shutil.rmtree(self.temp_dir, ignore_errors=True)
+-            sys.exit(1)
+-
+-    def run(self):
+-        if len(sys.argv) != 3:
+-            print("Usage: python3 patch.py <patch_file> <target_file>")
+-            sys.exit(1)
+-
+-        patch_file = sys.argv[1]
+-        target_file = sys.argv[2]
+-
+-        if not os.path.exists(patch_file):
+-            print("Patch file not found.")
+-            sys.exit(1)
+-
+-        if not os.path.exists(target_file):
+-            print("Target file not found.")
+-            sys.exit(1)
+-
+-        self.apply_patch(patch_file, target_file)
+-
+-if __name__ == '__main__':
+-    patcher = SecurePatcher()
+-    patcher.run()+if __name__ == "__main__":
++    if len(sys.argv) < 2:
++        print("Usage: python patch.py <file>", file=sys.stderr)
++        sys.exit(1)
++    try:
++        file_path = sys.argv[1]
++        validate_input(file_path)
++        with open(file_path, 'r') as f:
++            content = f.read()
++        print("File validated successfully.")
++        # Additional patching logic here
++    except (ValueError, PermissionError) as e:
++        print(f"Security validation failed: {e}", file=sys.stderr)
++        sys.exit(1)
++    except Exception as e:
++        print(f"Unexpected error: {e}", file=sys.stderr)
++        sys.exit(1)

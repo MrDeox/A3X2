@@ -1,0 +1,135 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -1,72 +1,72 @@
+ import sys
+ import os
+ import subprocess
++import re
+ import argparse
+ 
++class SecurePatchApplier:
++    def __init__(self):
++        self.target_files = []
++        self.sensitive_paths = ['/etc/', '/root/', '/var/log/']
+ 
+-def sanitize_path(path):
+-    """Sanitize path to prevent directory traversal."""
+-    if '..' in path or '/' in path.split(os.sep)[0]:
+-        raise ValueError("Invalid path: directory traversal detected")
+-    return os.path.abspath(os.path.expanduser(path))
++    def validate_target(self, target_path):
++        if not os.path.exists(target_path):
++            raise ValueError(f"Target file does not exist: {target_path}")
++        if not os.access(target_path, os.R_OK | os.W_OK):
++            raise PermissionError(f"Insufficient permissions for {target_path}")
++        for sensitive in self.sensitive_paths:
++            if target_path.startswith(sensitive):
++                raise SecurityError(f"Cannot patch sensitive path: {target_path}")
++        return True
+ 
++    def sanitize_diff(self, diff_content):
++        # Basic sanitization: remove any shell commands or dangerous patterns
++        dangerous_patterns = [r'\$\(.*?\)', r';\s*rm\s', r'\|']
++        for pattern in dangerous_patterns:
++            if re.search(pattern, diff_content):
++                raise SecurityError("Diff contains potentially dangerous content")
++        return diff_content
+ 
+-def validate_file_exists(file_path):
+-    """Check if file exists and is readable."""
+-    if not os.path.exists(file_path):
+-        raise FileNotFoundError(f"File not found: {file_path}")
+-    if not os.access(file_path, os.R_OK):
+-        raise PermissionError(f"No read permission for: {file_path}")
+-    return True
++    def apply_secure_patch(self, diff_file, target=None):
++        try:
++            with open(diff_file, 'r') as f:
++                diff_content = f.read()
++            diff_content = self.sanitize_diff(diff_content)
++            if target:
++                self.validate_target(target)
++                # Write sanitized diff to temp file
++                temp_diff = '/tmp/sanitized_patch.diff'
++                with open(temp_diff, 'w') as f:
++                    f.write(diff_content)
++                # Use subprocess with safe args
++                cmd = ['patch', '-p1', '-i', temp_diff, target]
++                result = subprocess.run(cmd, capture_output=True, text=True, check=True)
++                os.remove(temp_diff)
++                return result.stdout
++        except subprocess.CalledProcessError as e:
++            raise PatchError(f"Patch application failed: {e.stderr}")
++        except Exception as e:
++            raise PatchError(f"Security check failed: {str(e)}")
+ 
++    def parse_args(self):
++        parser = argparse.ArgumentParser(description='Secure patch applicator')
++        parser.add_argument('diff_file', help='Path to diff file')
++        parser.add_argument('-t', '--target', help='Target file')
++        return parser.parse_args()
+ 
+-def validate_patch_file(patch_path):
+-    """Check if patch file exists and is readable."""
+-    if not os.path.exists(patch_path):
+-        raise FileNotFoundError(f"Patch file not found: {patch_path}")
+-    if not os.access(patch_path, os.R_OK):
+-        raise PermissionError(f"No read permission for patch: {patch_path}")
+-    return True
++class SecurityError(Exception):
++    pass
+ 
++class PatchError(Exception):
++    pass
+ 
+-def apply_patch_safely(target_file, patch_file, strip=0):
+-    """Apply patch using subprocess with security checks."""
+-    # Sanitize paths
+-    target_file = sanitize_path(target_file)
+-    patch_file = sanitize_path(patch_file)
+-
+-    # Validate files
+-    validate_file_exists(target_file)
+-    validate_patch_file(patch_file)
+-
+-    # Check if target is writable
+-    if not os.access(os.path.dirname(target_file), os.W_OK):
+-        raise PermissionError(f"No write permission for directory: {os.path.dirname(target_file)}")
+-
+-    # Use subprocess with list args to avoid shell injection
+-    cmd = ['patch', '-i', patch_file, target_file, '--strip=' + str(strip)]
++if __name__ == '__main__':
++    applier = SecurePatchApplier()
++    args = applier.parse_args()
+     try:
+-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+-        print("Patch applied successfully.")
+-        print(result.stdout)
+-    except subprocess.CalledProcessError as e:
+-        print(f"Patch failed: {e}")
+-        print(e.stderr)
+-        raise
+-    except FileNotFoundError:
+-        raise RuntimeError("'patch' command not found. Ensure it's installed.")
+-
+-
+-if __name__ == "__main__":
+-    parser = argparse.ArgumentParser(description="Apply patches securely.")
+-    parser.add_argument("target", help="Target file to patch")
+-    parser.add_argument("patch", help="Patch file")
+-    parser.add_argument("-p", "--strip", type=int, default=0, help="Strip level")
+-
+-    args = parser.parse_args()
+-
+-    try:
+-        apply_patch_safely(args.target, args.patch, args.strip)
+-    except Exception as e:
+-        print(f"Error: {e}", file=sys.stderr)
++        output = applier.apply_secure_patch(args.diff_file, args.target)
++        print("Patch applied successfully:")
++        print(output)
++    except (SecurityError, PatchError, ValueError, PermissionError) as e:
++        print(f"Error: {str(e)}", file=sys.stderr)
+         sys.exit(1)

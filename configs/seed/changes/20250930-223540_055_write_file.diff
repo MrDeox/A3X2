@@ -1,0 +1,37 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -0,0 +1,32 @@
++# patch.py - Basic patch applicator
++
++import sys
++import os
++import difflib
++
++def apply_patch(file_path, patch_content):
++    if not os.path.exists(file_path):
++        print(f"Error: File {file_path} not found.")
++        return False
++    
++    with open(file_path, 'r') as f:
++        original = f.readlines()
++    
++    # Simple diff apply (placeholder for security checks)
++    patched = difflib.unified_diff(original, patch_content.splitlines(keepends=True), fromfile=file_path)
++    
++    with open(file_path, 'w') as f:
++        f.writelines(patched)
++    
++    return True
++
++if __name__ == '__main__':
++    if len(sys.argv) != 3:
++        print("Usage: python patch.py <file> <patch>")
++        sys.exit(1)
++    
++    file_path = sys.argv[1]
++    with open(sys.argv[2], 'r') as p:
++        patch_content = p.read()
++    
++    apply_patch(file_path, patch_content)

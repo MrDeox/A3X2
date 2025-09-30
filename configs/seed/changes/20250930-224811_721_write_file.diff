@@ -1,0 +1,157 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -1,84 +1,80 @@
+ import sys
+ import os
+ import subprocess
+-import difflib
+-import re
+ 
+-# Security checks
+-def validate_patch_content(patch_content):
+-    # Check for potentially dangerous commands or paths
+-    dangerous_patterns = [r'\s*(rm|del|format|mkfs)', r'/etc/passwd', r'\s*exec\s', r'\s*system\s']
+-    for pattern in dangerous_patterns:
+-        if re.search(pattern, patch_content, re.IGNORECASE):
+-            raise ValueError(f'Security violation: Dangerous content detected - {pattern}')
+-    return True
++# Security check: Ensure we're not running with elevated privileges unless necessary
++def check_privileges():
++    if os.geteuid() == 0:
++        print("Warning: Running as root. This may be a security risk.")
++        confirm = input("Continue? (y/N): ")
++        if confirm.lower() != 'y':
++            sys.exit(1)
+ 
+-def safe_apply_patch(patch_file, target_file, strip=0):
+-    # Read patch file
++# Security check: Validate input file exists and is readable
++def validate_input(file_path):
++    if not os.path.exists(file_path):
++        print(f"Error: File {file_path} does not exist.")
++        sys.exit(1)
++    if not os.access(file_path, os.R_OK):
++        print(f"Error: No read permission for {file_path}.")
++        sys.exit(1)
++    # Basic content validation: ensure it's a text file and not binary
++    try:
++        with open(file_path, 'r') as f:
++            content = f.read(1024)  # Read first 1KB
++            if not isinstance(content, str) or '\x00' in content:
++                print("Error: Input appears to be binary, not a patch file.")
++                sys.exit(1)
++    except UnicodeDecodeError:
++        print("Error: Input is not a valid text file.")
++        sys.exit(1)
++
++# Security check: Sanitize target directory
++def sanitize_target(target_dir):
++    if not os.path.isdir(target_dir):
++        print(f"Error: {target_dir} is not a directory.")
++        sys.exit(1)
++    # Avoid applying to system directories
++    forbidden_dirs = ['/etc', '/bin', '/usr', '/var', '/root']
++    abs_target = os.path.abspath(target_dir)
++    for forbidden in forbidden_dirs:
++        if abs_target.startswith(forbidden):
++            print(f"Security violation: Cannot apply patch to {forbidden}.")
++            sys.exit(1)
++
++# Main function with security wrapper
++def apply_patch(patch_file, target_dir='.', strip=0):
++    check_privileges()
++    validate_input(patch_file)
++    sanitize_target(target_dir)
++
++    # Show diff for user confirmation
++    print("Patch content:")
+     with open(patch_file, 'r') as f:
+-        patch_content = f.read()
+-    
+-    # Validate patch
+-    if not validate_patch_content(patch_content):
+-        return False
+-    
+-    # Read target file if exists
+-    target_content = ''
+-    if os.path.exists(target_file):
+-        with open(target_file, 'r') as f:
+-            target_content = f.readlines()
+-    else:
+-        print(f'Warning: Target file {target_file} does not exist. Creating new.')
+-        target_content = []
+-    
+-    # Use difflib to apply patch safely without shell
++        print(f.read())
++    confirm = input("Apply this patch? (y/N): ")
++    if confirm.lower() != 'y':
++        print("Patch application cancelled.")
++        sys.exit(0)
++
++    # Apply using patch command
++    cmd = ['patch', '-p' + str(strip), '-d', target_dir, patch_file]
+     try:
+-        # Simple unified diff application simulation
+-        # In real, use a proper patch library or parse diff
+-        lines = patch_content.splitlines()
+-        new_content = target_content[:]
+-        
+-        # Basic diff application (placeholder for full impl)
+-        for line in lines:
+-            if line.startswith('@@'):
+-                # Parse hunk
+-                pass  # Implement hunk application
+-            elif line.startswith('+'):
+-                new_content.append(line[1:] + '\n')
+-            elif line.startswith('-'):
+-                if new_content:
+-                    new_content.pop()
+-        
+-        # Write safely
+-        backup = target_file + '.bak'
+-        if os.path.exists(target_file):
+-            os.rename(target_file, backup)
+-        with open(target_file, 'w') as f:
+-            f.writelines(new_content)
+-        
+-        print(f'Patch applied successfully to {target_file}')
+-        return True
++        result = subprocess.run(cmd, capture_output=True, text=True)
++        if result.returncode != 0:
++            print("Error applying patch:")
++            print(result.stderr)
++            sys.exit(1)
++        print("Patch applied successfully.")
+     except Exception as e:
+-        print(f'Failed to apply patch: {e}')
+-        # Restore backup if exists
+-        if os.path.exists(backup):
+-            os.rename(backup, target_file)
+-        return False
++        print(f"Unexpected error: {e}")
++        sys.exit(1)
+ 
+ if __name__ == '__main__':
+-    if len(sys.argv) < 3:
+-        print('Usage: python patch.py <patch_file> <target_file> [--strip <n>]')
++    if len(sys.argv) < 2:
++        print("Usage: python patch.py <patch_file> [target_dir] [strip_level]")
+         sys.exit(1)
+-    
+     patch_file = sys.argv[1]
+-    target_file = sys.argv[2]
+-    strip = 0
+-    if '--strip' in sys.argv:
+-        strip = int(sys.argv[sys.argv.index('--strip') + 1])
+-    
+-    # Security: Check paths are not absolute or dangerous
+-    if os.path.isabs(patch_file) or '..' in patch_file or os.path.isabs(target_file) or '..' in target_file:
+-        print('Security error: Absolute or parent directory paths not allowed.')
+-        sys.exit(1)
+-    
+-    safe_apply_patch(patch_file, target_file, strip)
++    target_dir = sys.argv[2] if len(sys.argv) > 2 else '.'
++    strip = int(sys.argv[3]) if len(sys.argv) > 3 else 0
++    apply_patch(patch_file, target_dir, strip)

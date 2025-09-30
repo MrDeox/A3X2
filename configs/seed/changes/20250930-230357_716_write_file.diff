@@ -1,0 +1,120 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -2,77 +2,51 @@
+ import sys
+ import os
+ import subprocess
+-import tempfile
+-import shutil
++import re
+ 
++def is_safe_patch(patch_content):
++    # Basic security check: reject patches with dangerous patterns
++    dangerous_patterns = [
++        r'rm\s+-rf',
++        r'dd\s+if=/dev/zero',
++        r'chmod\s+\+x',
++        r';\s*(kill|rm|mv|cp)\s',
++        r'\$\(malicious\)'
++    ]
++    for pattern in dangerous_patterns:
++        if re.search(pattern, patch_content, re.IGNORECASE):
++            return False
++    # Also check file paths to avoid overwriting critical files
++    if re.search(r'\b(etc|boot|system32|windows)\b', patch_content, re.IGNORECASE):
++        return False
++    return True
+ 
+-def validate_patch(patch_content):
+-    """Basic validation of patch content to prevent malicious patches."""
+-    if not patch_content.strip():
+-        return False, "Patch is empty"
+-    # Check for suspicious commands or patterns
+-    suspicious_patterns = ['rm -rf', 'del /f', ';', '|', '&&', '`', '$(']
+-    for pattern in suspicious_patterns:
+-        if pattern in patch_content:
+-            return False, f"Suspicious pattern '{pattern}' detected"
+-    return True, "Patch validated"
++if __name__ == "__main__":
++    if len(sys.argv) < 2:
++        print("Usage: python patch.py <patch_file>")
++        sys.exit(1)
+ 
++    patch_file = sys.argv[1]
++    if not os.path.exists(patch_file):
++        print(f"Patch file {patch_file} not found.")
++        sys.exit(1)
+ 
+-def apply_patch_safely(patch_file, target_file, dry_run=False):
+-    """Apply patch with safety checks."""
+-    if not os.path.exists(target_file):
+-        return False, f"Target file {target_file} does not exist"
+-    
+-    if not os.path.exists(patch_file):
+-        return False, f"Patch file {patch_file} does not exist"
+-    
+-    # Backup original file
+-    backup_file = target_file + '.backup'
+-    if os.path.exists(backup_file):
+-        os.remove(backup_file)
+-    shutil.copy2(target_file, backup_file)
+-    
+-    # Read and validate patch
+     with open(patch_file, 'r') as f:
+         patch_content = f.read()
+-    is_valid, msg = validate_patch(patch_content)
+-    if not is_valid:
+-        # Restore backup if needed, but since we just copied, no need
+-        return False, msg
+-    
+-    # Use patch command with safety options
+-    cmd = ['patch', '-p1', '--dry-run' if dry_run else '', target_file, '--backup', '--verbose']
+-    cmd = [arg for arg in cmd if arg]  # Remove empty strings
+-    
++
++    if not is_safe_patch(patch_content):
++        print("Patch rejected due to potential security risks.")
++        sys.exit(1)
++
++    # Apply the patch safely
+     try:
+-        result = subprocess.run(cmd, input=patch_content.encode(), capture_output=True, text=True, check=True)
+-        if dry_run:
+-            return True, "Dry run successful"
++        result = subprocess.run(['patch', '-p1', '--dry-run'], input=patch_content, text=True, capture_output=True, check=True)
++        print("Dry run successful, applying patch...")
++        result = subprocess.run(['patch', '-p1'], input=patch_content, text=True, capture_output=True)
++        if result.returncode == 0:
++            print("Patch applied successfully.")
+         else:
+-            return True, "Patch applied successfully"
++            print("Patch failed:", result.stderr.decode())
+     except subprocess.CalledProcessError as e:
+-        # Restore from backup on failure
+-        if os.path.exists(backup_file):
+-            shutil.copy2(backup_file, target_file)
+-        return False, f"Patch failed: {e.stderr}"
+-    finally:
+-        if os.path.exists(backup_file):
+-            os.remove(backup_file)
+-
+-
+-def main():
+-    if len(sys.argv) < 3:
+-        print("Usage: python patch.py <patch_file> <target_file> [--dry-run]")
++        print("Dry run failed:", e.stderr.decode())
+         sys.exit(1)
+-    
+-    patch_file = sys.argv[1]
+-    target_file = sys.argv[2]
+-    dry_run = '--dry-run' in sys.argv
+-    
+-    success, msg = apply_patch_safely(patch_file, target_file, dry_run)
+-    print(msg)
+-    sys.exit(0 if success else 1)
+-
+-
+-if __name__ == '__main__':
+-    main()

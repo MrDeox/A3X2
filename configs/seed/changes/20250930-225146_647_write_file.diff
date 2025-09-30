@@ -1,0 +1,167 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -1,109 +1,72 @@
+ import sys
+ import os
+ import subprocess
+-import re
+ import argparse
+ 
+-class SecurePatchApplier:
+-    def __init__(self):
+-        self.backup_dir = None
+ 
+-    def validate_diff_content(self, diff_content):
+-        # Basic validation: ensure it's a valid diff format
+-        if not diff_content.startswith(('---', '+++', 'diff ')):
+-            raise ValueError('Invalid diff format')
+-        # Check for dangerous commands or paths
+-        dangerous_patterns = [r'\s*rm\s', r'\s*del\s', r'/etc/', r'\s*--force']
+-        for pattern in dangerous_patterns:
+-            if re.search(pattern, diff_content, re.IGNORECASE):
+-                raise ValueError('Diff contains potentially dangerous content')
+-        return True
++def sanitize_path(path):
++    """Sanitize path to prevent directory traversal."""
++    if '..' in path or '/' in path.split(os.sep)[0]:
++        raise ValueError("Invalid path: directory traversal detected")
++    return os.path.abspath(os.path.expanduser(path))
+ 
+-    def sanitize_paths(self, paths):
+-        # Prevent path traversal
+-        sanitized = []
+-        for path in paths:
+-            if '..' in path or path.startswith('/'):
+-                raise ValueError(f'Invalid path: {path}')
+-            sanitized.append(os.path.abspath(os.path.join(os.getcwd(), path)))
+-        return sanitized
+ 
+-    def create_backup(self, target_file):
+-        backup_path = f'{target_file}.bak'
+-        if os.path.exists(backup_path):
+-            os.remove(backup_path)
+-        os.rename(target_file, backup_path)
+-        self.backup_dir = backup_path
+-        return backup_path
++def validate_file_exists(file_path):
++    """Check if file exists and is readable."""
++    if not os.path.exists(file_path):
++        raise FileNotFoundError(f"File not found: {file_path}")
++    if not os.access(file_path, os.R_OK):
++        raise PermissionError(f"No read permission for: {file_path}")
++    return True
+ 
+-    def apply_patch_secure(self, diff_file, target_file, strip=0, backup=True):
+-        # Validate inputs
+-        if not os.path.exists(diff_file):
+-            raise FileNotFoundError(f'Diff file not found: {diff_file}')
+-        if not os.path.exists(target_file):
+-            raise FileNotFoundError(f'Target file not found: {target_file}')
+ 
+-        # Read and validate diff
+-        with open(diff_file, 'r') as f:
+-            diff_content = f.read()
+-        self.validate_diff_content(diff_content)
++def validate_patch_file(patch_path):
++    """Check if patch file exists and is readable."""
++    if not os.path.exists(patch_path):
++        raise FileNotFoundError(f"Patch file not found: {patch_path}")
++    if not os.access(patch_path, os.R_OK):
++        raise PermissionError(f"No read permission for patch: {patch_path}")
++    return True
+ 
+-        # Sanitize target path
+-        sanitized_target = self.sanitize_paths([target_file])[0]
+ 
+-        # Create backup if requested
+-        if backup:
+-            self.create_backup(sanitized_target)
++def apply_patch_safely(target_file, patch_file, strip=0):
++    """Apply patch using subprocess with security checks."""
++    # Sanitize paths
++    target_file = sanitize_path(target_file)
++    patch_file = sanitize_path(patch_file)
+ 
+-        # Confirm with user
+-        confirm = input(f'Apply patch to {sanitized_target}? (y/N): ')
+-        if confirm.lower() != 'y':
+-            print('Patch application cancelled.')
+-            if backup:
+-                os.rename(self.backup_dir, sanitized_target)
+-            return False
++    # Validate files
++    validate_file_exists(target_file)
++    validate_patch_file(patch_file)
+ 
+-        # Run patch command with safety options
+-        cmd = [
+-            'patch',
+-            f'--strip={strip}',
+-            '--backup',  # Always create backup via patch if possible
+-            '--verbose',
+-            sanitized_target
+-        ]
+-        try:
+-            result = subprocess.run(cmd, input=diff_content, text=True, capture_output=True, check=True)
+-            print('Patch applied successfully.')
+-            print(result.stdout)
+-            return True
+-        except subprocess.CalledProcessError as e:
+-            print(f'Patch failed: {e}')
+-            print(e.stderr)
+-            if backup:
+-                os.rename(self.backup_dir, sanitized_target)
+-            return False
++    # Check if target is writable
++    if not os.access(os.path.dirname(target_file), os.W_OK):
++        raise PermissionError(f"No write permission for directory: {os.path.dirname(target_file)}")
+ 
+-    def restore_backup(self, target_file):
+-        if self.backup_dir and os.path.exists(self.backup_dir):
+-            os.rename(self.backup_dir, target_file)
+-            print('Restored from backup.')
++    # Use subprocess with list args to avoid shell injection
++    cmd = ['patch', '-i', patch_file, target_file, '--strip=' + str(strip)]
++    try:
++        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
++        print("Patch applied successfully.")
++        print(result.stdout)
++    except subprocess.CalledProcessError as e:
++        print(f"Patch failed: {e}")
++        print(e.stderr)
++        raise
++    except FileNotFoundError:
++        raise RuntimeError("'patch' command not found. Ensure it's installed.")
+ 
+-if __name__ == '__main__':
+-    parser = argparse.ArgumentParser(description='Secure patch applicator')
+-    parser.add_argument('diff_file', help='Path to diff file')
+-    parser.add_argument('target_file', help='Target file to patch')
+-    parser.add_argument('-p', '--strip', type=int, default=0, help='Strip directory levels')
+-    parser.add_argument('--no-backup', action='store_true', help='Do not create backup')
+-    parser.add_argument('--restore', action='store_true', help='Restore from backup')
++
++if __name__ == "__main__":
++    parser = argparse.ArgumentParser(description="Apply patches securely.")
++    parser.add_argument("target", help="Target file to patch")
++    parser.add_argument("patch", help="Patch file")
++    parser.add_argument("-p", "--strip", type=int, default=0, help="Strip level")
+ 
+     args = parser.parse_args()
+ 
+-    applier = SecurePatchApplier()
+-
+-    if args.restore:
+-        applier.restore_backup(args.target_file)
+-    else:
+-        backup = not args.no_backup
+-        success = applier.apply_patch_secure(args.diff_file, args.target_file, args.strip, backup)
+-        if not success:
+-            sys.exit(1)
++    try:
++        apply_patch_safely(args.target, args.patch, args.strip)
++    except Exception as e:
++        print(f"Error: {e}", file=sys.stderr)
++        sys.exit(1)

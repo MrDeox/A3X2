@@ -32,8 +32,8 @@
   maturity: baseline
   metrics:
     tasks_completed: 21
-    regression_rate: 0.16
-    runs: 25
+    regression_rate: 0.192
+    runs: 26
     completed_runs: 21
   seeds:
   - Expandir para frameworks (Flask, FastAPI) com blueprints dedicados.

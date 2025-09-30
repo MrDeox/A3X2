@@ -1,0 +1,124 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -2,72 +2,64 @@
+ import os
+ import subprocess
+ import argparse
++import hashlib
+ 
+ 
+-def validate_patch_file(patch_file):
+-    if not os.path.isfile(patch_file):
+-        raise ValueError(f"Patch file '{patch_file}' does not exist or is not a file.")
+-    if not patch_file.endswith('.patch'):
+-        print("Warning: Patch file does not end with .patch extension.")
+-    # Basic check for patch format (simple heuristic)
+-    with open(patch_file, 'r') as f:
+-        content = f.read(1024)  # Read first 1KB
+-        if '--- ' not in content or '+++ ' not in content:
+-            raise ValueError("File does not appear to be a valid patch file.")
++def validate_patch_file(patch_path):
++    if not os.path.exists(patch_path):
++        raise FileNotFoundError(f"Patch file not found: {patch_path}")
++    if not os.path.isfile(patch_path):
++        raise ValueError(f"{patch_path} is not a file")
++    # Basic size check to avoid huge files
++    if os.path.getsize(patch_path) > 10 * 1024 * 1024:  # 10MB limit
++        raise ValueError("Patch file too large")
++    # Check if it's a text file (simple heuristic)
++    with open(patch_path, 'rb') as f:
++        content = f.read(512)
++        if b'\x00' in content:
++            raise ValueError("Patch file appears to be binary, not text")
+ 
+ 
+-def validate_target_dir(target_dir):
+-    target_dir = os.path.abspath(target_dir)
+-    if not os.path.isdir(target_dir):
+-        raise ValueError(f"Target directory '{target_dir}' does not exist.")
+-    # Check if writable
+-    if not os.access(target_dir, os.W_OK):
+-        raise ValueError(f"Target directory '{target_dir}' is not writable.")
+-    return target_dir
++def compute_file_hash(file_path):
++    hasher = hashlib.sha256()
++    with open(file_path, 'rb') as f:
++        for chunk in iter(lambda: f.read(4096), b''):
++            hasher.update(chunk)
++    return hasher.hexdigest()
+ 
+ 
+-def apply_patch_safely(patch_file, target_dir, strip_level=1):
+-    validate_patch_file(patch_file)
+-    target_dir = validate_target_dir(target_dir)
+-
++def safe_apply_patch(patch_path, target_dir='.', strip=0):
++    validate_patch_file(patch_path)
++    
++    # Ensure target_dir is safe (no traversal)
++    abs_target = os.path.abspath(target_dir)
++    if not abs_target.startswith(os.getcwd()):
++        raise ValueError("Target directory outside current working directory")
++    
++    # Run patch command with safety
++    cmd = ['patch', '-p', str(strip), '-d', abs_target, '-i', patch_path]
+     try:
+-        with open(patch_file, 'rb') as f:
+-            result = subprocess.run(
+-                ['patch', f'-p{strip_level}', '-d', target_dir],
+-                stdin=f,
+-                cwd=target_dir,
+-                capture_output=True,
+-                text=True,
+-                timeout=300  # 5 minute timeout
+-            )
++        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+         if result.returncode != 0:
+-            print(f"Patch failed with return code {result.returncode}")
+-            print(f"Stdout: {result.stdout}")
+-            print(f"Stderr: {result.stderr}")
+-            raise subprocess.SubprocessError("Patch application failed")
++            raise subprocess.CalledProcessError(result.returncode, cmd, result.stdout, result.stderr)
+         print("Patch applied successfully.")
+-    except subprocess.TimeoutExpired:
+-        raise RuntimeError("Patch application timed out.")
+-    except Exception as e:
+-        raise RuntimeError(f"Error applying patch: {e}")
++        print(result.stdout)
++    except subprocess.CalledProcessError as e:
++        print(f"Patch failed: {e}")
++        print(e.stderr)
++        raise
+ 
+ 
+-def main():
+-    parser = argparse.ArgumentParser(description="Apply a patch file safely.")
+-    parser.add_argument('patch_file', help="Path to the patch file")
+-    parser.add_argument('target_dir', help="Target directory to apply the patch")
+-    parser.add_argument('-p', '--strip', type=int, default=1, help="Strip level for patch")
+-
++if __name__ == '__main__':
++    parser = argparse.ArgumentParser(description='Safely apply patches')
++    parser.add_argument('patch_file', help='Path to the patch file')
++    parser.add_argument('-d', '--directory', default='.', help='Target directory')
++    parser.add_argument('-p', '--strip', type=int, default=0, help='Strip level')
++    
+     args = parser.parse_args()
+-
++    
+     try:
+-        apply_patch_safely(args.patch_file, args.target_dir, args.strip)
+-    except ValueError as e:
+-        print(f"Validation error: {e}", file=sys.stderr)
++        safe_apply_patch(args.patch_file, args.directory, args.strip)
++    except Exception as e:
++        print(f"Error: {e}", file=sys.stderr)
+         sys.exit(1)
+-    except RuntimeError as e:
+-        print(f"Application error: {e}", file=sys.stderr)
+-        sys.exit(1)
+-
+-if __name__ == '__main__':
+-    main()

@@ -9,10 +9,10 @@ missions:
   - Manter success_rate >= 0.95 por 5 runs consecutivos
   target_metrics:
     core.diffing.success_rate:
-      current: 0.642
+      current: 0.639
       target: 0.95
       best: 0.957
-      samples: 481
+      samples: 486
   capability_tags:
   - core.diffing
   milestones:
@@ -26,10 +26,10 @@ missions:
     backlog_seed_id: null
     metrics:
       core.diffing.success_rate:
-        current: 0.642
+        current: 0.639
         target: 0.9
         best: 0.957
-        samples: 481
+        samples: 486
     notes: ''
   - id: diff-advanced
     goal: Sustentar success_rate >= 0.95
@@ -42,22 +42,22 @@ missions:
     backlog_seed_id: null
     metrics:
       core.diffing.success_rate:
-        current: 0.642
+        current: 0.639
         target: 0.95
         best: 0.957
-        samples: 481
+        samples: 486
     notes: ''
   telemetry:
     metric_summaries:
       core.diffing.success_rate:
-        current: 0.642
+        current: 0.639
         target: 0.95
         best: 0.957
-        samples: 481
+        samples: 486
     reflections: []
     discovered_gaps: []
     tools_required: []
-    last_updated: '2025-09-30T23:29:26.327820+00:00'
+    last_updated: '2025-09-30T23:46:58.707094+00:00'
   created_at: '2025-09-27T23:07:14.568502+00:00'
   updated_at: '2025-09-27T23:07:14.568508+00:00'
 - id: core-testing-growth
@@ -71,7 +71,7 @@ missions:
       current: 0.688
       target: 0.85
       best: 0.688
-      samples: 481
+      samples: 486
   capability_tags:
   - core.testing
   milestones:
@@ -88,7 +88,7 @@ missions:
         current: 0.688
         target: 0.7
         best: 0.688
-        samples: 481
+        samples: 486
     notes: ''
   - id: tests-zero-fail
     goal: Eliminar falhas detectadas em testes automatizados
@@ -104,7 +104,7 @@ missions:
         current: 7.0
         target: 0.0
         best: 7.0
-        samples: 481
+        samples: 486
     notes: ''
   telemetry:
     metric_summaries:
@@ -112,10 +112,10 @@ missions:
         current: 0.688
         target: 0.85
         best: 0.688
-        samples: 481
+        samples: 486
     reflections: []
     discovered_gaps: []
     tools_required: []
-    last_updated: '2025-09-30T23:29:26.327839+00:00'
+    last_updated: '2025-09-30T23:46:58.707150+00:00'
   created_at: '2025-09-27T23:07:14.568528+00:00'
   updated_at: '2025-09-27T23:07:14.568529+00:00'

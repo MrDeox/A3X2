@@ -1,0 +1,27 @@
+{
+  "id": "autonomous_capability_gaps_detected_20250930_164230",
+  "title": "Expansão de Capacidades: Lacunas em capacidades pouco utilizadas",
+  "description": "Capacidades subutilizadas detectadas: core.diffing, horiz.docs, horiz.python",
+  "goal": "Fortalecer e expandir Lacunas em capacidades pouco utilizadas",
+  "priority": "medium",
+  "estimated_duration": "long",
+  "required_capabilities": [
+    "meta.skill_creation",
+    "horiz.expansion"
+  ],
+  "success_criteria": [
+    "Métricas melhoradas em mais de 20%",
+    "Redução de falhas em 30%",
+    "Eficiência aumentada em 25%"
+  ],
+  "risks": [
+    "Possível aumento temporário de falhas durante transição",
+    "Necessidade de recursos computacionais adicionais"
+  ],
+  "dependencies": [
+    "Acesso a métricas em tempo real",
+    "Permissão para auto-modificação segura"
+  ],
+  "created_at": "2025-09-30T19:42:30.675329+00:00",
+  "estimated_completion_date": null
+}

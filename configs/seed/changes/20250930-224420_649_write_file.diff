@@ -1,0 +1,79 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -1,32 +1,47 @@
+-# patch.py - Basic patch applicator
++import sys
++import subprocess
++import os
+ 
+-import sys
+-import os
+-import difflib
+-
+-def apply_patch(file_path, patch_content):
+-    if not os.path.exists(file_path):
+-        print(f"Error: File {file_path} not found.")
++def is_safe_target(target):
++    # Simple security check: avoid patching system directories
++    system_dirs = ['/etc', '/bin', '/usr', '/var', '/root']
++    if target and any(target.startswith(d) for d in system_dirs):
+         return False
+-    
+-    with open(file_path, 'r') as f:
+-        original = f.readlines()
+-    
+-    # Simple diff apply (placeholder for security checks)
+-    patched = difflib.unified_diff(original, patch_content.splitlines(keepends=True), fromfile=file_path)
+-    
+-    with open(file_path, 'w') as f:
+-        f.writelines(patched)
+-    
+     return True
+ 
++def main():
++    if len(sys.argv) < 2:
++        print("Usage: python patch.py <patchfile> [target_file]")
++        sys.exit(1)
++
++    patchfile = sys.argv[1]
++    target = sys.argv[2] if len(sys.argv) > 2 else None
++
++    print("Applying patch with basic security checks...")
++
++    if target and not is_safe_target(target):
++        print("Security violation: Cannot patch system directories.")
++        sys.exit(1)
++
++    # Additional check: ensure patch file exists
++    if not os.path.exists(patchfile):
++        print(f"Error: Patch file '{patchfile}' not found.")
++        sys.exit(1)
++
++    try:
++        cmd = ['patch', '-p1', '-i', patchfile]
++        if target:
++            cmd += [f"{target}"]  # Specify target if provided
++
++        result = subprocess.run(cmd, capture_output=True, text=True)
++        if result.returncode != 0:
++            print(f"Patch failed: {result.stderr}")
++            sys.exit(1)
++        print(result.stdout)
++        print("Patch applied successfully with security checks.")
++    except Exception as e:
++        print(f"Error applying patch: {e}")
++        sys.exit(1)
++
+ if __name__ == '__main__':
+-    if len(sys.argv) != 3:
+-        print("Usage: python patch.py <file> <patch>")
+-        sys.exit(1)
+-    
+-    file_path = sys.argv[1]
+-    with open(sys.argv[2], 'r') as p:
+-        patch_content = p.read()
+-    
+-    apply_patch(file_path, patch_content)
++    main()

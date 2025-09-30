@@ -1,0 +1,94 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -1,56 +1,41 @@
+ import sys
+ import os
+ import subprocess
++import re
+ 
++def has_dangerous_commands(patch_content):
++    dangerous_patterns = [r'rm\s+-rf\s+', r'del\s+/f\s+', r'format\s+c:', r'shred\s+-u']
++    for pattern in dangerous_patterns:
++        if re.search(pattern, patch_content, re.IGNORECASE):
++            return True
++    return False
+ 
+-def apply_safe_patch(patch_file, target_dir='.'):
+-    # Security check 1: Validate patch file existence and readability
+-    if not os.path.exists(patch_file):
+-        print(f"Error: Patch file '{patch_file}' not found.")
+-        sys.exit(1)
+-    if not os.access(patch_file, os.R_OK):
+-        print(f"Error: Patch file '{patch_file}' is not readable.")
++if len(sys.argv) < 2:
++    print("Usage: python patch.py <patchfile> [target_dir]")
++    sys.exit(1)
++
++patchfile = sys.argv[1]
++target_dir = sys.argv[2] if len(sys.argv) > 2 else '.'
++
++try:
++    with open(patchfile, 'r') as f:
++        patch_content = f.read()
++
++    if has_dangerous_commands(patch_content):
++        print("Patch rejected: Dangerous commands detected.")
+         sys.exit(1)
+ 
+-    # Security check 2: Basic content validation to avoid dangerous patches
+-    with open(patch_file, 'r') as f:
+-        content = f.read()
+-    dangerous_patterns = ['rm -rf', 'del /f', '; rm', 'chmod +x', '/dev/shm']
+-    for pattern in dangerous_patterns:
+-        if pattern in content.lower():
+-            print(f"Error: Potentially dangerous content '{pattern}' detected in patch.")
+-            sys.exit(1)
+-
+-    # Security check 3: Ensure target directory is safe (no system dirs)
+-    if target_dir in ['/', '/etc', '/bin', '/usr', '/var', 'C:\\Windows']:
+-        print(f"Error: Target directory '{target_dir}' is restricted for security.")
+-        sys.exit(1)
+-
+-    # Apply the patch using subprocess with limited privileges
+-    try:
+-        result = subprocess.run(
+-            ['patch', '-p1', '-d', target_dir],
+-            stdin=open(patch_file, 'r'),
+-            capture_output=True,
+-            text=True,
+-            timeout=30  # Timeout to prevent hangs
+-        )
+-        if result.returncode != 0:
+-            print(f"Patch failed: {result.stderr}")
+-            sys.exit(1)
++    os.chdir(target_dir)
++    result = subprocess.run(['patch', '-p1'], input=patch_content, text=True, capture_output=True)
++    if result.returncode != 0:
++        print("Patch failed:")
++        print(result.stderr)
++    else:
+         print("Patch applied successfully.")
+-    except subprocess.TimeoutExpired:
+-        print("Error: Patch application timed out.")
+-        sys.exit(1)
+-    except Exception as e:
+-        print(f"Error applying patch: {e}")
+-        sys.exit(1)
+-
+-
+-if __name__ == "__main__":
+-    if len(sys.argv) < 2:
+-        print("Usage: python patch.py <patch_file> [target_dir]")
+-        sys.exit(1)
+-    patch_file = sys.argv[1]
+-    target_dir = sys.argv[2] if len(sys.argv) > 2 else '.'
+-    apply_safe_patch(patch_file, target_dir)
++        print(result.stdout)
++except FileNotFoundError:
++    print(f"Patch file '{patchfile}' not found.")
++    sys.exit(1)
++except Exception as e:
++    print(f"Error: {e}")
++    sys.exit(1)

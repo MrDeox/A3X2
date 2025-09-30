@@ -1,0 +1,94 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -3,42 +3,54 @@
+ import os
+ import subprocess
+ 
+-# Verificações de segurança
+-if len(sys.argv) < 2:
+-    print('Uso: python3 patch.py <arquivo_patch> [arquivo_alvo]', file=sys.stderr)
+-    sys.exit(1)
++def safe_apply_patch(patch_file, target_dir):
++    # Security check: validate patch file exists and is readable
++    if not os.path.isfile(patch_file):
++        print(f"Error: Patch file '{patch_file}' not found.", file=sys.stderr)
++        sys.exit(1)
++    if not os.access(patch_file, os.R_OK):
++        print(f"Error: Patch file '{patch_file}' not readable.", file=sys.stderr)
++        sys.exit(1)
+ 
+-patch_file = sys.argv[1]
+-if not os.path.exists(patch_file):
+-    print(f'Erro: Arquivo de patch não encontrado: {patch_file}', file=sys.stderr)
+-    sys.exit(1)
++    # Security check: validate target directory exists and is safe
++    if not os.path.isdir(target_dir):
++        print(f"Error: Target directory '{target_dir}' not found.", file=sys.stderr)
++        sys.exit(1)
++    if not os.access(target_dir, os.W_OK):
++        print(f"Error: Target directory '{target_dir}' not writable.", file=sys.stderr)
++        sys.exit(1)
+ 
+-if len(sys.argv) > 2:
+-    target_file = sys.argv[2]
+-else:
+-    target_file = None
++    # Security check: prevent applying to sensitive paths
++    sensitive_paths = ['/', '/etc', '/bin', '/usr', '/var', '/home']
++    real_target = os.path.realpath(target_dir)
++    for sensitive in sensitive_paths:
++        if real_target.startswith(sensitive):
++            print(f"Error: Unsafe target directory '{target_dir}'.", file=sys.stderr)
++            sys.exit(1)
+ 
+-# Verificar se o patch não contém comandos perigosos (exemplo simples)
+-with open(patch_file, 'r') as f:
+-    patch_content = f.read()
+-if 'rm ' in patch_content or 'del ' in patch_content or 'exec(' in patch_content:
+-    print('Erro: Patch contém conteúdo potencialmente perigoso.', file=sys.stderr)
+-    sys.exit(1)
++    # Additional check: ensure no absolute paths or '..' in patch content
++    with open(patch_file, 'r') as f:
++        content = f.read()
++        if '..' in content or any(line.startswith('/')) for line in content.splitlines() if line.startswith('--- ') or line.startswith('+++ '):
++            print("Error: Patch contains potentially unsafe paths.", file=sys.stderr)
++            sys.exit(1)
+ 
+-# Aplicar o patch com segurança
+-try:
+-    cmd = ['patch', '-p1']
+-    if target_file:
+-        cmd.extend(['-i', patch_file, target_file])
+-    else:
+-        cmd.extend(['-i', patch_file])
+-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+-    print('Patch aplicado com sucesso.')
+-    print(result.stdout)
+-except subprocess.CalledProcessError as e:
+-    print(f'Falha ao aplicar patch: {e}', file=sys.stderr)
+-    print(e.stderr, file=sys.stderr)
+-    sys.exit(1)
+-except Exception as e:
+-    print(f'Erro inesperado: {e}', file=sys.stderr)
+-    sys.exit(1)
++    try:
++        result = subprocess.run([
++            'patch', '-p1', '-d', target_dir, '-i', patch_file, '--dry-run'
++        ], capture_output=True, text=True, check=True)
++        print("Dry run successful. Applying patch...")
++        subprocess.run([
++            'patch', '-p1', '-d', target_dir, '-i', patch_file
++        ], check=True)
++        print("Patch applied successfully.")
++    except subprocess.CalledProcessError as e:
++        print(f"Error applying patch: {e}", file=sys.stderr)
++        sys.exit(1)
++
++if __name__ == "__main__":
++    if len(sys.argv) != 3:
++        print("Usage: python3 patch.py <patch_file> <target_dir>", file=sys.stderr)
++        print("Security features: Validates inputs, checks paths, dry-run before apply.")
++        sys.exit(1)
++    safe_apply_patch(sys.argv[1], sys.argv[2])

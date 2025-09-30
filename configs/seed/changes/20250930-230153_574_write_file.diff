@@ -1,0 +1,106 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -3,63 +3,56 @@
+ import subprocess
+ import re
+ 
+-# Função para validar o patch
+- def validate_patch(patch_content):
+-    # Verificações básicas de segurança
+-    if 'rm -rf' in patch_content or 'del /f /q' in patch_content:
+-        return False, 'Patch contém comandos perigosos de remoção'
+-    if len(patch_content) > 10000:  # Limite de tamanho
+-        return False, 'Patch muito grande, risco de overflow'
+-    # Verificar se é um diff válido
+-    if not re.search(r'^diff --git', patch_content, re.MULTILINE):
+-        return False, 'Formato de patch inválido'
+-    return True, 'Patch válido'
++# Security checks
++def validate_patch_content(patch_content):
++    # Check for dangerous patterns, e.g., shell commands or file overwrites
++    dangerous_patterns = [
++        r'\b(rm|del|format|mkfs)\b',
++        r'\b(exec|system|eval)\b',
++        r'\b(open|file)\s*\(\s*["\\/]\w*\.(sh|bat|exe)\b',
++        r'\b(subprocess|os.system)\b'
++    ]
++    for pattern in dangerous_patterns:
++        if re.search(pattern, patch_content, re.IGNORECASE):
++            return False, f"Dangerous pattern found: {pattern}"
++    return True, "Patch validated"
+ 
+-# Função principal para aplicar patch com segurança
+-def apply_secure_patch(patch_file, target_dir):
+-    if not os.path.exists(patch_file):
+-        print('Arquivo de patch não encontrado')
+-        return False
+-    
++def apply_secure_patch(patch_file):
+     with open(patch_file, 'r') as f:
+         patch_content = f.read()
+     
+-    is_valid, message = validate_patch(patch_content)
++    is_valid, message = validate_patch_content(patch_content)
+     if not is_valid:
+-        print(f'Falha na validação: {message}')
+-        return False
++        print(f"Security check failed: {message}")
++        return 1
+     
+-    # Verificar permissões do diretório alvo
+-    if not os.path.exists(target_dir):
+-        print('Diretório alvo não existe')
+-        return False
+-    if not os.access(target_dir, os.W_OK):
+-        print('Sem permissão de escrita no diretório alvo')
+-        return False
++    print("Patch passed security checks.")
+     
+-    # Aplicar o patch usando subprocess com sandboxing básico
+-    cmd = ['patch', '-p1', '-d', target_dir]
++    # Apply patch with dry-run first
+     try:
+-        result = subprocess.run(cmd, input=patch_content, text=True, capture_output=True, timeout=30)
+-        if result.returncode == 0:
+-            print('Patch aplicado com sucesso')
+-            return True
+-        else:
+-            print(f'Falha ao aplicar patch: {result.stderr}')
+-            return False
+-    except subprocess.TimeoutExpired:
+-        print('Aplicação do patch excedeu o tempo limite')
+-        return False
++        result = subprocess.run(['patch', '--dry-run', '-p1'], input=patch_content, text=True, capture_output=True)
++        if result.returncode != 0:
++            print("Dry-run failed:", result.stderr)
++            return 1
++        print("Dry-run successful. Applying patch.")
++        result = subprocess.run(['patch', '-p1'], input=patch_content, text=True, capture_output=True)
++        if result.returncode != 0:
++            print("Patch application failed:", result.stderr)
++            return 1
++        print("Patch applied successfully.")
++        return 0
+     except Exception as e:
+-        print(f'Erro inesperado: {e}')
+-        return False
++        print(f"Error applying patch: {e}")
++        return 1
+ 
+ if __name__ == '__main__':
+-    if len(sys.argv) != 3:
+-        print('Uso: python patch.py <patch_file> <target_dir>')
++    if len(sys.argv) != 2:
++        print("Usage: python patch.py <patch_file>")
+         sys.exit(1)
+     
+     patch_file = sys.argv[1]
+-    target_dir = sys.argv[2]
++    if not os.path.exists(patch_file):
++        print(f"Patch file not found: {patch_file}")
++        sys.exit(1)
+     
+-    apply_secure_patch(patch_file, target_dir)
++    sys.exit(apply_secure_patch(patch_file))

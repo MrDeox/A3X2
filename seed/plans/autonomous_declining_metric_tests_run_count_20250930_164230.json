@@ -1,0 +1,27 @@
+{
+  "id": "autonomous_declining_metric_tests_run_count_20250930_164230",
+  "title": "Otimização de Desempenho: Métrica em declínio: tests_run_count",
+  "description": "A métrica tests_run_count está em declínio significativo (-100.00%)",
+  "goal": "Melhorar Métrica em declínio: tests_run_count para alcançar desempenho ótimo",
+  "priority": "medium",
+  "estimated_duration": "medium",
+  "required_capabilities": [
+    "core.optimization",
+    "core.performance"
+  ],
+  "success_criteria": [
+    "Métricas melhoradas em mais de 20%",
+    "Redução de falhas em 30%",
+    "Eficiência aumentada em 25%"
+  ],
+  "risks": [
+    "Possível aumento temporário de falhas durante transição",
+    "Necessidade de recursos computacionais adicionais"
+  ],
+  "dependencies": [
+    "Acesso a métricas em tempo real",
+    "Permissão para auto-modificação segura"
+  ],
+  "created_at": "2025-09-30T19:42:30.675329+00:00",
+  "estimated_completion_date": null
+}

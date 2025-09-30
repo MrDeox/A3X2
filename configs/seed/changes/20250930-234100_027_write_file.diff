@@ -1,0 +1,213 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -3,94 +3,133 @@
+ import os
+ import subprocess
+ import tempfile
++import hashlib
+ 
+ 
+-def validate_patch_safety(patch_content):
+-    """Basic safety checks for patch content."""
+-    dangerous_patterns = [
+-        r'rm\s+-rf',
+-        r'exec\s+',
+-        r'sudo\s+',
+-        r'chmod\s+777',
+-        r'dd\s+if=/dev/zero'
+-    ]
+-    for pattern in dangerous_patterns:
+-        if re.search(pattern, patch_content, re.IGNORECASE):
+-            return False, f"Dangerous pattern detected: {pattern}"
++def validate_patch(patch_content):
++    # Simple validation: check if it's a valid diff format
++    lines = patch_content.splitlines()
++    if not any(line.startswith('diff ') or line.startswith('--- ') for line in lines[:5]):
++        return False, "Invalid patch format"
++    # Check for potentially dangerous content (basic check for shell commands or exec)
++    dangerous_keywords = ['exec(', 'eval(', 'os.system', 'subprocess.call', '; rm']
++    if any(keyword in patch_content for keyword in dangerous_keywords):
++        return False, "Potentially dangerous content detected"
++    return True, "Valid"
++
++
++def check_target_safety(target_dir):
++    # Ensure target is not a system directory or absolute root
++    abs_path = os.path.abspath(target_dir)
++    dangerous_paths = ['/', '/etc', '/bin', '/usr', '/var', '/root']
++    if any(abs_path.startswith(dangerous) for dangerous in dangerous_paths):
++        return False, "Target directory is sensitive"
++    # Check for path traversal
++    if '..' in target_dir.split('/'):
++        return False, "Path traversal attempt detected"
+     return True, "Safe"
+ 
+ 
+-def apply_patch_safely(patch_diff, target_file):
+-    """Apply patch with safety checks."""
+-    if not os.path.exists(target_file):
+-        return False, "Target file does not exist."
+-    
+-    # Check permissions: ensure we own the file or have write access
+-    if not os.access(target_file, os.W_OK):
+-        return False, "No write access to target file."
+-    
+-    safe, msg = validate_patch_safety(patch_diff)
+-    if not safe:
+-        return False, msg
+-    
+-    # Use temporary file for patch
+-    with tempfile.NamedTemporaryFile(mode='w', suffix='.patch', delete=False) as temp_patch:
+-        temp_patch.write(patch_diff)
+-        temp_patch_path = temp_patch.name
+-    
++def apply_secure_patch(patch_file, target_dir):
++    if not os.path.exists(patch_file):
++        print("Error: Patch file not found")
++        return 1
++
++    with open(patch_file, 'r') as f:
++        patch_content = f.read()
++
++    is_valid, msg = validate_patch(patch_content)
++    if not is_valid:
++        print(f"Validation failed: {msg}")
++        return 1
++
++    safety_ok, safety_msg = check_target_safety(target_dir)
++    if not safety_ok:
++        print(f"Safety check failed: {safety_msg}")
++        return 1
++
++    # Compute patch integrity hash
++    patch_hash = hashlib.sha256(patch_content.encode()).hexdigest()
++    print(f"Patch validated. Hash: {patch_hash[:16]}...")
++
++    # Create backup of target dir if exists
++    backup_dir = target_dir + '.backup'
++    if os.path.exists(target_dir):
++        try:
++            import shutil
++            shutil.copytree(target_dir, backup_dir)
++            print(f"Backup created: {backup_dir}")
++        except Exception as e:
++            print(f"Backup failed: {e}")
++            return 1
++
++    # Dry run first
++    cmd = ['patch', '-p1', '-d', target_dir, '--dry-run', '--verbose']
+     try:
+-        # Run patch command with limited environment
+-        env = os.environ.copy()
+-        env['PATH'] = '/usr/bin:/bin'  # Restrict PATH
+-        result = subprocess.run(
+-            ['patch', '-p1', '--dry-run', target_file],
+-            input=patch_diff.encode(),
+-            capture_output=True,
+-            text=True,
+-            env=env,
+-            timeout=30  # Timeout to prevent hangs
+-        )
++        result = subprocess.run(cmd, input=patch_content.encode(), capture_output=True, text=True, timeout=30)
+         if result.returncode != 0:
+-            return False, f"Dry run failed: {result.stderr}"
+-        
+-        # If dry run passes, apply
+-        result = subprocess.run(
+-            ['patch', '-p1', target_file],
+-            input=patch_diff.encode(),
+-            capture_output=True,
+-            text=True,
+-            env=env,
+-            timeout=30
+-        )
++            print("Dry run failed:")
++            print(result.stderr)
++            return 1
++        print("Dry run successful.")
++
++        # Check for sensitive file modifications in dry run output
++        output = result.stdout + result.stderr
++        sensitive_files = ['/etc/', '/bin/', '.ssh/', 'passwd']
++        if any(sensitive in output for sensitive in sensitive_files):
++            print("Patch attempts to modify sensitive files. Aborted.")
++            return 1
++    except subprocess.TimeoutExpired:
++        print("Patch application timed out")
++        return 1
++    except Exception as e:
++        print(f"Error in dry run: {e}")
++        return 1
++
++    # Apply the patch
++    cmd = ['patch', '-p1', '-d', target_dir, '--verbose']
++    try:
++        result = subprocess.run(cmd, input=patch_content.encode(), capture_output=True, text=True, timeout=60)
+         if result.returncode == 0:
+-            return True, "Patch applied successfully."
++            print("Patch applied successfully.")
++            return 0
+         else:
+-            return False, f"Patch application failed: {result.stderr}"
++            print("Patch application failed:")
++            print(result.stderr)
++            # Restore backup on failure
++            if os.path.exists(backup_dir):
++                shutil.rmtree(target_dir)
++                shutil.move(backup_dir, target_dir)
++                print("Restored from backup.")
++            return 1
+     except subprocess.TimeoutExpired:
+-        return False, "Patch application timed out."
++        print("Patch application timed out")
++        # Restore backup
++        if os.path.exists(backup_dir):
++            shutil.rmtree(target_dir)
++            shutil.move(backup_dir, target_dir)
++        return 1
+     except Exception as e:
+-        return False, f"Error: {str(e)}"
+-    finally:
+-        if os.path.exists(temp_patch_path):
+-            os.unlink(temp_patch_path)
++        print(f"Error applying patch: {e}")
++        # Restore backup
++        if os.path.exists(backup_dir):
++            shutil.rmtree(target_dir)
++            shutil.move(backup_dir, target_dir)
++        return 1
+ 
+ 
+-if __name__ == '__main__':
+-    if len(sys.argv) < 2:
+-        print("Usage: python patch.py <target_file> <patch_file>")
++if __name__ == "__main__":
++    if len(sys.argv) != 3:
++        print("Usage: python patch.py <patch_file> <target_dir>")
++        print("Security features: Validates patch, checks target safety, dry-run, backup, and timeout.")
+         sys.exit(1)
+-    
+-    target = sys.argv[1]
+-    patch_file = sys.argv[2] if len(sys.argv) > 2 else None
+-    
+-    if patch_file and os.path.exists(patch_file):
+-        with open(patch_file, 'r') as f:
+-            patch_content = f.read()
+-    else:
+-        patch_content = sys.stdin.read()
+-    
+-    success, message = apply_patch_safely(patch_content, target)
+-    print(message)
+-    sys.exit(0 if success else 1)
+ 
+-import re  # Add this import for regex in validate_patch_safety+    patch_file = sys.argv[1]
++    target_dir = sys.argv[2]
++
++    # Additional arg validation
++    if not os.path.isfile(patch_file):
++        print("Error: Invalid patch file")
++        sys.exit(1)
++
++    sys.exit(apply_secure_patch(patch_file, target_dir))

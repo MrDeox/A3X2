@@ -1,0 +1,27 @@
+{
+  "id": "autonomous_low_performance_apply_patch_success_rate_20250930_165218",
+  "title": "Otimização de Desempenho: Baixo desempenho em apply_patch_success_rate",
+  "description": "A métrica apply_patch_success_rate está abaixo do ideal (0.00 < 0.7)",
+  "goal": "Melhorar Baixo desempenho em apply_patch_success_rate para alcançar desempenho ótimo",
+  "priority": "high",
+  "estimated_duration": "medium",
+  "required_capabilities": [
+    "core.optimization",
+    "core.performance"
+  ],
+  "success_criteria": [
+    "Métricas melhoradas em mais de 20%",
+    "Redução de falhas em 30%",
+    "Eficiência aumentada em 25%"
+  ],
+  "risks": [
+    "Possível aumento temporário de falhas durante transição",
+    "Necessidade de recursos computacionais adicionais"
+  ],
+  "dependencies": [
+    "Acesso a métricas em tempo real",
+    "Permissão para auto-modificação segura"
+  ],
+  "created_at": "2025-09-30T19:52:18.564308+00:00",
+  "estimated_completion_date": null
+}

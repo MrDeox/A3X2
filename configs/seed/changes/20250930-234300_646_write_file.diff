@@ -1,0 +1,109 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -1,44 +1,70 @@
+ #!/usr/bin/env python3
+ import sys
+ import os
+-import re
++import subprocess
++import argparse
+ 
+-# Função de verificação de segurança para o conteúdo do patch
+-def check_patch_security(patch_content):
+-    # Padrões arriscados: comandos que podem executar código arbitrário ou acessar arquivos sensíveis
+-    risky_patterns = [
+-        r'\b(os\.)?system\b',
+-        r'\bexec\b',
+-        r'\beval\b',
+-        r'\bsubprocess\.(call|run|Popen)\b',
+-        r'\bopen\([^,]*\/(etc|root|boot|var\/log)\/',
+-        r'\brm\s+-rf\b',
+-        r'\bchmod\s+\+x\b'
+-    ]
+-    for pattern in risky_patterns:
+-        if re.search(pattern, patch_content, re.IGNORECASE):
+-            print(f"Risco detectado: {pattern}")
++
++def apply_patch_safely(patch_file, target_dir='.', dry_run=False):
++    """Apply a patch with safety checks."""
++    # Safety check 1: Verify patch file exists and is readable
++    if not os.path.isfile(patch_file):
++        raise ValueError(f"Patch file '{patch_file}' does not exist or is not a file.")
++    if not os.access(patch_file, os.R_OK):
++        raise ValueError(f"Patch file '{patch_file}' is not readable.")
++
++    # Safety check 2: Verify target directory exists and is writable
++    if not os.path.isdir(target_dir):
++        raise ValueError(f"Target directory '{target_dir}' does not exist.")
++    if not os.access(target_dir, os.W_OK):
++        raise ValueError(f"Target directory '{target_dir}' is not writable.")
++
++    # Safety check 3: Basic content validation (e.g., starts with diff header)
++    with open(patch_file, 'r') as f:
++        first_line = f.readline().strip()
++        if not first_line.startswith(('diff', 'Index:', '---')):
++            print("Warning: Patch file may not be a standard unified diff.")
++
++    # Prepare command with safety options
++    cmd = ['patch', '-p1', '--dry-run' if dry_run else '', '-d', target_dir, patch_file]
++    cmd = [arg for arg in cmd if arg]  # Remove empty strings
++
++    # Safety check 4: Run in subprocess with limited privileges (capture output)
++    try:
++        result = subprocess.run(
++            cmd,
++            capture_output=True,
++            text=True,
++            timeout=30  # Prevent hanging
++        )
++        if result.returncode != 0:
++            print(f"Patch application failed:\n{result.stderr}")
+             return False
+-    return True
+-
+-# Função principal para aplicar patch com segurança
+-def apply_secure_patch(patch_file):
+-    try:
+-        with open(patch_file, 'r') as f:
+-            patch_content = f.read()
+-        if not check_patch_security(patch_content):
+-            print("Patch rejeitado devido a riscos de segurança.")
+-            return False
+-        # Aqui você aplicaria o patch usando subprocess ou similar, mas com sandboxing se possível
+-        # Por exemplo: subprocess.run(['patch', '-p1'], input=patch_content, check=True)
+-        print("Patch aprovado e aplicado com segurança.")
++        print("Patch applied successfully (or dry-run passed).")
+         return True
++    except subprocess.TimeoutExpired:
++        print("Patch application timed out.")
++        return False
+     except Exception as e:
+-        print(f"Erro ao aplicar patch: {e}")
++        print(f"Unexpected error during patch application: {e}")
+         return False
+ 
+-if __name__ == "__main__":
+-    if len(sys.argv) != 2:
+-        print("Uso: python3 patch.py <arquivo_patch>")
+-        sys.exit(1)
+-    apply_secure_patch(sys.argv[1])+
++def main():
++    parser = argparse.ArgumentParser(description='Safely apply patches with security checks')
++    parser.add_argument('patch_file', help='Path to the patch file')
++    parser.add_argument('-d', '--directory', default='.', help='Target directory (default: current)')
++    parser.add_argument('--dry-run', action='store_true', help='Test without applying changes')
++    parser.add_argument('--verbose', action='store_true', help='Enable verbose output')
++
++    args = parser.parse_args()
++
++    if args.verbose:
++        print(f"Applying patch '{args.patch_file}' to '{args.directory}' (dry-run: {args.dry_run})")
++
++    success = apply_patch_safely(args.patch_file, args.directory, args.dry_run)
++    sys.exit(0 if success else 1)
++
++
++if __name__ == '__main__':
++    main()

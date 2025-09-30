@@ -1,0 +1,99 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -2,58 +2,45 @@
+ import sys
+ import os
+ import subprocess
+-import re
++import tempfile
++
++if len(sys.argv) != 3:
++    print('Usage: python patch.py <target_file> <patch_file>')
++    sys.exit(1)
++
++target_file = sys.argv[1]
++patch_file = sys.argv[2]
+ 
+ # Security checks
+-def validate_patch_content(patch_content):
+-    # Check for dangerous commands
+-    dangerous_patterns = [
+-        r'rm\s+.*',
+-        r'dd\s+if=',
+-        r'mkfs',
+-        r'format',
+-        r'chmod\s+.*777',
+-        r'sudo\s+',
+-    ]
+-    for pattern in dangerous_patterns:
+-        if re.search(pattern, patch_content, re.IGNORECASE):
+-            return False, f"Dangerous pattern detected: {pattern}"
+-    return True, "Patch is safe"
++if not os.path.isfile(patch_file):
++    print('Error: Patch file does not exist or is not a file.')
++    sys.exit(1)
+ 
+-def apply_patch_safely(patch_file, target_dir):
+-    with open(patch_file, 'r') as f:
+-        patch_content = f.read()
++if '..' in target_file or not os.path.abspath(target_file).startswith(os.getcwd()):
++    print('Error: Invalid target file path (security check).')
++    sys.exit(1)
++
++if not os.path.exists(target_file):
++    print('Error: Target file does not exist.')
++    sys.exit(1)
++
++# Apply patch securely using subprocess
++try:
++    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.patch') as temp_patch:
++        with open(patch_file, 'r') as f:
++            temp_patch.write(f.read())
++        temp_patch_path = temp_patch.name
+     
+-    is_safe, message = validate_patch_content(patch_content)
+-    if not is_safe:
+-        print(f"Security check failed: {message}")
+-        return 1
++    result = subprocess.run(['patch', '-i', temp_patch_path, target_file], 
++                            capture_output=True, text=True, check=True)
+     
+-    print("Security checks passed.")
+-    
+-    # Proceed with patch application
+-    cmd = ['patch', '-p1', '-d', target_dir]
+-    result = subprocess.run(cmd, input=patch_content.encode(), capture_output=True)
+-    if result.returncode != 0:
+-        print(f"Patch failed: {result.stderr.decode()}")
+-        return 1
+-    print("Patch applied successfully.")
+-    return 0
+-
+-if __name__ == "__main__":
+-    if len(sys.argv) != 3:
+-        print("Usage: python patch.py <patch_file> <target_dir>")
+-        sys.exit(1)
+-    
+-    patch_file = sys.argv[1]
+-    target_dir = sys.argv[2]
+-    
+-    if not os.path.exists(patch_file):
+-        print(f"Patch file not found: {patch_file}")
+-        sys.exit(1)
+-    
+-    if not os.path.isdir(target_dir):
+-        print(f"Target directory not found: {target_dir}")
+-        sys.exit(1)
+-    
+-    sys.exit(apply_patch_safely(patch_file, target_dir))+    if result.returncode == 0:
++        print('Patch applied successfully.')
++    else:
++        print('Patch failed:', result.stderr)
++        
++except subprocess.CalledProcessError as e:
++    print('Error applying patch:', e)
++finally:
++    if 'temp_patch_path' in locals():
++        os.unlink(temp_patch_path)

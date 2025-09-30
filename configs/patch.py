@@ -2,60 +2,68 @@
 import sys
 import os
 import subprocess
+import shutil
+import re
 
+# Security checks added
+ALLOWED_DIRS = ['/home', '/tmp']  # Restrict patching to safe directories
+def is_safe_path(path):
+    for allowed in ALLOWED_DIRS:
+        if path.startswith(allowed):
+            return True
+    return False
 
-def apply_secure_patch(patch_file, target_dir):
-    # Security check: Verify patch file exists
-    if not os.path.exists(patch_file):
-        raise ValueError(f"Patch file '{patch_file}' does not exist.")
-
-    # Security check: Verify patch file is readable
-    if not os.access(patch_file, os.R_OK):
-        raise ValueError(f"No read permission for patch file '{patch_file}'.")
-
-    # Security check: Ensure patch file has safe extension
-    if not patch_file.endswith('.patch'):
-        raise ValueError("Patch file must have .patch extension for security.")
-
-    # Security check: Verify target directory exists and is writable
-    if not os.path.exists(target_dir):
-        raise ValueError(f"Target directory '{target_dir}' does not exist.")
-
-    if not os.access(target_dir, os.W_OK):
-        raise ValueError(f"No write permission for target directory '{target_dir}'.")
-
-    # Security check: Limit patch to target directory only (no --forward or recursive risks)
-    try:
-        result = subprocess.run(
-            ['patch', '-p1', '-d', target_dir, '-i', patch_file, '--dry-run'],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        print("Dry run successful. Proceeding with patch application.")
-    except subprocess.CalledProcessError as e:
-        raise ValueError(f"Dry run failed: {e.stderr}")
-
-    # Apply the patch
-    try:
-        subprocess.check_call(['patch', '-p1', '-d', target_dir, '-i', patch_file])
-        print(f"Patch applied successfully to '{target_dir}'.")
-    except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"Patch application failed: {e}")
-
+def validate_patch_content(patch_content):
+    # Basic check for dangerous commands in patch
+    dangerous_patterns = [r'rm\s+-rf', r'/bin/sh', r'exec\s+', r'sudo\s+']
+    for pattern in dangerous_patterns:
+        if re.search(pattern, patch_content, re.IGNORECASE):
+            return False, f'Dangerous pattern found: {pattern}'
+    return True, 'Safe'
 
 def main():
     if len(sys.argv) != 3:
-        print("Usage: python patch.py <patch_file> <target_dir>")
+        print('Usage: python patch.py <patchfile> <targetfile>')
         sys.exit(1)
 
-    patch_file = sys.argv[1]
-    target_dir = sys.argv[2]
+    patchfile = sys.argv[1]
+    targetfile = sys.argv[2]
 
+    # Security check 1: Validate paths
+    if not os.path.exists(patchfile):
+        print(f'Error: Patch file {patchfile} does not exist.')
+        sys.exit(1)
+    if not is_safe_path(os.path.abspath(targetfile)):
+        print(f'Error: Target file {targetfile} is not in allowed directory.')
+        sys.exit(1)
+
+    # Security check 2: Backup original if exists
+    if os.path.exists(targetfile):
+        backup = targetfile + '.bak'
+        if os.path.exists(backup):
+            print(f'Warning: Backup {backup} already exists. Overwriting.')
+        shutil.copy2(targetfile, backup)
+        print(f'Backup created: {backup}')
+
+    # Security check 3: Validate patch content
+    with open(patchfile, 'r') as f:
+        patch_content = f.read()
+    is_safe, msg = validate_patch_content(patch_content)
+    if not is_safe:
+        print(f'Security violation: {msg}')
+        sys.exit(1)
+    print(f'Patch validation: {msg}')
+
+    # Apply patch
     try:
-        apply_secure_patch(patch_file, target_dir)
-    except (ValueError, RuntimeError) as e:
-        print(f"Error: {e}", file=sys.stderr)
+        result = subprocess.run(['patch', '-i', patchfile, targetfile], capture_output=True, text=True)
+        if result.returncode == 0:
+            print('Patch applied successfully.')
+        else:
+            print(f'Patch failed: {result.stderr}')
+            sys.exit(1)
+    except Exception as e:
+        print(f'Error applying patch: {e}')
         sys.exit(1)
 
 if __name__ == '__main__':

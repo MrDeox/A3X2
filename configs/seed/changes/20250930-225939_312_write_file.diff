@@ -1,0 +1,125 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -1,53 +1,74 @@
+ import sys
+ import os
+ import subprocess
+-import argparse
++import re
++import hashlib
+ 
+-# Security checks
+-def is_safe_path(base_dir, path):
+-    abs_base = os.path.abspath(base_dir)
+-    abs_path = os.path.abspath(path)
+-    return abs_path.startswith(abs_base)
++ def validate_patch_content(patch_content):
++    # Verificação básica: o patch deve conter linhas de diff
++    if not re.search(r'^\+\+\+', patch_content, re.MULTILINE):
++        return False, "Patch inválido: não encontrado cabeçalho de arquivo."
++    # Verificar por comandos perigosos (ex: rm, exec)
++    dangerous_patterns = [r'rm\s', r'exec\(', r'subprocess\.call\(']
++    for pattern in dangerous_patterns:
++        if re.search(pattern, patch_content, re.IGNORECASE):
++            return False, f"Patch rejeitado: conteúdo perigoso detectado ({pattern})."
++    return True, "OK"
+ 
+-def main():
+-    parser = argparse.ArgumentParser(description='Apply patches safely')
+-    parser.add_argument('--file', required=True, help='File to patch')
+-    parser.add_argument('--patch', required=True, help='Patch file')
+-    parser.add_argument('--strip', type=int, default=0, help='Strip level')
+-    args = parser.parse_args()
++ def compute_file_hash(filepath):
++    hasher = hashlib.sha256()
++    with open(filepath, 'rb') as f:
++        for chunk in iter(lambda: f.read(4096), b''):
++            hasher.update(chunk)
++    return hasher.hexdigest()
+ 
+-    # Security: Validate paths
+-    if not os.path.exists(args.file):
+-        print(f"Error: File {args.file} does not exist.", file=sys.stderr)
++ def apply_secure_patch(target_file, patch_file):
++    if not os.path.exists(target_file):
++        return False, "Arquivo alvo não existe."
++    
++    # Verificar permissões: não aplicar em arquivos de sistema
++    if target_file.startswith('/etc/') or target_file.startswith('/bin/'):
++        return False, "Aplicação em arquivos de sistema proibida."
++    
++    if not os.access(target_file, os.W_OK):
++        return False, "Sem permissão de escrita no arquivo alvo."
++    
++    with open(patch_file, 'r') as f:
++        patch_content = f.read()
++    
++    is_valid, msg = validate_patch_content(patch_content)
++    if not is_valid:
++        return False, msg
++    
++    original_hash = compute_file_hash(target_file)
++    
++    try:
++        result = subprocess.run(['patch', '-p1', '--dry-run', target_file], 
++                                input=patch_content, text=True, capture_output=True)
++        if result.returncode != 0:
++            return False, "Teste seco falhou: " + result.stderr
++        
++        # Aplicar de verdade
++        result = subprocess.run(['patch', '-p1', target_file], 
++                                input=patch_content, text=True, capture_output=True)
++        if result.returncode == 0:
++            new_hash = compute_file_hash(target_file)
++            if new_hash == original_hash:
++                return False, "Patch não alterou o arquivo (possível falha)."
++            return True, "Patch aplicado com sucesso."
++        else:
++            return False, "Falha ao aplicar patch: " + result.stderr
++    except Exception as e:
++        return False, f"Erro durante aplicação: {str(e)}
++
++ if __name__ == '__main__':
++    if len(sys.argv) != 3:
++        print("Uso: python patch.py <arquivo_alvo> <patch_file>")
+         sys.exit(1)
+-
+-    if not os.path.exists(args.patch):
+-        print(f"Error: Patch {args.patch} does not exist.", file=sys.stderr)
+-        sys.exit(1)
+-
+-    # Ensure we're not patching outside the project dir (assume current dir is project root)
+-    project_dir = os.getcwd()
+-    if not is_safe_path(project_dir, args.file):
+-        print(f"Error: {args.file} is outside the project directory.", file=sys.stderr)
+-        sys.exit(1)
+-
+-    # Check permissions
+-    if not os.access(args.file, os.W_OK):
+-        print(f"Error: No write permission for {args.file}.", file=sys.stderr)
+-        sys.exit(1)
+-
+-    # Apply patch
+-    cmd = ['patch', '--strip=' + str(args.strip), args.file, args.patch]
+-    try:
+-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+-        print("Patch applied successfully.")
+-        if result.stdout:
+-            print(result.stdout)
+-    except subprocess.CalledProcessError as e:
+-        print(f"Patch failed: {e}", file=sys.stderr)
+-        if e.stderr:
+-            print(e.stderr, file=sys.stderr)
+-        sys.exit(1)
+-
+-if __name__ == '__main__':
+-    main()
++    
++    target = sys.argv[1]
++    patch = sys.argv[2]
++    
++    success, msg = apply_secure_patch(target, patch)
++    print(msg)
++    sys.exit(0 if success else 1)

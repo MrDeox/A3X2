@@ -1,0 +1,139 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -2,96 +2,52 @@
+ import sys
+ import os
+ import subprocess
+-import tempfile
+-import shutil
+ 
+-
+-def validate_path(path):
+-    """Valida se o caminho é seguro (não absoluto para dirs sensíveis)."""
+-    if not path or '..' in path or path.startswith('/'):
+-        return False
++def safety_check_patch(patch_content):
++    # Basic safety check: ensure patch doesn't contain dangerous commands
++    dangerous_patterns = ['rm -rf', 'exec', 'eval', 'os.system']
++    for pattern in dangerous_patterns:
++        if pattern in patch_content:
++            print(f"Security warning: Potential dangerous pattern '{pattern}' detected.")
++            return False
+     return True
+ 
+-
+-def safe_patch_apply(patch_diff, target_file):
+-    """Aplica patch com verificações de segurança."""
+-    # Verificação 1: Validar target_file
+-    if not validate_path(target_file):
+-        print("Erro: Caminho alvo inválido ou inseguro.")
+-        return False
++def apply_patch(patch_file, target_file):
+     if not os.path.exists(target_file):
+-        print(f"Erro: Arquivo {target_file} não existe.")
+-        return False
+-    if not os.access(target_file, os.R_OK | os.W_OK):
+-        print(f"Erro: Sem permissões de leitura/escrita em {target_file}.")
+-        return False
+-
+-    # Verificação 2: Validar conteúdo do patch (básico: não contém comandos perigosos)
+-    dangerous_keywords = ['rm ', 'del ', 'exec(', 'eval(']
+-    if any(keyword in patch_diff for keyword in dangerous_keywords):
+-        print("Erro: Patch contém elementos potencialmente perigosos.")
+-        return False
+-
+-    # Verificação 3: Usar temp file para teste
++        print(f"Error: Target file {target_file} does not exist.")
++        return 1
++    
++    if not os.path.exists(patch_file):
++        print(f"Error: Patch file {patch_file} does not exist.")
++        return 1
++    
++    with open(patch_file, 'r') as f:
++        patch_content = f.read()
++    
++    if not safety_check_patch(patch_content):
++        response = input("Continue despite security warning? (y/n): ")
++        if response.lower() != 'y':
++            return 1
++    
++    # Confirm application
++    response = input(f"Apply patch to {target_file}? (y/n): ")
++    if response.lower() != 'y':
++        return 0
++    
+     try:
+-        with tempfile.NamedTemporaryFile(mode='w', suffix='.tmp', delete=False) as tmp:
+-            tmp.write(open(target_file).read())
+-            tmp_path = tmp.name
+-
+-        # Aplicar patch no temp
+-        result = subprocess.run(
+-            ['patch', '--dry-run', '-i', '-'],
+-            input=patch_diff,
+-            text=True,
+-            capture_output=True,
+-            cwd=os.path.dirname(tmp_path) or '.'
+-        )
++        cmd = ['patch', '-p1', '<', patch_file, target_file]
++        result = subprocess.run(['patch', target_file, patch_file], capture_output=True, text=True)
+         if result.returncode != 0:
+-            print("Erro: Patch seco falhou - possivelmente inválido.")
+-            os.unlink(tmp_path)
+-            return False
+-
+-        # Aplicar de verdade se seco OK
+-        result = subprocess.run(
+-            ['patch', '-i', '-'],
+-            input=patch_diff,
+-            text=True,
+-            capture_output=True,
+-            cwd=os.path.dirname(target_file) or '.'
+-        )
+-        if result.returncode == 0:
+-            print("Patch aplicado com sucesso.")
+-            os.unlink(tmp_path)
+-            return True
+-        else:
+-            print(f"Falha ao aplicar patch: {result.stderr.decode()}")
+-            # Reverta se possível, mas por simplicidade, avise
+-            os.unlink(tmp_path)
+-            return False
++            print(f"Patch failed: {result.stderr}")
++            return 1
++        print("Patch applied successfully.")
++        return 0
+     except Exception as e:
+-        print(f"Erro durante aplicação: {e}")
+-        if 'tmp_path' in locals():
+-            os.unlink(tmp_path)
+-        return False
+-
++        print(f"Error applying patch: {e}")
++        return 1
+ 
+ if __name__ == "__main__":
+     if len(sys.argv) != 3:
+-        print("Uso: ./patch.py <arquivo_patch> <arquivo_alvo>")
++        print("Usage: python patch.py <patch_file> <target_file>")
+         sys.exit(1)
+-
+-    patch_file = sys.argv[1]
+-    target_file = sys.argv[2]
+-
+-    # Verificação de input
+-    if not os.path.isfile(patch_file):
+-        print(f"Erro: Patch file {patch_file} não encontrado.")
+-        sys.exit(1)
+-
+-    try:
+-        with open(patch_file, 'r') as f:
+-            patch_diff = f.read()
+-        safe_patch_apply(patch_diff, target_file)
+-    except IOError as e:
+-        print(f"Erro ao ler patch: {e}")
+-        sys.exit(1)
++    sys.exit(apply_patch(sys.argv[1], sys.argv[2]))

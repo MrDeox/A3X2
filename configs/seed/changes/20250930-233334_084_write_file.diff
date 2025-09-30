@@ -1,0 +1,68 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -1,29 +1,41 @@
+ #!/usr/bin/env python3
+ import sys
+ import os
++import subprocess
+ 
+-# Security checks
+-def validate_input(file_path):
+-    if not os.path.exists(file_path):
+-        raise ValueError(f"File {file_path} does not exist.")
+-    if not os.access(file_path, os.R_OK):
+-        raise PermissionError(f"No read permission for {file_path}.")
++# Verificação de segurança: Verificar se o script está sendo executado com privilégios adequados
++def check_permissions():
++    if os.geteuid() == 0:
++        print('AVISO: Executando como root. Isso pode ser arriscado.')
++        return False
+     return True
+ 
+-if __name__ == "__main__":
+-    if len(sys.argv) < 2:
+-        print("Usage: python patch.py <file>", file=sys.stderr)
+-        sys.exit(1)
+-    try:
+-        file_path = sys.argv[1]
+-        validate_input(file_path)
+-        with open(file_path, 'r') as f:
+-            content = f.read()
+-        print("File validated successfully.")
+-        # Additional patching logic here
+-    except (ValueError, PermissionError) as e:
+-        print(f"Security validation failed: {e}", file=sys.stderr)
+-        sys.exit(1)
+-    except Exception as e:
+-        print(f"Unexpected error: {e}", file=sys.stderr)
+-        sys.exit(1)+# Verificação de segurança: Validar argumentos de entrada
++if len(sys.argv) < 2:
++    print('Uso: python3 patch.py <arquivo_patch>')
++    sys.exit(1)
++
++patch_file = sys.argv[1]
++if not os.path.exists(patch_file):
++    print(f'Erro: Arquivo de patch {patch_file} não encontrado.')
++    sys.exit(1)
++
++# Verificação de segurança: Verificar se o patch é seguro (exemplo simples: tamanho razoável)
++if os.path.getsize(patch_file) > 1000000:  # 1MB limite
++    print('Erro: Patch muito grande, possível risco de segurança.')
++    sys.exit(1)
++
++if not check_permissions():
++    sys.exit(1)
++
++# Aplicar o patch
++try:
++    result = subprocess.run(['patch', '-p1', '<', patch_file], capture_output=True, text=True)
++    if result.returncode == 0:
++        print('Patch aplicado com sucesso.')
++    else:
++        print('Falha ao aplicar patch:')
++        print(result.stderr)
++except Exception as e:
++    print(f'Erro: {e}')
++    sys.exit(1)

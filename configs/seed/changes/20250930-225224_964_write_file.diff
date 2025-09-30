@@ -1,0 +1,124 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -1,76 +1,53 @@
+ import sys
+ import os
+ import subprocess
+-import argparse
+-import tempfile
+-import shutil
+ 
+-class SafePatchApplier:
+-    def __init__(self):
+-        self.backup_dir = None
++def apply_patch(patchfile):
++    if not os.path.isfile(patchfile):
++        print(f"Error: {patchfile} not found or not a file.")
++        sys.exit(1)
++    if not os.access(patchfile, os.R_OK):
++        print(f"Error: No read permission for {patchfile}.")
++        sys.exit(1)
+ 
+-    def validate_inputs(self, patch_file, target_dir):
+-        if not os.path.isfile(patch_file):
+-            raise ValueError(f"Patch file '{patch_file}' does not exist.")
+-        if not os.path.isdir(target_dir):
+-            raise ValueError(f"Target directory '{target_dir}' does not exist.")
+-        if not os.access(target_dir, os.W_OK):
+-            raise PermissionError(f"No write permission for '{target_dir}'.")
++    # Security check: Warn if running as root
++    if os.getuid() == 0:
++        print("Warning: Running as root. Proceed? (y/n)")
++        response = input().strip().lower()
++        if response != 'y':
++            sys.exit(1)
+ 
+-    def create_backup(self, target_dir):
+-        self.backup_dir = tempfile.mkdtemp(prefix='patch_backup_')
+-        backup_path = os.path.join(self.backup_dir, os.path.basename(target_dir))
+-        shutil.copytree(target_dir, backup_path)
+-        print(f"Backup created at: {backup_path}")
++    # Check if current directory is writable and safe (not system dir)
++    current_dir = os.getcwd()
++    if not os.access(current_dir, os.W_OK):
++        print(f"Error: No write permission in {current_dir}.")
++        sys.exit(1)
++    if current_dir.startswith(('/etc', '/bin', '/usr', '/var/log')):
++        print("Error: Cannot apply patches to system directories.")
++        sys.exit(1)
+ 
+-    def apply_patch(self, patch_file, target_dir, strip=0):
+-        try:
+-            self.validate_inputs(patch_file, target_dir)
+-            self.create_backup(target_dir)
++    try:
++        # Dry run first
++        result = subprocess.run(['patch', '-p1', '--dry-run', patchfile], 
++                                capture_output=True, text=True, check=True)
++        print("Dry run successful. Proceeding with patch application.")
+ 
+-            cmd = ['patch', '-d', target_dir, '-p', str(strip), '-i', patch_file, '--backup', '--verbose']
+-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+-            print("Patch applied successfully.")
+-            print(result.stdout)
+-            return True
+-        except subprocess.CalledProcessError as e:
+-            print(f"Patch application failed: {e}")
+-            print(e.stderr)
+-            self.restore_backup()
+-            return False
+-        except Exception as e:
+-            print(f"Unexpected error: {e}")
+-            self.restore_backup()
+-            return False
++        # Apply patch
++        result = subprocess.run(['patch', '-p1', patchfile], 
++                                capture_output=True, text=True, check=True)
++        print("Patch applied successfully.")
++        if result.stdout:
++            print("Output:", result.stdout)
++    except subprocess.CalledProcessError as e:
++        print(f"Error applying patch: {e}")
++        if e.stdout:
++            print("Stdout:", e.stdout)
++        if e.stderr:
++            print("Stderr:", e.stderr)
++        sys.exit(1)
+ 
+-    def restore_backup(self):
+-        if self.backup_dir:
+-            print(f"Restoring from backup: {self.backup_dir}")
+-            # Implementation for restore would go here
+-            shutil.rmtree(self.backup_dir, ignore_errors=True)
+-
+-    def cleanup(self):
+-        if self.backup_dir:
+-            shutil.rmtree(self.backup_dir, ignore_errors=True)
+-
+-
+-def main():
+-    parser = argparse.ArgumentParser(description='Apply patches safely.')
+-    parser.add_argument('patch_file', help='Path to the patch file')
+-    parser.add_argument('-d', '--directory', default='.', help='Target directory')
+-    parser.add_argument('-p', '--strip', type=int, default=0, help='Strip level')
+-
+-    args = parser.parse_args()
+-
+-    applier = SafePatchApplier()
+-    try:
+-        success = applier.apply_patch(args.patch_file, args.directory, args.strip)
+-        if success:
+-            print("Operation completed successfully.")
+-        else:
+-            sys.exit(1)
+-    finally:
+-        applier.cleanup()
+-
+-if __name__ == '__main__':
+-    main()+if __name__ == "__main__":
++    if len(sys.argv) != 2:
++        print("Usage: python patch.py <patchfile>")
++        sys.exit(1)
++    apply_patch(sys.argv[1])

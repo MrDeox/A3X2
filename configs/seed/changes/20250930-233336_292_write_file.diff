@@ -1,0 +1,163 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -2,40 +2,128 @@
+ import sys
+ import os
+ import subprocess
++import tempfile
++import hashlib
+ 
+-# Verificação de segurança: Verificar se o script está sendo executado com privilégios adequados
+-def check_permissions():
+-    if os.geteuid() == 0:
+-        print('AVISO: Executando como root. Isso pode ser arriscado.')
++
++def validate_patch(patch_content):
++    """Validate patch content for safety."""
++    # Check for dangerous commands or patterns
++    dangerous_patterns = [
++        r'rm\s+.*',
++        r'dd\s+if=',
++        r'mkfs',
++        r'format',
++        r'\bexec\b',
++        r'\bsystem\b',
++    ]
++    for pattern in dangerous_patterns:
++        if re.search(pattern, patch_content, re.IGNORECASE):
++            return False, f"Dangerous pattern detected: {pattern}"
++    return True, "Patch is safe"
++
++
++def compute_file_hash(filepath):
++    """Compute SHA256 hash of a file."""
++    hash_sha256 = hashlib.sha256()
++    try:
++        with open(filepath, "rb") as f:
++            for chunk in iter(lambda: f.read(4096), b""):
++                hash_sha256.update(chunk)
++        return hash_sha256.hexdigest()
++    except IOError:
++        return None
++
++
++def backup_file(filepath):
++    """Create a backup of the file before patching."""
++    if not os.path.exists(filepath):
++        return None
++    backup_path = filepath + ".bak"
++    try:
++        with open(filepath, 'rb') as src, open(backup_path, 'wb') as dst:
++            dst.write(src.read())
++        return backup_path
++    except IOError as e:
++        print(f"Failed to create backup: {e}")
++        return None
++
++
++def apply_patch_safely(patch_file, target_file, strip=0):
++    """Apply patch with safety checks."""
++    # Read and validate patch
++    try:
++        with open(patch_file, 'r') as f:
++            patch_content = f.read()
++    except IOError as e:
++        print(f"Failed to read patch file: {e}")
+         return False
+-    return True
+ 
+-# Verificação de segurança: Validar argumentos de entrada
+-if len(sys.argv) < 2:
+-    print('Uso: python3 patch.py <arquivo_patch>')
+-    sys.exit(1)
++    is_safe, msg = validate_patch(patch_content)
++    if not is_safe:
++        print(f"Patch rejected: {msg}")
++        return False
+ 
+-patch_file = sys.argv[1]
+-if not os.path.exists(patch_file):
+-    print(f'Erro: Arquivo de patch {patch_file} não encontrado.')
+-    sys.exit(1)
++    # Backup original file
++    original_hash = compute_file_hash(target_file)
++    backup = backup_file(target_file)
++    if backup is None and os.path.exists(target_file):
++        print("Warning: Could not create backup.")
+ 
+-# Verificação de segurança: Verificar se o patch é seguro (exemplo simples: tamanho razoável)
+-if os.path.getsize(patch_file) > 1000000:  # 1MB limite
+-    print('Erro: Patch muito grande, possível risco de segurança.')
+-    sys.exit(1)
++    # Apply patch using patch command
++    cmd = ['patch', '-p' + str(strip), target_file, '--backup', '--verbose']
++    try:
++        result = subprocess.run(cmd, input=patch_content.encode(), capture_output=True, text=True)
++        if result.returncode != 0:
++            print(f"Patch failed: {result.stderr}")
++            # Restore from backup if exists
++            if backup and os.path.exists(backup):
++                with open(backup, 'rb') as src, open(target_file, 'wb') as dst:
++                    dst.write(src.read())
++                print("Restored from backup.")
++            return False
++        print(f"Patch applied successfully: {result.stdout}")
++        # Verify hash change or something, but for now success
++        return True
++    except Exception as e:
++        print(f"Error applying patch: {e}")
++        if backup:
++            # Restore
++            with open(backup, 'rb') as src, open(target_file, 'wb') as dst:
++                dst.write(src.read())
++        return False
+ 
+-if not check_permissions():
+-    sys.exit(1)
+ 
+-# Aplicar o patch
+-try:
+-    result = subprocess.run(['patch', '-p1', '<', patch_file], capture_output=True, text=True)
+-    if result.returncode == 0:
+-        print('Patch aplicado com sucesso.')
+-    else:
+-        print('Falha ao aplicar patch:')
+-        print(result.stderr)
+-except Exception as e:
+-    print(f'Erro: {e}')
+-    sys.exit(1)
++if __name__ == "__main__":
++    if len(sys.argv) < 2:
++        print("Usage: python3 patch.py <patch_file> [target_file] [-p <strip>]", file=sys.stderr)
++        sys.exit(1)
++
++    patch_file = sys.argv[1]
++    target_file = sys.argv[2] if len(sys.argv) > 2 else None
++    strip = 0
++    if len(sys.argv) > 3 and sys.argv[-2] == '-p':
++        strip = int(sys.argv[-1])
++
++    if not os.path.exists(patch_file):
++        print(f"Patch file not found: {patch_file}", file=sys.stderr)
++        sys.exit(1)
++
++    if target_file is None:
++        # Auto-detect from patch
++        with open(patch_file, 'r') as f:
++            first_line = f.readline()
++            if first_line.startswith('--- '):
++                target_file = first_line.split()[-1].lstrip('a/')
++            else:
++                print("Could not auto-detect target file.", file=sys.stderr)
++                sys.exit(1)
++
++    if not os.access(os.path.dirname(target_file) if os.path.dirname(target_file) else '.', os.W_OK):
++        print("No write permission to target directory.", file=sys.stderr)
++        sys.exit(1)
++
++    success = apply_patch_safely(patch_file, target_file, strip)
++    sys.exit(0 if success else 1)
++
++import re  # Added missing import

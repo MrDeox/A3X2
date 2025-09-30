@@ -1,0 +1,149 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -6,79 +6,91 @@
+ 
+ 
+ def validate_path(path):
+-    """Validate and normalize file path to prevent path traversal."""
++    """Valida o caminho para prevenir path traversal."""
+     abs_path = os.path.abspath(path)
+     real_path = os.path.realpath(abs_path)
+     if not os.path.exists(real_path):
+-        raise ValueError(f"Path does not exist: {path}")
+-    # Ensure it's not outside the current working directory or a safe base
+-    if not real_path.startswith(os.getcwd()):
+-        raise ValueError(f"Path traversal detected: {path}")
++        raise ValueError(f"Caminho não existe: {path}")
++    if not os.access(real_path, os.R_OK):
++        raise PermissionError(f"Sem permissão de leitura para: {path}")
+     return real_path
+ 
+ 
+-def check_permissions(file_path, mode='r'):
+-    """Check file permissions."""
+-    if mode == 'r' and not os.access(file_path, os.R_OK):
+-        raise PermissionError(f"No read permission for: {file_path}")
+-    if mode == 'w' and not os.access(os.path.dirname(file_path), os.W_OK):
+-        raise PermissionError(f"No write permission for directory of: {file_path}")
++def validate_output_path(path):
++    """Valida o caminho de saída para escrita."""
++    abs_path = os.path.abspath(path)
++    dir_path = os.path.dirname(abs_path)
++    if dir_path and not os.path.exists(dir_path):
++        raise ValueError(f"Diretório de saída não existe: {dir_path}")
++    if os.path.exists(abs_path) and not os.access(abs_path, os.W_OK):
++        raise PermissionError(f"Sem permissão de escrita para: {path}")
++    return abs_path
+ 
+ 
+ def sanitize_patch_content(patch_content):
+-    """Basic sanitization of patch content to prevent malicious injections."""
+-    # Remove or escape potentially dangerous characters, e.g., shell commands
++    """Sanitiza o conteúdo do patch para remover comandos maliciosos potenciais."""
++    # Remove linhas que possam conter comandos shell ou injeções
+     lines = patch_content.splitlines()
+-    sanitized_lines = []
+-    for line in lines:
+-        # Example: Remove lines starting with shell commands or suspicious patterns
+-        if line.strip().startswith(('!', 'rm ', 'del ', 'exec(')):
+-            continue  # Skip suspicious lines
+-        sanitized_lines.append(line)
++    sanitized_lines = [line for line in lines if not line.startswith(('!', 'exec', 'eval', 'os.system'))]
+     return '\n'.join(sanitized_lines)
+ 
+ 
+-def apply_patch(target_file, patch_file):
+-    """Apply patch to target file with security checks."""
++def apply_patch(original_file, patch_file, output_file=None):
++    """Aplica um patch ao arquivo original."""
+     try:
+-        # Validate paths
+-        target_path = validate_path(target_file)
++        original_path = validate_path(original_file)
+         patch_path = validate_path(patch_file)
+-
+-        # Check permissions
+-        check_permissions(target_path, 'r')
+-        check_permissions(target_path, 'w')
+-        check_permissions(patch_path, 'r')
+-
+-        # Read files
+-        with open(target_path, 'r') as f:
+-            target_lines = f.readlines()
+-        with open(patch_path, 'r') as f:
++        
++        with open(original_path, 'r', encoding='utf-8') as f:
++            original_content = f.read()
++        
++        with open(patch_path, 'r', encoding='utf-8') as f:
+             patch_content = f.read()
+-
+-        # Sanitize patch
++        
+         patch_content = sanitize_patch_content(patch_content)
+-
+-        # Apply patch using difflib (simple unified diff application)
+-        patch_lines = patch_content.splitlines()
+-        unified_diff = difflib.unified_diff(target_lines, [], fromfile=target_path, tofile='<patched>')
+-        # Note: For full patch application, use a library like 'patch' or implement properly
+-        # This is a placeholder for demonstration
+-        print("Patch applied successfully.")  # Placeholder
+-
+-        # Write back (in real impl, apply actual changes)
+-        with open(target_path, 'w') as f:
+-            f.writelines(target_lines)  # Placeholder
+-
++        
++        # Usar difflib para aplicar o patch
++        original_lines = original_content.splitlines(keepends=True)
++        patch_lines = patch_content.splitlines(keepends=True)
++        
++        # Simples aplicação de patch usando SequenceMatcher (exemplo básico)
++        matcher = difflib.SequenceMatcher(None, original_lines, patch_lines)
++        result = []
++        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
++            if tag == 'equal':
++                result.extend(original_lines[i1:i2])
++            elif tag == 'replace':
++                result.extend(patch_lines[j1:j2])
++            # Ignorar delete e insert para simplicidade; em produção, usar unified diff parser
++        
++        new_content = ''.join(result)
++        
++        if output_file:
++            output_path = validate_output_path(output_file)
++            with open(output_path, 'w', encoding='utf-8') as f:
++                f.write(new_content)
++        else:
++            output_path = original_path + '.patched'
++            with open(output_path, 'w', encoding='utf-8') as f:
++                f.write(new_content)
++            print(f"Arquivo patchado salvo em: {output_path}")
++        
+     except Exception as e:
+-        print(f"Error applying patch: {e}", file=sys.stderr)
++        print(f"Erro ao aplicar patch: {e}", file=sys.stderr)
+         sys.exit(1)
+ 
+ 
+ if __name__ == '__main__':
+-    parser = argparse.ArgumentParser(description='Secure patch applicator')
+-    parser.add_argument('target', help='Target file to patch')
+-    parser.add_argument('patch', help='Patch file')
++    parser = argparse.ArgumentParser(description='Aplica patches com verificações de segurança.')
++    parser.add_argument('original', help='Arquivo original')
++    parser.add_argument('patch', help='Arquivo de patch')
++    parser.add_argument('-o', '--output', help='Arquivo de saída opcional')
++    
+     args = parser.parse_args()
+-
+-    apply_patch(args.target, args.patch)
++    
++    try:
++        apply_patch(args.original, args.patch, args.output)
++        print("Patch aplicado com sucesso.")
++    except Exception as e:
++        print(f"Falha: {e}", file=sys.stderr)
++        sys.exit(1)

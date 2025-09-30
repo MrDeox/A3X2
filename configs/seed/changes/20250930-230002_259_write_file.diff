@@ -1,0 +1,113 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -3,72 +3,45 @@
+ import subprocess
+ import argparse
+ 
+-
++# Security checks
+ def validate_patch_file(patch_path):
+     if not os.path.exists(patch_path):
+-        raise ValueError(f"Patch file {patch_path} does not exist.")
++        raise ValueError(f'Patch file {patch_path} does not exist')
+     if not os.path.isfile(patch_path):
+-        raise ValueError(f"{patch_path} is not a file.")
+-    if not os.access(patch_path, os.R_OK):
+-        raise ValueError(f"Patch file {patch_path} is not readable.")
++        raise ValueError(f'{patch_path} is not a file')
++    # Check file size to prevent huge files
++    if os.path.getsize(patch_path) > 10 * 1024 * 1024:  # 10MB limit
++        raise ValueError('Patch file too large')
++    return True
+ 
++def safe_apply_patch(patch_path, target_dir='.'):
++    if not os.path.isdir(target_dir):
++        raise ValueError(f'Target directory {target_dir} does not exist')
++    # Use git apply with safety options
++    cmd = ['git', 'apply', '--check', patch_path]
++    try:
++        subprocess.run(cmd, cwd=target_dir, check=True, capture_output=True)
++    except subprocess.CalledProcessError as e:
++        raise RuntimeError(f'Patch check failed: {e.stderr.decode()}')
++    
++    # Apply if check passes
++    cmd = ['git', 'apply', patch_path]
++    result = subprocess.run(cmd, cwd=target_dir, check=True, capture_output=True)
++    return result.stdout.decode()
+ 
+-def validate_target_dir(target_dir):
+-    if not os.path.exists(target_dir):
+-        raise ValueError(f"Target directory {target_dir} does not exist.")
+-    if not os.path.isdir(target_dir):
+-        raise ValueError(f"{target_dir} is not a directory.")
+-    if not os.access(target_dir, os.W_OK):
+-        raise ValueError(f"Target directory {target_dir} is not writable.")
++def main():
++    parser = argparse.ArgumentParser(description='Apply patch with security checks')
++    parser.add_argument('patch', help='Path to patch file')
++    parser.add_argument('--target', default='.', help='Target directory')
++    args = parser.parse_args()
++    
++    try:
++        validate_patch_file(args.patch)
++        safe_apply_patch(args.patch, args.target)
++        print('Patch applied successfully')
++    except Exception as e:
++        print(f'Error: {e}', file=sys.stderr)
++        sys.exit(1)
+ 
+-
+-def safe_apply_patch(patch_path, target_dir, strip=0):
+-    validate_patch_file(patch_path)
+-    validate_target_dir(target_dir)
+-
+-    # Change to target directory for safe patching
+-    original_cwd = os.getcwd()
+-    try:
+-        os.chdir(target_dir)
+-
+-        # Run patch command with limited privileges and timeout
+-        cmd = ['patch', '-p', str(strip), '--dry-run', '-i', os.path.basename(patch_path)]
+-        # First, do a dry run to check for issues
+-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+-        if result.returncode != 0:
+-            print(f"Dry run failed: {result.stderr}")
+-            return False
+-
+-        # If dry run succeeds, apply the patch
+-        cmd = ['patch', '-p', str(strip), '-i', os.path.basename(patch_path)]
+-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+-        if result.returncode == 0:
+-            print("Patch applied successfully.")
+-            return True
+-        else:
+-            print(f"Patch application failed: {result.stderr}")
+-            return False
+-    finally:
+-        os.chdir(original_cwd)
+-
+-
+-if __name__ == "__main__":
+-    parser = argparse.ArgumentParser(description="Safely apply patches with security checks.")
+-    parser.add_argument("patch_file", help="Path to the patch file.")
+-    parser.add_argument("-d", "--directory", default=".", help="Target directory (default: current).")
+-    parser.add_argument("-p", "--strip", type=int, default=0, help="Strip level (default: 0).")
+-
+-    args = parser.parse_args()
+-
+-    try:
+-        success = safe_apply_patch(args.patch_file, args.directory, args.strip)
+-        sys.exit(0 if success else 1)
+-    except ValueError as e:
+-        print(f"Error: {e}", file=sys.stderr)
+-        sys.exit(1)
+-    except subprocess.TimeoutExpired:
+-        print("Error: Patch application timed out.", file=sys.stderr)
+-        sys.exit(1)
+-    except Exception as e:
+-        print(f"Unexpected error: {e}", file=sys.stderr)
+-        sys.exit(1)
++if __name__ == '__main__':
++    main()

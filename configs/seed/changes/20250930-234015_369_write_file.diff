@@ -1,0 +1,182 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -2,64 +2,124 @@
+ import sys
+ import os
+ import subprocess
+-import tempfile
+-import shutil
++import re
+ 
+ 
+-def is_safe_path(path):
+-    """Check if the path is safe to operate on."""
+-    # Avoid absolute paths outside current directory or sensitive areas
+-    if os.path.isabs(path):
+-        return False
+-    # Check for dangerous patterns
+-    dangerous = ['..', '/tmp/', '/var/', '/etc/']
+-    for d in dangerous:
+-        if d in path:
+-            return False
+-    return True
++def check_security(diff_content):
++    # Verificações de segurança básicas para padrões perigosos no diff
++    dangerous_patterns = [
++        r'os\.system\(',  # Execução de comandos do sistema
++        r'exec\(',        # Execução arbitrária de código
++        r'eval\(',        # Avaliação de expressões perigosas
++        r'rm\s+-rf',      # Comandos de remoção forçada
++        r'del\s+/f\s+/s\s+/q',  # Comandos de deleção no Windows
++        r'shutdown',       # Comandos de desligamento
++        r'\b(base64\.)?decode\(',  # Decodificação potencialmente maliciosa
++        r'\bimport\s+subprocess',   # Import suspeito em diffs de código
++        r'\bopen\s*\(',  # Abertura de arquivos sem verificação (potencial overwrite)
++    ]
++    for pattern in dangerous_patterns:
++        if re.search(pattern, diff_content, re.IGNORECASE | re.MULTILINE):
++            return False, f'Padrão perigoso detectado: {pattern}'
++    # Verificar se o diff afeta arquivos sensíveis (ex: /etc/passwd, mas adaptado para contexto)
++    sensitive_files = [r'/etc/passwd', r'/etc/shadow', r'\.ssh/']
++    for sens in sensitive_files:
++        if re.search(sens, diff_content, re.IGNORECASE):
++            return False, f'Tentativa de modificar arquivo sensível: {sens}'
++    # Verificar tamanho excessivo (potencial para payloads grandes)
++    if len(diff_content) > 10000:
++        return False, 'Diff muito grande, risco de payload malicioso'
++    return True, 'Diff seguro'
+ 
+ 
+-def apply_patch_safely(patch_content, target_file):
+-    """Apply patch with safety checks."""
+-    if not is_safe_path(target_file):
+-        print(f"Error: Unsafe path {target_file}", file=sys.stderr)
+-        return False
+-    
+-    if not os.path.exists(target_file):
+-        print(f"Error: Target file {target_file} does not exist.", file=sys.stderr)
+-        return False
+-    
+-    # Create backup
+-    backup = target_file + '.bak'
+-    shutil.copy2(target_file, backup)
+-    
+-    # Write patch to temp file
+-    with tempfile.NamedTemporaryFile(mode='w', suffix='.patch', delete=False) as f:
+-        f.write(patch_content)
+-        patch_file = f.name
+-    
+-    try:
+-        # Run patch command with safety options
+-        cmd = ['patch', '-p1', '--backup', '--verbose', target_file, patch_file]
+-        result = subprocess.run(cmd, capture_output=True, text=True)
+-        if result.returncode != 0:
+-            print(f"Patch failed: {result.stderr}", file=sys.stderr)
+-            return False
+-        print(f"Patch applied successfully to {target_file}")
+-        return True
+-    except Exception as e:
+-        print(f"Error applying patch: {e}", file=sys.stderr)
+-        return False
+-    finally:
+-        os.unlink(patch_file)
++def analyze_risk_level(diff_content):
++    # Análise de risco mais avançada: pontuar riscos
++    risks = 0
++    medium_patterns = [r'\bprint\(', r'\binput\(']  # Exemplos de padrões de médio risco
++    for pattern in medium_patterns:
++        if re.search(pattern, diff_content, re.IGNORECASE):
++            risks += 1
++    if risks > 2:
++        return 'high'
++    elif risks > 0:
++        return 'medium'
++    return 'low'
+ 
+ 
+ if __name__ == '__main__':
+-    if len(sys.argv) != 3:
+-        print("Usage: python3 patch.py <patch_content> <target_file>", file=sys.stderr)
++    if len(sys.argv) < 2:
++        print('Uso: python3 patch.py <arquivo_patch> [diretorio_alvo]')
++        print('Exemplo: python3 patch.py meu_patch.diff .')
+         sys.exit(1)
+-    
+-    patch_content = sys.argv[1]
+-    target_file = sys.argv[2]
+-    
+-    apply_patch_safely(patch_content, target_file)
++
++    patch_file = sys.argv[1]
++    target_dir = sys.argv[2] if len(sys.argv) > 2 else os.getcwd()
++
++    # Verificar se o arquivo patch existe
++    if not os.path.exists(patch_file):
++        print(f'Erro: Arquivo patch não encontrado: {patch_file}')
++        sys.exit(1)
++
++    # Verificar permissões: não executar como root a menos que necessário
++    if os.geteuid() == 0:
++        print('Aviso: Executando como root. Considere usar um usuário não privilegiado.')
++        confirm = input('Continuar? (s/N): ')
++        if confirm.lower() != 's':
++            sys.exit(1)
++
++    # Ler o conteúdo do patch
++    try:
++        with open(patch_file, 'r') as f:
++            diff_content = f.read()
++    except Exception as e:
++        print(f'Erro ao ler patch: {e}')
++        sys.exit(1)
++
++    # Aplicar verificações de segurança
++    is_safe, msg = check_security(diff_content)
++    risk_level = analyze_risk_level(diff_content)
++
++    print(f'Nível de risco detectado: {risk_level}')
++    print(f'Mensagem de segurança: {msg}')
++
++    if not is_safe or risk_level == 'high':
++        print('Patch rejeitado devido a riscos de segurança altos.')
++        sys.exit(1)
++
++    if risk_level == 'medium':
++        confirm = input('Riscos médios detectados. Aplicar mesmo assim? (s/N): ')
++        if confirm.lower() != 's':
++            print('Aplicação cancelada pelo usuário.')
++            sys.exit(1)
++
++    # Aplicar o patch usando subprocess com captura de output
++    try:
++        cmd = ['patch', '-p1', '--dry-run', '-d', target_dir]  # Primeiro dry-run para teste
++        with open(patch_file, 'r') as f:
++            result = subprocess.run(cmd, stdin=subprocess.PIPE, input=f.read().encode(),
++                                    capture_output=True, text=True, cwd=target_dir)
++        if result.returncode != 0:
++            print('Falha no dry-run. Verifique o patch.')
++            print(result.stderr)
++            sys.exit(1)
++        print('Dry-run bem-sucedido. Aplicando patch...')
++
++        cmd = ['patch', '-p1', '-d', target_dir]  # Aplicação real
++        with open(patch_file, 'r') as f:
++            result = subprocess.run(cmd, stdin=subprocess.PIPE, input=f.read().encode(),
++                                    capture_output=True, text=True, cwd=target_dir)
++        if result.returncode == 0:
++            print('Patch aplicado com sucesso!')
++        else:
++            print('Falha ao aplicar patch:')
++            print(result.stderr)
++            sys.exit(1)
++    except FileNotFoundError:
++        print('Erro: Comando "patch" não encontrado. Instale o utilitário patch.')
++        sys.exit(1)
++    except subprocess.SubprocessError as e:
++        print(f'Erro no subprocess: {e}')
++        sys.exit(1)
++    except Exception as e:
++        print(f'Erro inesperado: {e}')
++        sys.exit(1)

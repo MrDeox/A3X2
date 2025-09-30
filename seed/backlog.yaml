@@ -15,9 +15,9 @@
       está funcionando corretamente")'''
   history:
   - status: in_progress
-    timestamp: '2025-09-30T23:28:34.523355+00:00'
+    timestamp: '2025-09-30T23:45:12.956076+00:00'
   - status: completed
-    timestamp: '2025-09-30T23:28:57.750274+00:00'
+    timestamp: '2025-09-30T23:45:35.382134+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
@@ -49,9 +49,9 @@
     description: Seed corretiva para garantir sucesso no apply_patch
   history:
   - status: in_progress
-    timestamp: '2025-09-30T23:28:57.753775+00:00'
+    timestamp: '2025-09-30T23:45:35.386294+00:00'
   - status: completed
-    timestamp: '2025-09-30T23:29:06.341050+00:00'
+    timestamp: '2025-09-30T23:45:59.822507+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
@@ -85,9 +85,9 @@
     mission: core-diffing-growth
   history:
   - status: in_progress
-    timestamp: '2025-09-30T23:29:06.344769+00:00'
+    timestamp: '2025-09-30T23:45:59.826607+00:00'
   - status: completed
-    timestamp: '2025-09-30T23:29:14.787941+00:00'
+    timestamp: '2025-09-30T23:46:33.983622+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
@@ -106,9 +106,9 @@
     mission: core-testing-growth
   history:
   - status: in_progress
-    timestamp: '2025-09-30T23:29:14.791694+00:00'
+    timestamp: '2025-09-30T23:46:33.988571+00:00'
   - status: completed
-    timestamp: '2025-09-30T23:29:23.755393+00:00'
+    timestamp: '2025-09-30T23:46:58.507056+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
@@ -127,27 +127,41 @@
     created_at: '2025-09-30T22:11:08.000000+00:00'
   history:
   - status: in_progress
-    timestamp: '2025-09-30T23:29:23.759497+00:00'
+    timestamp: '2025-09-30T23:46:58.515176+00:00'
   - status: completed
-    timestamp: '2025-09-30T23:29:45.447668+00:00'
+    timestamp: '2025-09-30T23:47:11.508844+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-- id: auto.apply.patch.success.rate.1759274914
+- id: auto.apply.patch.success.rate.1759274883
   goal: Adicionar verificações de segurança ao patch.py
   priority: high
-  status: in_progress
+  status: pending
   type: refactor
   config: configs/sample.yaml
   max_steps: 8
   metadata:
     description: Adicionar safety checks ao patch.py
-    created_at: '2025-09-30T23:28:34.514101+00:00'
+    created_at: '2025-09-30T23:28:03.612259+00:00'
     triggered_by: apply_patch_success_rate
-  history:
-  - status: in_progress
-    timestamp: '2025-09-30T23:29:45.451980+00:00'
+  history: []
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
+- id: auto.actions.success.rate.1759275912
+  goal: Refatorar executor para maior sucesso em ações
+  priority: high
+  status: pending
+  type: refactor
+  config: configs/sample.yaml
+  max_steps: 8
+  metadata:
+    description: Refatorar executor para maior sucesso em ações
+    created_at: '2025-09-30T23:45:12.945236+00:00'
+    triggered_by: actions_success_rate
+  history: []
   attempts: 0
   max_attempts: 3
   next_run_at: null

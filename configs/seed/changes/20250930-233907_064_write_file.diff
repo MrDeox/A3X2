@@ -1,0 +1,164 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -1,73 +1,98 @@
+ #!/usr/bin/env python3
+ import sys
+ import os
+-import re
+ import subprocess
++import tempfile
++import shutil
+ 
+-# Security checks for patch application
+-def validate_patch_safety(diff_content):
+-    # Check for dangerous commands
+-    dangerous_patterns = [
+-        r'rm\s+-rf',
+-        r'del\s+/f\s+/q',
+-        r'format\s+c:',
+-        r'exec\s+',
+-        r'eval\s*\(',
+-        r'__import__\s*\(\s*"os"',
+-        r'open\s*\(\s*"/etc/passwd"',
++
++def validate_patch_content(patch_content):
++    """Basic validation to detect potential malicious content in patch."""
++    risky_patterns = [
++        b'rm -rf',
++        b'dd if=/dev/zero',
++        b'chmod +x',
++        b'/etc/passwd',
++        b'exec',
++        b'system('
+     ]
+-    for pattern in dangerous_patterns:
+-        if re.search(pattern, diff_content, re.IGNORECASE):
+-            return False, f"Dangerous pattern detected: {pattern}"
+-    
+-    # Check file paths for sensitive locations
+-    sensitive_paths = [
+-        '/etc/',
+-        '/root/',
+-        '/var/log/',
+-        '/proc/',
+-        '/sys/',
+-    ]
+-    for path in sensitive_paths:
+-        if path in diff_content:
+-            return False, f"Sensitive path detected: {path}"
+-    
+-    # Ensure no arbitrary code execution
+-    if 'python -c' in diff_content or 'bash -c' in diff_content:
+-        return False, "Arbitrary code execution detected"
+-    
+-    return True, "Patch is safe"
++    for pattern in risky_patterns:
++        if pattern in patch_content:
++            return False, f"Risky pattern detected: {pattern}"
++    return True, "Patch validated"
+ 
+-def apply_secure_patch(diff_file=None, target_dir=None):
+-    if diff_file is None:
+-        diff_content = sys.stdin.read()
+-    else:
+-        with open(diff_file, 'r') as f:
+-            diff_content = f.read()
+-    
+-    # Security validation
+-    is_safe, message = validate_patch_safety(diff_content)
+-    if not is_safe:
+-        print(f"SECURITY ERROR: {message}")
++
++def is_safe_path(path):
++    """Check for directory traversal or absolute paths."""
++    if os.path.isabs(path):
++        return False
++    if '..' in path or path.startswith('/'):
++        return False
++    return True
++
++
++def main():
++    if len(sys.argv) < 2:
++        print("Usage: python3 patch.py <patch_file> [target_dir]")
+         sys.exit(1)
+-    
+-    print(f"Security check passed: {message}")
+-    
+-    # Set target directory if provided
+-    cmd = ['patch', '-p1']
+-    if target_dir:
+-        cmd.extend(['-d', target_dir])
+-    
+-    # Apply patch
+-    result = subprocess.run(cmd, input=diff_content, text=True, capture_output=True)
+-    if result.returncode != 0:
+-        print(f"Patch failed: {result.stderr.decode()}")
++
++    patch_file = sys.argv[1]
++    target_dir = sys.argv[2] if len(sys.argv) > 2 else os.getcwd()
++
++    # Security check 1: Validate patch file existence and permissions
++    if not os.path.isfile(patch_file):
++        print(f"Error: Patch file '{patch_file}' not found.")
+         sys.exit(1)
+-    
+-    print("Patch applied successfully.")
++
++    if not os.access(patch_file, os.R_OK):
++        print(f"Error: Cannot read patch file '{patch_file}'.")
++        sys.exit(1)
++
++    # Security check 2: Ensure target directory is safe
++    if not is_safe_path(target_dir):
++        print(f"Error: Unsafe target directory '{target_dir}'.")
++        sys.exit(1)
++
++    if not os.path.isdir(target_dir):
++        print(f"Error: Target '{target_dir}' is not a directory.")
++        sys.exit(1)
++
++    # Security check 3: Read and validate patch content
++    try:
++        with open(patch_file, 'rb') as f:
++            patch_content = f.read()
++        is_valid, msg = validate_patch_content(patch_content)
++        if not is_valid:
++            print(f"Security error: {msg}")
++            sys.exit(1)
++        print(f"Patch validation: {msg}")
++    except IOError as e:
++        print(f"Error reading patch file: {e}")
++        sys.exit(1)
++
++    # Security check 4: Apply patch in a temporary directory first (sandbox)
++    try:
++        with tempfile.TemporaryDirectory() as temp_dir:
++            # Copy target to temp for dry-run like test
++            shutil.copytree(target_dir, os.path.join(temp_dir, 'test'), dirs_exist_ok=True)
++            cmd = ['patch', '-p1', '-d', os.path.join(temp_dir, 'test'), '-i', patch_file, '--dry-run']
++            result = subprocess.run(cmd, capture_output=True, text=True)
++            if result.returncode != 0:
++                print(f"Dry-run failed: {result.stderr}")
++                sys.exit(1)
++            print("Dry-run successful.")
++
++        # If dry-run passes, apply to real target
++        cmd = ['patch', '-p1', '-d', target_dir, '-i', patch_file]
++        result = subprocess.run(cmd, capture_output=True, text=True)
++        if result.returncode == 0:
++            print("Patch applied successfully.")
++        else:
++            print(f"Patch application failed: {result.stderr}")
++            sys.exit(1)
++    except Exception as e:
++        print(f"Error during patch application: {e}")
++        sys.exit(1)
+ 
+ if __name__ == '__main__':
+-    if len(sys.argv) > 1:
+-        apply_secure_patch(sys.argv[1])
+-    else:
+-        apply_secure_patch()+    main()

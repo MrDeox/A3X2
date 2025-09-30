@@ -1,0 +1,121 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -2,63 +2,69 @@
+ import sys
+ import os
+ import subprocess
++import shutil
+ import re
+ 
+-def is_safe_path(path, base_dir):
+-    abs_path = os.path.abspath(path)
+-    base_abs = os.path.abspath(base_dir)
+-    return abs_path.startswith(base_abs)
++# Security checks added
++ALLOWED_DIRS = ['/home', '/tmp']  # Restrict patching to safe directories
++def is_safe_path(path):
++    for allowed in ALLOWED_DIRS:
++        if path.startswith(allowed):
++            return True
++    return False
++
++def validate_patch_content(patch_content):
++    # Basic check for dangerous commands in patch
++    dangerous_patterns = [r'rm\s+-rf', r'/bin/sh', r'exec\s+', r'sudo\s+']
++    for pattern in dangerous_patterns:
++        if re.search(pattern, patch_content, re.IGNORECASE):
++            return False, f'Dangerous pattern found: {pattern}'
++    return True, 'Safe'
+ 
+ def main():
+     if len(sys.argv) != 3:
+-        print("Usage: python patch.py <target_file> <patch_file>", file=sys.stderr)
++        print('Usage: python patch.py <patchfile> <targetfile>')
+         sys.exit(1)
+ 
+-    target_file = sys.argv[1]
+-    patch_file = sys.argv[2]
++    patchfile = sys.argv[1]
++    targetfile = sys.argv[2]
+ 
+-    # Security checks
+-    if not os.path.exists(patch_file):
+-        print("Patch file does not exist.", file=sys.stderr)
++    # Security check 1: Validate paths
++    if not os.path.exists(patchfile):
++        print(f'Error: Patch file {patchfile} does not exist.')
++        sys.exit(1)
++    if not is_safe_path(os.path.abspath(targetfile)):
++        print(f'Error: Target file {targetfile} is not in allowed directory.')
+         sys.exit(1)
+ 
+-    if not is_safe_path(target_file, os.getcwd()):
+-        print("Target file path is not safe (directory traversal detected).", file=sys.stderr)
++    # Security check 2: Backup original if exists
++    if os.path.exists(targetfile):
++        backup = targetfile + '.bak'
++        if os.path.exists(backup):
++            print(f'Warning: Backup {backup} already exists. Overwriting.')
++        shutil.copy2(targetfile, backup)
++        print(f'Backup created: {backup}')
++
++    # Security check 3: Validate patch content
++    with open(patchfile, 'r') as f:
++        patch_content = f.read()
++    is_safe, msg = validate_patch_content(patch_content)
++    if not is_safe:
++        print(f'Security violation: {msg}')
++        sys.exit(1)
++    print(f'Patch validation: {msg}')
++
++    # Apply patch
++    try:
++        result = subprocess.run(['patch', '-i', patchfile, targetfile], capture_output=True, text=True)
++        if result.returncode == 0:
++            print('Patch applied successfully.')
++        else:
++            print(f'Patch failed: {result.stderr}')
++            sys.exit(1)
++    except Exception as e:
++        print(f'Error applying patch: {e}')
+         sys.exit(1)
+ 
+-    if not is_safe_path(patch_file, os.getcwd()):
+-        print("Patch file path is not safe (directory traversal detected).", file=sys.stderr)
+-        sys.exit(1)
+-
+-    # Basic content validation to avoid malicious patches
+-    try:
+-        with open(patch_file, 'r') as f:
+-            content = f.read()
+-        # Check for suspicious patterns like shell commands or injections
+-        if re.search(r'(?:\n|^)!(?:/bin/|cmd|powershell|sh|bash)', content, re.IGNORECASE | re.MULTILINE):
+-            print("Patch contains suspicious shell command patterns.", file=sys.stderr)
+-            sys.exit(1)
+-        # Ensure it's a unified diff (starts with --- or +++)
+-        if not re.search(r'^---\s', content, re.MULTILINE):
+-            print("Patch does not appear to be a valid unified diff.", file=sys.stderr)
+-            sys.exit(1)
+-    except Exception as e:
+-        print(f"Error reading patch file: {e}", file=sys.stderr)
+-        sys.exit(1)
+-
+-    # Apply patch with error handling
+-    try:
+-        result = subprocess.run(['patch', target_file, '-i', patch_file, '--backup'], 
+-                                capture_output=True, text=True, check=True)
+-        print("Patch applied successfully.")
+-        if result.stdout:
+-            print(result.stdout)
+-    except subprocess.CalledProcessError as e:
+-        print(f"Patch application failed: {e.stderr}", file=sys.stderr)
+-        sys.exit(1)
+-    except FileNotFoundError:
+-        print("'patch' command not found. Install patch utility.", file=sys.stderr)
+-        sys.exit(1)
+-
+-if __name__ == "__main__":
++if __name__ == '__main__':
+     main()

@@ -1,0 +1,126 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -1,55 +1,73 @@
+ import sys
+ import os
+ import subprocess
+-import re
++import argparse
+ 
+-# Security checks
+-def validate_patch(patch_content):
+-    # Basic validation: ensure it's a diff format
+-    if not re.search(r'^diff --git', patch_content, re.MULTILINE):
+-        raise ValueError('Invalid patch format')
+-    # Check for dangerous commands (e.g., no rm, no exec)
+-    dangerous_patterns = [r'rm\s', r'exec\s', r'sudo\s']
+-    for pattern in dangerous_patterns:
+-        if re.search(pattern, patch_content, re.IGNORECASE):
+-            raise ValueError('Patch contains dangerous operations')
+-    return True
+ 
+-def validate_target_file(target_path):
+-    if not os.path.exists(target_path):
+-        raise FileNotFoundError(f'Target file {target_path} does not exist')
+-    if not os.access(target_path, os.R_OK | os.W_OK):
+-        raise PermissionError(f'Insufficient permissions for {target_path}')
+-    return True
++def validate_patch_file(patch_file):
++    if not os.path.isfile(patch_file):
++        raise ValueError(f"Patch file '{patch_file}' does not exist or is not a file.")
++    if not patch_file.endswith('.patch'):
++        print("Warning: Patch file does not end with .patch extension.")
++    # Basic check for patch format (simple heuristic)
++    with open(patch_file, 'r') as f:
++        content = f.read(1024)  # Read first 1KB
++        if '--- ' not in content or '+++ ' not in content:
++            raise ValueError("File does not appear to be a valid patch file.")
++
++
++def validate_target_dir(target_dir):
++    target_dir = os.path.abspath(target_dir)
++    if not os.path.isdir(target_dir):
++        raise ValueError(f"Target directory '{target_dir}' does not exist.")
++    # Check if writable
++    if not os.access(target_dir, os.W_OK):
++        raise ValueError(f"Target directory '{target_dir}' is not writable.")
++    return target_dir
++
++
++def apply_patch_safely(patch_file, target_dir, strip_level=1):
++    validate_patch_file(patch_file)
++    target_dir = validate_target_dir(target_dir)
++
++    try:
++        with open(patch_file, 'rb') as f:
++            result = subprocess.run(
++                ['patch', f'-p{strip_level}', '-d', target_dir],
++                stdin=f,
++                cwd=target_dir,
++                capture_output=True,
++                text=True,
++                timeout=300  # 5 minute timeout
++            )
++        if result.returncode != 0:
++            print(f"Patch failed with return code {result.returncode}")
++            print(f"Stdout: {result.stdout}")
++            print(f"Stderr: {result.stderr}")
++            raise subprocess.SubprocessError("Patch application failed")
++        print("Patch applied successfully.")
++    except subprocess.TimeoutExpired:
++        raise RuntimeError("Patch application timed out.")
++    except Exception as e:
++        raise RuntimeError(f"Error applying patch: {e}")
++
++
++def main():
++    parser = argparse.ArgumentParser(description="Apply a patch file safely.")
++    parser.add_argument('patch_file', help="Path to the patch file")
++    parser.add_argument('target_dir', help="Target directory to apply the patch")
++    parser.add_argument('-p', '--strip', type=int, default=1, help="Strip level for patch")
++
++    args = parser.parse_args()
++
++    try:
++        apply_patch_safely(args.patch_file, args.target_dir, args.strip)
++    except ValueError as e:
++        print(f"Validation error: {e}", file=sys.stderr)
++        sys.exit(1)
++    except RuntimeError as e:
++        print(f"Application error: {e}", file=sys.stderr)
++        sys.exit(1)
+ 
+ if __name__ == '__main__':
+-    if len(sys.argv) < 3:
+-        print('Usage: python patch.py <target_file> <patch_file>')
+-        sys.exit(1)
+-    
+-    target = sys.argv[1]
+-    patch_file = sys.argv[2]
+-    
+-    try:
+-        validate_target_file(target)
+-        
+-        with open(patch_file, 'r') as f:
+-            patch_content = f.read()
+-        validate_patch(patch_content)
+-        
+-        # Apply patch safely
+-        result = subprocess.run(['patch', '-p1', '--dry-run', target], input=patch_content, text=True, capture_output=True)
+-        if result.returncode != 0:
+-            print('Dry run failed:', result.stderr)
+-            sys.exit(1)
+-        
+-        # If dry run ok, apply
+-        result = subprocess.run(['patch', '-p1', target], input=patch_content, text=True, capture_output=True)
+-        if result.returncode == 0:
+-            print('Patch applied successfully')
+-        else:
+-            print('Patch failed:', result.stderr)
+-            sys.exit(1)
+-    except Exception as e:
+-        print(f'Security check failed: {e}')
+-        sys.exit(1)
++    main()

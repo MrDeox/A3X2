@@ -1,0 +1,137 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -1,77 +1,68 @@
+ import sys
+ import os
+ import subprocess
+-import re
+-import hashlib
++import argparse
+ 
+-# Security checks
+-def validate_diff_content(diff_content):
+-    # Basic validation: ensure it's a unified diff
+-    if not re.search(r'^---\s', diff_content, re.MULTILINE):
+-        raise ValueError('Invalid diff format: missing --- header')
+-    if not re.search(r'^\+\+\+\s', diff_content, re.MULTILINE):
+-        raise ValueError('Invalid diff format: missing +++ header')
+-    # Check for suspicious patterns, e.g., exec or dangerous commands
+-    dangerous_patterns = [r'\bexec\b', r'\bsystem\b', r'\brm\s+-rf\b']
+-    for pattern in dangerous_patterns:
+-        if re.search(pattern, diff_content, re.IGNORECASE):
+-            raise ValueError(f'Suspicious pattern detected: {pattern}')
+-    return True
+ 
+-def compute_file_hash(filepath):
+-    hasher = hashlib.sha256()
+-    with open(filepath, 'rb') as f:
+-        for chunk in iter(lambda: f.read(4096), b''):
+-            hasher.update(chunk)
+-    return hasher.hexdigest()
++def sanitize_path(path, base_dir):
++    """Sanitiza o caminho para prevenir directory traversal."""
++    abs_path = os.path.abspath(os.path.expanduser(path))
++    base_abs = os.path.abspath(base_dir)
++    if not abs_path.startswith(base_abs):
++        raise ValueError(f"Caminho inválido: {path} fora do diretório base {base_dir}")
++    return abs_path
+ 
+-def safe_apply_patch(patch_file, target_dir='.', strip=0):
+-    # Read and validate patch
+-    with open(patch_file, 'r') as f:
+-        diff_content = f.read()
+-    validate_diff_content(diff_content)
+ 
+-    # Ensure target dir exists and is writable
+-    if not os.path.exists(target_dir):
+-        os.makedirs(target_dir)
+-    if not os.access(target_dir, os.W_OK):
+-        raise PermissionError(f'No write permission in {target_dir}')
++def validate_file(file_path, must_exist=True):
++    """Valida se o arquivo existe e tem permissões de leitura/escrita."""
++    if must_exist:
++        if not os.path.exists(file_path):
++            raise FileNotFoundError(f"Arquivo não encontrado: {file_path}")
++        if not os.access(file_path, os.R_OK):
++            raise PermissionError(f"Sem permissão de leitura: {file_path}")
++    dir_path = os.path.dirname(file_path)
++    if dir_path and not os.access(dir_path, os.W_OK):
++        raise PermissionError(f"Sem permissão de escrita no diretório: {dir_path}")
+ 
+-    # Run patch with safety options
+-    cmd = ['patch', '-p' + str(strip), '-d', target_dir, '--dry-run']
+-    result = subprocess.run(cmd + [patch_file], capture_output=True, text=True)
+-    if result.returncode != 0:
+-        print('Dry run failed, potential issues:')
+-        print(result.stderr)
+-        return False
+ 
+-    # If dry run ok, apply for real
+-    cmd[-1] = patch_file  # Remove --dry-run
+-    cmd.remove('--dry-run')
+-    result = subprocess.run(cmd, capture_output=True, text=True)
+-    if result.returncode == 0:
+-        print('Patch applied successfully')
+-        # Optionally verify hashes or something
+-        return True
+-    else:
+-        print('Failed to apply patch:')
+-        print(result.stderr)
+-        return False
++def apply_secure_patch(original_file, patch_file, base_dir='.'):
++    """Aplica o patch de forma segura."""
++    try:
++        # Sanitizar caminhos
++        orig_path = sanitize_path(original_file, base_dir)
++        patch_path = sanitize_path(patch_file, base_dir)
++
++        # Validar arquivos
++        validate_file(orig_path, must_exist=True)
++        validate_file(patch_path, must_exist=True)
++        validate_file(orig_path, must_exist=False)  # Para escrita posterior
++
++        # Executar patch com subprocess seguro (sem shell)
++        cmd = ['patch', '-p1', '--input=' + patch_path, orig_path]
++        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
++
++        print("Patch aplicado com sucesso.")
++        if result.stdout:
++            print("Saída:", result.stdout)
++        if result.stderr:
++            print("Avisos:", result.stderr)
++
++    except subprocess.CalledProcessError as e:
++        print(f"Falha ao aplicar patch: {e}")
++        if e.stderr:
++            print("Erro:", e.stderr)
++        sys.exit(1)
++    except (ValueError, FileNotFoundError, PermissionError) as e:
++        print(f"Erro de validação: {e}")
++        sys.exit(1)
++
+ 
+ if __name__ == '__main__':
+-    if len(sys.argv) < 2:
+-        print('Usage: python patch.py <patchfile> [target_dir]')
+-        sys.exit(1)
++    parser = argparse.ArgumentParser(description='Aplica patches de forma segura.')
++    parser.add_argument('original', help='Arquivo original')
++    parser.add_argument('patch', help='Arquivo de patch')
++    parser.add_argument('--base-dir', default='.', help='Diretório base para sanitização')
+ 
+-    patch_file = sys.argv[1]
+-    target_dir = sys.argv[2] if len(sys.argv) > 2 else '.'
++    args = parser.parse_args()
+ 
+-    if not os.path.exists(patch_file):
+-        print(f'Patch file {patch_file} not found')
+-        sys.exit(1)
+-
+-    try:
+-        safe_apply_patch(patch_file, target_dir)
+-    except Exception as e:
+-        print(f'Security or application error: {e}')
+-        sys.exit(1)
++    apply_secure_patch(args.original, args.patch, args.base_dir)

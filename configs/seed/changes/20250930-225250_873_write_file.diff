@@ -1,0 +1,210 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -1,73 +1,145 @@
+ import sys
+ import os
+ import subprocess
++import re
+ import argparse
++from pathlib import Path
++
++class SecurePatchApplier:
++    def __init__(self, strip_level=0):
++        self.strip_level = strip_level
++        self.allowed_extensions = {'.py', '.txt', '.md', '.json', '.yaml', '.yml', '.xml', '.html', '.css', '.js'}
++        self.max_file_size = 10 * 1024 * 1024  # 10MB
++        self.max_patch_size = 1 * 1024 * 1024   # 1MB
++
++    def validate_patch_content(self, patch_content):
++        """Validate patch content for security."""
++        if len(patch_content) > self.max_patch_size:
++            raise ValueError("Patch too large.")
++        # Check for dangerous commands or patterns
++        dangerous_patterns = [
++            r'\b(rm|del|erase|format|mkfs|dd if=).*',
++            r'\b(chmod|chown|sudo).*',
++            r'\b(eval|exec|open\().*',
++            r'\b(import\s+(os|subprocess|sys).*',
++        ]
++        for pattern in dangerous_patterns:
++            if re.search(pattern, patch_content, re.IGNORECASE):
++                raise ValueError("Patch contains potentially dangerous content.")
++        return True
++
++    def validate_target_path(self, target_path):
++        """Ensure target path is safe."""
++        path_obj = Path(target_path)
++        if not path_obj.is_absolute():
++            path_obj = Path.cwd() / path_obj
++        # Prevent access to system directories
++        forbidden_dirs = ['/etc', '/bin', '/usr', '/var', '/root', '/sys', '/proc']
++        for forbidden in forbidden_dirs:
++            if str(path_obj).startswith(forbidden):
++                raise ValueError(f"Cannot patch files in {forbidden}.")
++        # Check file extension
++        if path_obj.suffix and path_obj.suffix not in self.allowed_extensions:
++            raise ValueError(f"Unsupported file extension: {path_obj.suffix}")
++        # Check file size
++        if path_obj.exists() and path_obj.stat().st_size > self.max_file_size:
++            raise ValueError("Target file too large.")
++        return str(path_obj)
++
++    def apply_patch(self, patch_file, target_dir=None, dry_run=False):
++        """Apply patch with security checks."""
++        if not os.path.exists(patch_file):
++            raise FileNotFoundError(f"Patch file not found: {patch_file}")
++
++        with open(patch_file, 'r') as f:
++            patch_content = f.read()
++        self.validate_patch_content(patch_content)
++
++        if target_dir:
++            target_dir = self.validate_target_path(target_dir)
++        else:
++            target_dir = os.getcwd()
++
++        # Use git apply if available for better safety, fallback to manual
++        try:
++            cmd = ['git', 'apply', '--check', patch_file]
++            if target_dir:
++                cmd += ['--directory', target_dir]
++            if dry_run:
++                cmd += ['--dry-run']
++            result = subprocess.run(cmd, capture_output=True, text=True, cwd=target_dir)
++            if result.returncode != 0:
++                raise ValueError(f"Patch validation failed: {result.stderr}")
++
++            if not dry_run:
++                cmd = ['git', 'apply', patch_file]
++                if target_dir:
++                    cmd += ['--directory', target_dir]
++                result = subprocess.run(cmd, capture_output=True, text=True, cwd=target_dir)
++                if result.returncode != 0:
++                    raise ValueError(f"Patch application failed: {result.stderr}")
++                print("Patch applied successfully using git.")
++        except FileNotFoundError:
++            # Fallback to manual patch application with safety
++            print("Git not available, using manual application.")
++            self._manual_apply(patch_content, target_dir, dry_run)
++
++    def _manual_apply(self, patch_content, target_dir, dry_run):
++        """Manual patch application (simplified for demo)."""
++        lines = patch_content.splitlines()
++        i = 0
++        while i < len(lines):
++            line = lines[i]
++            if line.startswith('--- '):
++                old_file = line[4:].strip()
++                if '/' in old_file:
++                    old_file = old_file.split('/')[-1]
++                i += 1
++                if i < len(lines) and lines[i].startswith('+++ '):
++                    new_file = lines[i][4:].strip()
++                    if '/' in new_file:
++                        new_file = new_file.split('/')[-1]
++                    target_path = os.path.join(target_dir, new_file)
++                    target_path = self.validate_target_path(target_path)
++                    if not dry_run:
++                        # Simplified: just log, in real impl parse hunks
++                        print(f"Would patch: {target_path}")
++                        # Actual parsing would go here with security checks per hunk
++                    else:
++                        print(f"Dry run: would patch {target_path}")
++                    i += 1
++            i += 1
++
++    def backup_target(self, target_path):
++        """Create backup before patching."""
++        if os.path.exists(target_path):
++            backup = target_path + '.bak'
++            if not os.path.exists(backup):
++                os.rename(target_path, backup)
++                print(f"Backup created: {backup}")
++            else:
++                print(f"Backup already exists: {backup}")
+ 
+ 
+-def sanitize_path(path):
+-    """Sanitize path to prevent directory traversal."""
+-    abs_path = os.path.abspath(os.path.expanduser(path))
+-    if not os.path.exists(abs_path):
+-        raise ValueError(f"Path does not exist: {path}")
+-    # Check if path is within allowed directory (e.g., current working dir)
+-    if not abs_path.startswith(os.getcwd()):
+-        raise ValueError(f"Path traversal detected: {path}")
+-    return abs_path
++def main():
++    parser = argparse.ArgumentParser(description='Secure patch applicator')
++    parser.add_argument('patch_file', help='Path to patch file')
++    parser.add_argument('-d', '--directory', help='Target directory')
++    parser.add_argument('-p', '--strip', type=int, default=0, help='Strip level')
++    parser.add_argument('--dry-run', action='store_true', help='Dry run')
++    parser.add_argument('--no-backup', action='store_true', help='Skip backup')
+ 
++    args = parser.parse_args()
+ 
+-def validate_file_permissions(file_path, mode='r'):
+-    """Validate file permissions before access."""
+-    if not os.access(file_path, os.R_OK):
+-        raise PermissionError(f"No read permission for: {file_path}")
+-    if mode == 'w' and not os.access(os.path.dirname(file_path) or '.', os.W_OK):
+-        raise PermissionError(f"No write permission for directory of: {file_path}")
++    applier = SecurePatchApplier(strip_level=args.strip)
+ 
+-
+-def apply_secure_patch(patch_file, target_dir, strip_level=1):
+-    """Apply patch securely using subprocess with shell=False."""
+-    patch_file = sanitize_path(patch_file)
+-    target_dir = sanitize_path(target_dir)
+-    
+-    validate_file_permissions(patch_file)
+-    validate_file_permissions(target_dir, 'w')
+-    
+-    cmd = [
+-        'patch',
+-        f'-p{strip_level}',
+-        '-i', patch_file,
+-        '-d', target_dir,
+-        '--dry-run'  # Optional: dry run first for safety
+-    ]
+-    
+     try:
+-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+-        if result.returncode == 0:
+-            print("Dry run successful. Applying patch...")
+-            # Remove --dry-run for actual apply
+-            cmd.remove('--dry-run')
+-            subprocess.run(cmd, check=True)
+-            print("Patch applied successfully.")
+-        else:
+-            print(f"Dry run failed: {result.stderr}")
+-            raise subprocess.CalledProcessError(result.returncode, cmd)
+-    except subprocess.CalledProcessError as e:
+-        print(f"Error applying patch: {e}")
+-        sys.exit(1)
+-    except FileNotFoundError:
+-        print("'patch' command not found. Ensure it's installed.")
++        if not args.no_backup and args.directory:
++            applier.backup_target(args.directory)
++        applier.apply_patch(args.patch_file, args.directory, args.dry_run)
++    except Exception as e:
++        print(f"Error: {e}", file=sys.stderr)
+         sys.exit(1)
+ 
+-
+ if __name__ == '__main__':
+-    parser = argparse.ArgumentParser(description='Apply patches securely.')
+-    parser.add_argument('patch_file', help='Path to the patch file')
+-    parser.add_argument('-d', '--directory', default='.', help='Target directory (default: current)')
+-    parser.add_argument('-p', '--strip', type=int, default=1, help='Strip level (default: 1)')
+-    
+-    args = parser.parse_args()
+-    
+-    try:
+-        apply_secure_patch(args.patch_file, args.directory, args.strip)
+-    except (ValueError, PermissionError) as e:
+-        print(f"Security check failed: {e}")
+-        sys.exit(1)
++    main()

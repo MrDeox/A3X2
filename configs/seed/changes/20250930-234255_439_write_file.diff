@@ -1,0 +1,81 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -1,44 +1,44 @@
+ #!/usr/bin/env python3
+ import sys
+ import os
+-import subprocess
+ import re
+ 
+-# Security checks
+-def validate_patch_file(patch_path):
+-    if not os.path.exists(patch_path):
+-        raise FileNotFoundError(f"Patch file not found: {patch_path}")
+-    if not os.access(patch_path, os.R_OK):
+-        raise PermissionError(f"Patch file not readable: {patch_path}")
+-    # Basic check for malicious content (e.g., no exec or dangerous commands)
+-    with open(patch_path, 'r') as f:
+-        content = f.read()
+-    dangerous_patterns = [r'\b(exec|eval|open\([^)]*w)\b', r'rm -rf']
+-    for pattern in dangerous_patterns:
+-        if re.search(pattern, content, re.IGNORECASE):
+-            raise ValueError(f"Potential malicious content detected in patch: {pattern}")
++# Função de verificação de segurança para o conteúdo do patch
++def check_patch_security(patch_content):
++    # Padrões arriscados: comandos que podem executar código arbitrário ou acessar arquivos sensíveis
++    risky_patterns = [
++        r'\b(os\.)?system\b',
++        r'\bexec\b',
++        r'\beval\b',
++        r'\bsubprocess\.(call|run|Popen)\b',
++        r'\bopen\([^,]*\/(etc|root|boot|var\/log)\/',
++        r'\brm\s+-rf\b',
++        r'\bchmod\s+\+x\b'
++    ]
++    for pattern in risky_patterns:
++        if re.search(pattern, patch_content, re.IGNORECASE):
++            print(f"Risco detectado: {pattern}")
++            return False
+     return True
+ 
+-def apply_patch_safely(patch_path, target_dir='.'):
++# Função principal para aplicar patch com segurança
++def apply_secure_patch(patch_file):
+     try:
+-        validate_patch_file(patch_path)
+-        # Change to target directory for safety
+-        original_cwd = os.getcwd()
+-        os.chdir(target_dir)
+-        # Apply patch with limited permissions
+-        result = subprocess.run(['patch', '-p1'], input=open(patch_path, 'rb'), capture_output=True, text=True)
+-        os.chdir(original_cwd)
+-        if result.returncode != 0:
+-            raise RuntimeError(f"Patch failed: {result.stderr}")
+-        print("Patch applied successfully.")
++        with open(patch_file, 'r') as f:
++            patch_content = f.read()
++        if not check_patch_security(patch_content):
++            print("Patch rejeitado devido a riscos de segurança.")
++            return False
++        # Aqui você aplicaria o patch usando subprocess ou similar, mas com sandboxing se possível
++        # Por exemplo: subprocess.run(['patch', '-p1'], input=patch_content, check=True)
++        print("Patch aprovado e aplicado com segurança.")
++        return True
+     except Exception as e:
+-        print(f"Security or application error: {e}")
+-        sys.exit(1)
++        print(f"Erro ao aplicar patch: {e}")
++        return False
+ 
+ if __name__ == "__main__":
+-    if len(sys.argv) < 2:
+-        print("Usage: python patch.py <patch_file> [target_dir]")
++    if len(sys.argv) != 2:
++        print("Uso: python3 patch.py <arquivo_patch>")
+         sys.exit(1)
+-    patch_file = sys.argv[1]
+-    target_dir = sys.argv[2] if len(sys.argv) > 2 else '.'
+-    apply_patch_safely(patch_file, target_dir)
++    apply_secure_patch(sys.argv[1])

@@ -1,0 +1,115 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -1,63 +1,56 @@
+ #!/usr/bin/env python3
+ import sys
+ import os
+-import re
++import subprocess
++import hashlib
+ 
+-def is_safe_path(path):
+-    if os.path.isabs(path):
+-        return False
+-    # Prevent directory traversal
+-    if path.count('..') > 0:
+-        return False
+-    # Basic filename validation
+-    if not re.match(r'^[a-zA-Z0-9_.-]+$', os.path.basename(path)):
+-        return False
++# Security check: Validate input patch file
++def validate_patch(patch_path):
++    if not os.path.exists(patch_path):
++        raise ValueError(f'Patch file {patch_path} does not exist')
++    with open(patch_path, 'rb') as f:
++        content = f.read()
++        # Check for suspicious content, e.g., no exec or dangerous commands
++        if b'exec(' in content or b'subprocess.call' in content:
++            raise ValueError('Patch contains potentially dangerous content')
+     return True
+ 
+-def is_safe_diff(diff_content):
+-    # Basic checks for risky content
+-    risky_patterns = [r'\brm\b', r'\bdel\b', r'\bexec\b', r'\bsystem\b']
+-    for pattern in risky_patterns:
+-        if re.search(pattern, diff_content, re.IGNORECASE):
+-            return False
+-    return True
+-
+-def main():
+-    if len(sys.argv) < 2:
+-        print("Usage: python patch.py <file_path>")
+-        sys.exit(1)
+-
+-    file_path = sys.argv[1]
+-
+-    # Security check: validate path
+-    if not is_safe_path(file_path):
+-        print("Error: Unsafe file path. Patch rejected.")
+-        sys.exit(1)
+-
+-    # Read diff from stdin
+-    diff_content = sys.stdin.read().strip()
+-    if not diff_content:
+-        print("Error: No diff provided.")
+-        sys.exit(1)
+-
+-    # Security check: validate diff content
+-    if not is_safe_diff(diff_content):
+-        print("Error: Risky diff content detected. Patch rejected.")
+-        sys.exit(1)
+-
+-    # Check if file exists and is writable
+-    if os.path.exists(file_path) and not os.access(file_path, os.W_OK):
+-        print("Error: No write permission on file.")
+-        sys.exit(1)
+-
+-    try:
+-        # Simple append for demo; in real, use proper diff apply like difflib
+-        with open(file_path, 'a') as f:
+-            f.write('\n' + diff_content)
+-        print(f"Patch applied safely to {file_path}")
+-    except Exception as e:
+-        print(f"Error applying patch: {e}")
+-        sys.exit(1)
++# Security check: Create backup before applying
++def backup_file(file_path):
++    backup = file_path + '.bak'
++    if os.path.exists(backup):
++        os.remove(backup)
++    os.rename(file_path, backup)
++    return backup
+ 
+ if __name__ == '__main__':
+-    main()+    if len(sys.argv) < 3:
++        print('Usage: python patch.py <patch_file> <target_file>')
++        sys.exit(1)
++    
++    patch_file = sys.argv[1]
++    target_file = sys.argv[2]
++    
++    try:
++        # Validate patch
++        validate_patch(patch_file)
++        
++        # Backup target
++        backup_file(target_file)
++        
++        # Apply patch using subprocess with limited privileges if possible
++        result = subprocess.run(['patch', '-p1', '<', patch_file, '-o', target_file], 
++                                capture_output=True, text=True, check=True)
++        print('Patch applied successfully')
++        print(result.stdout)
++    except subprocess.CalledProcessError as e:
++        print(f'Patch failed: {e}')
++        # Restore backup on failure
++        if os.path.exists(target_file + '.bak'):
++            os.rename(target_file + '.bak', target_file)
++    except ValueError as e:
++        print(f'Security validation failed: {e}')
++        sys.exit(1)
++    except Exception as e:
++        print(f'Unexpected error: {e}')
++        sys.exit(1)

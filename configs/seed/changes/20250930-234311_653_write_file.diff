@@ -1,0 +1,108 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -2,69 +2,43 @@
+ import sys
+ import os
+ import subprocess
+-import argparse
+ 
++# Verificações de segurança
++if len(sys.argv) < 2:
++    print('Uso: python3 patch.py <arquivo_patch> [arquivo_alvo]', file=sys.stderr)
++    sys.exit(1)
+ 
+-def apply_patch_safely(patch_file, target_dir='.', dry_run=False):
+-    """Apply a patch with safety checks."""
+-    # Safety check 1: Verify patch file exists and is readable
+-    if not os.path.isfile(patch_file):
+-        raise ValueError(f"Patch file '{patch_file}' does not exist or is not a file.")
+-    if not os.access(patch_file, os.R_OK):
+-        raise ValueError(f"Patch file '{patch_file}' is not readable.")
++patch_file = sys.argv[1]
++if not os.path.exists(patch_file):
++    print(f'Erro: Arquivo de patch não encontrado: {patch_file}', file=sys.stderr)
++    sys.exit(1)
+ 
+-    # Safety check 2: Verify target directory exists and is writable
+-    if not os.path.isdir(target_dir):
+-        raise ValueError(f"Target directory '{target_dir}' does not exist.")
+-    if not os.access(target_dir, os.W_OK):
+-        raise ValueError(f"Target directory '{target_dir}' is not writable.")
++if len(sys.argv) > 2:
++    target_file = sys.argv[2]
++else:
++    target_file = None
+ 
+-    # Safety check 3: Basic content validation (e.g., starts with diff header)
+-    with open(patch_file, 'r') as f:
+-        first_line = f.readline().strip()
+-        if not first_line.startswith(('diff', 'Index:', '---')):
+-            print("Warning: Patch file may not be a standard unified diff.")
++# Verificar se o patch não contém comandos perigosos (exemplo simples)
++with open(patch_file, 'r') as f:
++    patch_content = f.read()
++if 'rm ' in patch_content or 'del ' in patch_content or 'exec(' in patch_content:
++    print('Erro: Patch contém conteúdo potencialmente perigoso.', file=sys.stderr)
++    sys.exit(1)
+ 
+-    # Prepare command with safety options
+-    cmd = ['patch', '-p1', '--dry-run' if dry_run else '', '-d', target_dir, patch_file]
+-    cmd = [arg for arg in cmd if arg]  # Remove empty strings
+-
+-    # Safety check 4: Run in subprocess with limited privileges (capture output)
+-    try:
+-        result = subprocess.run(
+-            cmd,
+-            capture_output=True,
+-            text=True,
+-            timeout=30  # Prevent hanging
+-        )
+-        if result.returncode != 0:
+-            print(f"Patch application failed:\n{result.stderr}")
+-            return False
+-        print("Patch applied successfully (or dry-run passed).")
+-        return True
+-    except subprocess.TimeoutExpired:
+-        print("Patch application timed out.")
+-        return False
+-    except Exception as e:
+-        print(f"Unexpected error during patch application: {e}")
+-        return False
+-
+-
+-def main():
+-    parser = argparse.ArgumentParser(description='Safely apply patches with security checks')
+-    parser.add_argument('patch_file', help='Path to the patch file')
+-    parser.add_argument('-d', '--directory', default='.', help='Target directory (default: current)')
+-    parser.add_argument('--dry-run', action='store_true', help='Test without applying changes')
+-    parser.add_argument('--verbose', action='store_true', help='Enable verbose output')
+-
+-    args = parser.parse_args()
+-
+-    if args.verbose:
+-        print(f"Applying patch '{args.patch_file}' to '{args.directory}' (dry-run: {args.dry_run})")
+-
+-    success = apply_patch_safely(args.patch_file, args.directory, args.dry_run)
+-    sys.exit(0 if success else 1)
+-
+-
+-if __name__ == '__main__':
+-    main()+# Aplicar o patch com segurança
++try:
++    cmd = ['patch', '-p1']
++    if target_file:
++        cmd.extend(['-i', patch_file, target_file])
++    else:
++        cmd.extend(['-i', patch_file])
++    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
++    print('Patch aplicado com sucesso.')
++    print(result.stdout)
++except subprocess.CalledProcessError as e:
++    print(f'Falha ao aplicar patch: {e}', file=sys.stderr)
++    print(e.stderr, file=sys.stderr)
++    sys.exit(1)
++except Exception as e:
++    print(f'Erro inesperado: {e}', file=sys.stderr)
++    sys.exit(1)

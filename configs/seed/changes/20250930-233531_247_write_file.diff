@@ -1,0 +1,132 @@
+--- a/patch.py
++++ b/patch.py
+--- patch.py
++++ patch.py
+@@ -1,79 +1,61 @@
+ #!/usr/bin/env python3
+ import sys
+ import os
++import re
+ import subprocess
+-import hashlib
+-import argparse
+ 
+-# Security checks
+-def validate_patch_source(patch_file):
+-    # Check if patch file exists and is readable
++# Security checks before applying any patch
++def validate_patch_safety(patch_content):
++    risky_patterns = [
++        r'rm\s+.*',
++        r'dd\s+if=',
++        r'mkfs',
++        r'format',
++        r'\b(chmod\s+777|chmod\s+755)\b',
++        r'\bsudo\b'
++    ]
++    for pattern in risky_patterns:
++        if re.search(pattern, patch_content, re.IGNORECASE):
++            return False, f"Risky command detected: {pattern}"
++    return True, "Patch is safe"
++
++def apply_patch_safely(patch_file, target_dir):
+     if not os.path.exists(patch_file):
+-        raise ValueError(f"Patch file {patch_file} does not exist.")
+-    if not os.access(patch_file, os.R_OK):
+-        raise ValueError(f"Patch file {patch_file} is not readable.")
++        print(f"Error: Patch file {patch_file} not found.")
++        return False
+     
+-    # Check file size to prevent huge files
+-    size = os.path.getsize(patch_file)
+-    if size > 10 * 1024 * 1024:  # 10MB limit
+-        raise ValueError(f"Patch file {patch_file} too large: {size} bytes")
++    with open(patch_file, 'r') as f:
++        patch_content = f.read()
+     
+-    # Compute hash for verification (example: compare to expected hash)
+-    # In production, provide expected_hash as argument
+-    expected_hash = None  # Placeholder: should be provided
+-    if expected_hash:
+-        with open(patch_file, 'rb') as f:
+-            file_hash = hashlib.sha256(f.read()).hexdigest()
+-            if file_hash != expected_hash:
+-                raise ValueError(f"Patch hash mismatch for {patch_file}")
++    is_safe, message = validate_patch_safety(patch_content)
++    if not is_safe:
++        print(f"Security check failed: {message}")
++        return False
+     
+-    # Basic content check: ensure it's a text file starting with diff
+-    with open(patch_file, 'r') as f:
+-        content = f.read(100)  # First 100 chars
+-        if not content.startswith(('diff', 'Index:', '---')):
+-            raise ValueError(f"Patch file {patch_file} does not appear to be a valid diff.")
+-    
+-    return True
+-
+-def apply_secure_patch(patch_file, target_dir, strip=0):
+-    # Validate source first
+-    validate_patch_source(patch_file)
+-    
+-    # Ensure target directory is safe (e.g., not system dirs)
+-    if not os.path.isdir(target_dir):
+-        raise ValueError(f"Target directory {target_dir} does not exist.")
+-    if target_dir.startswith(('/etc', '/usr', '/var', '/boot', '/root')):
+-        raise ValueError(f"Unsafe target directory: {target_dir}")
+-    
+-    # Run patch command with restrictions
+-    cmd = ['patch', '-d', target_dir, '-p', str(strip), '--dry-run', patch_file]
+-    try:
+-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+-        if 'hunk' in result.stdout or 'failed' in result.stdout.lower():
+-            raise ValueError("Dry run failed: potential issues in patch.")
+-    except subprocess.CalledProcessError as e:
+-        raise ValueError(f"Dry run failed: {e}")
+-    
+-    # If dry-run passes, apply for real
+-    cmd[-1] = '--no-backup'  # Avoid backups for security
+-    cmd.remove('--dry-run')
+-    subprocess.run(cmd, check=True)
+-    print(f"Patch applied successfully to {target_dir}")
+-
+-if __name__ == '__main__':
+-    parser = argparse.ArgumentParser(description='Apply patches with security checks')
+-    parser.add_argument('patch_file', help='Path to the patch file')
+-    parser.add_argument('-d', '--directory', default='.', help='Target directory')
+-    parser.add_argument('-p', '--strip', type=int, default=0, help='Strip level')
+-    parser.add_argument('--expected-hash', help='Expected SHA256 hash of patch')
+-    
+-    args = parser.parse_args()
++    # Additional check: Ensure target_dir is writable and not system dir
++    if not os.access(target_dir, os.W_OK):
++        print(f"Error: No write access to {target_dir}")
++        return False
++    if target_dir.startswith(('/etc', '/bin', '/usr', '/var/log')):
++        print(f"Security warning: Applying to system directory {target_dir}")
++        confirm = input("Continue? (y/N): ")
++        if confirm.lower() != 'y':
++            return False
+     
+     try:
+-        apply_secure_patch(args.patch_file, args.directory, args.strip)
+-    except ValueError as e:
+-        print(f"Security check failed: {e}", file=sys.stderr)
++        result = subprocess.run(['patch', '-p1', '-d', target_dir], input=patch_content.encode(), capture_output=True, check=True)
++        print("Patch applied successfully.")
++        return True
++    except subprocess.CalledProcessError as e:
++        print(f"Patch application failed: {e}")
++        return False
++
++if __name__ == "__main__":
++    if len(sys.argv) != 3:
++        print("Usage: python patch.py <patch_file> <target_dir>")
+         sys.exit(1)
+-    except Exception as e:
+-        print(f"Error applying patch: {e}", file=sys.stderr)
+-        sys.exit(1)+    
++    patch_file = sys.argv[1]
++    target_dir = sys.argv[2]
++    
++    apply_patch_safely(patch_file, target_dir)
