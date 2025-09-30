@@ -46,7 +46,7 @@ class AgentOrchestrator:
             ),
             tests_success_rate=config.goals.get_threshold("tests_success_rate", 0.9),
         )
-        self.auto_evaluator = auto_evaluator or AutoEvaluator(thresholds=thresholds)
+        self.auto_evaluator = auto_evaluator or AutoEvaluator(thresholds=thresholds, config=config)
         self._llm_metrics: Dict[str, List[float]] = {}
         self.recursion_depth: int = 3
 

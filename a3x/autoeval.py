@@ -60,6 +60,7 @@ class AutoEvaluator:
         self,
         log_dir: Path | str = Path("seed/evaluations"),
         thresholds: Optional[PlannerThresholds] = None,
+        config: Optional[AgentConfig] = None,
     ) -> None:
         self.log_dir = Path(log_dir)
         self.log_dir.mkdir(parents=True, exist_ok=True)
@@ -75,6 +76,7 @@ class AutoEvaluator:
         self.backlog_path = self.base_dir / "backlog.yaml"
         self.capabilities_path = self.base_dir / "capabilities.yaml"
         self.missions_path = self.base_dir / "missions.yaml"
+        self.config = config  # Store the config
         self.memory_path = self.base_dir / "memory" / "memory.jsonl"
         self.thresholds = thresholds or PlannerThresholds()
 
@@ -393,15 +395,11 @@ class AutoEvaluator:
                 "lint": lint_config_path,
                 "manual": manual_config_path,
             }
-            # Import MetaCapabilityPlanner locally to avoid circular import
-            from .meta_capabilities import MetaCapabilityPlanner
-            meta_planner = MetaCapabilityPlanner(registry=registry)
+            # Import MetaCapabilityEngine locally to avoid circular import
+            from .meta_capabilities import MetaCapabilityEngine
+            meta_engine = MetaCapabilityEngine(config=self.config, auto_evaluator=self)
             existing_ids = backlog.list_all_ids()
-            for seed in meta_planner.propose(
-                capability_metrics,
-                backlog_existing=existing_ids,
-                config_map=config_map,
-            ):
+            for seed in meta_engine.propose_new_skills():
                 if not backlog.exists(seed.id):
                     backlog.add_seed(seed)
 

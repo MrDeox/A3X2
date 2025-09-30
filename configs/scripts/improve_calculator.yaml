@@ -1,0 +1,67 @@
+# Script to improve the calculator module
+- type: message
+  text: "Analisando o módulo de calculadora para identificar oportunidades de melhoria."
+
+- type: read_file
+  path: "test_calculator.py"
+
+- type: message
+  text: "Identificando más práticas de programação no código..."
+
+- type: message
+  text: "Detectadas as seguintes oportunidades de melhoria:\n1. Números mágicos (pi = 3.14159)\n2. Variáveis globais (rect_counter)\n3. Funções excessivamente complexas\n4. Falta de tratamento adequado de erros\n5. Ineficiência em funções de multiplicação e divisão"
+
+- type: message
+  text: "Gerando sugestões de otimização automática..."
+
+- type: message
+  text: "Sugestões geradas:\n1. Substituir números mágicos por constantes nomeadas\n2. Converter variáveis globais em parâmetros ou atributos de classe\n3. Simplificar funções complexas com algoritmos mais eficientes\n4. Melhorar o tratamento de erros com exceções apropriadas\n5. Otimizar funções de multiplicação e divisão para melhor performance"
+
+- type: message
+  text: "Aplicando refatoração inteligente para melhorar o código..."
+
+- type: apply_patch
+  diff: |
+    --- a/test_calculator.py
+    +++ b/test_calculator.py
+    @@ -1,4 +1,8 @@
+     """Simple calculator module for testing."""
+     
+    +# Constantes nomeadas para evitar números mágicos
+    +PI = 3.14159265359
+    +E = 2.71828182846
+    +
+     def add(a, b):
+         """Add two numbers."""
+         return a + b
+    @@ -20,12 +24,12 @@
+     def divide(a, b):
+         """Divide two numbers."""
+         if b == 0:
+    -        return "Error: Division by zero"
+    +        raise ValueError("Division by zero is not allowed")
+         result = 0
+         while a >= b:
+             a = subtract(a, b)
+             result = add(result, 1)
+    -    return result
+    +    return result if b > 0 else 0
+     
+     def power(base, exp):
+         """Calculate base to the power of exp."""
+    @@ -32,10 +36,10 @@
+     def calculate_circle_area(radius):
+         """Calculate the area of a circle."""
+    -    pi = 3.14159  # Magic number
+    -    return multiply(pi, multiply(radius, radius))
+    +    """Calculate the area of a circle using the PI constant."""
+    +    return multiply(PI, multiply(radius, radius))
+     
+     def calculate_rectangle_area(length, width):
+         """Calculate the area of a rectangle."""
+    -    global rect_counter  # Global variable
+    -    rect_counter = rect_counter + 1 if 'rect_counter' in globals() else 1
+    +    """Calculate the area of a rectangle without global variables."""
+         return multiply(length, width)
+     
+     def calculate_triangle_area(base, height):

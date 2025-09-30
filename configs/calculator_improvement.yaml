@@ -1,0 +1,42 @@
+llm:
+  type: manual
+  script: configs/scripts/improve_calculator.yaml
+
+workspace:
+  root: .
+  allow_outside_root: false
+
+limits:
+  max_iterations: 10
+  command_timeout: 120
+  max_failures: 3
+
+tests:
+  auto: true
+  commands: ["python -m pytest test_test_calculator.py -v"]
+
+policies:
+  allow_network: false
+  allow_shell_write: true
+
+goals:
+  apply_patch_success_rate:
+    min: 0.9
+  actions_success_rate:
+    min: 0.85
+  tests_success_rate:
+    min: 0.95
+
+loop:
+  auto_seed: false
+  seed_backlog: seed/backlog.yaml
+  seed_config: configs/seed_manual.yaml
+  seed_interval: 0
+  stop_when_idle: true
+
+audit:
+  enable_file_log: true
+  file_dir: seed/changes
+  enable_git_commit: true
+  low_risk_dry_run: false
+  commit_prefix: "A3X"
