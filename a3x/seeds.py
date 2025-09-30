@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
 import yaml
+from .planner import PlannerThresholds
 
 
 _PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
@@ -85,6 +86,7 @@ class SeedBacklog:
             }
             data.append(entry)
         with self.path.open("w", encoding="utf-8") as fh:
+            print(f"Debug: SeedBacklog.save - data before dump: {data}")
             yaml.safe_dump(data, fh, allow_unicode=True, sort_keys=False)
 
     def add_seed(self, seed: Seed) -> None:
@@ -191,4 +193,58 @@ def _parse_iso(value: str) -> Optional[datetime]:
         return None
 
 
-__all__ = ["Seed", "SeedBacklog"]
+class AutoSeeder:
+    def __init__(self, thresholds: Optional[PlannerThresholds] = None) -> None:
+        self.thresholds = thresholds or PlannerThresholds()
+
+    def monitor_and_seed(self, metrics: Dict[str, float]) -> List[Seed]:
+        seeds: List[Seed] = []
+        gap_templates = {
+            "actions_success_rate": {
+                "threshold": self.thresholds.actions_success_rate,
+                "goal": "Refatorar executor para maior sucesso em ações",
+                "priority": "high",
+                "config": "configs/sample.yaml",
+                "type": "refactor",
+                "description": "Refatorar executor para maior sucesso em ações"
+            },
+            "tests_success_rate": {
+                "threshold": self.thresholds.tests_success_rate,
+                "goal": "Expandir testgen para maior cobertura",
+                "priority": "high",
+                "config": "configs/sample.yaml",
+                "type": "refactor",
+                "description": "Expandir testgen para maior cobertura de testes"
+            },
+            "apply_patch_success_rate": {
+                "threshold": self.thresholds.apply_patch_success_rate,
+                "goal": "Adicionar verificações de segurança ao patch.py",
+                "priority": "high",
+                "config": "configs/sample.yaml",
+                "type": "refactor",
+                "description": "Adicionar safety checks ao patch.py"
+            }
+        }
+        now_str = datetime.now(timezone.utc).isoformat()
+        for key, template in gap_templates.items():
+            value = metrics.get(key)
+            if isinstance(value, (int, float)) and value < template["threshold"]:
+                seed_id = f"auto.{key.replace('_', '.')}.{int(datetime.now(timezone.utc).timestamp())}"
+                seed = Seed(
+                    id=seed_id,
+                    goal=template["goal"],
+                    priority=template["priority"],
+                    type=template["type"],
+                    config=template["config"],
+                    max_steps=8,
+                    metadata={
+                        "description": template["description"],
+                        "created_at": now_str,
+                        "triggered_by": key
+                    }
+                )
+                seeds.append(seed)
+        return seeds
+
+
+__all__ = ["Seed", "SeedBacklog", "AutoSeeder"]

@@ -92,6 +92,8 @@ class AgentOrchestrator:
 
             if not observation.success:
                 failures += 1
+                if observation.error:
+                    errors.append(observation.error)
                 if failures > self.config.limits.max_failures:
                     errors.append("Limite de falhas excedido")
                     break
@@ -227,6 +229,7 @@ class AgentOrchestrator:
             seeds=seeds,
             metrics=metrics,
             capabilities=sorted(inferred_caps),
+            errors=result.errors,
         )
 
     def _analyze_history(

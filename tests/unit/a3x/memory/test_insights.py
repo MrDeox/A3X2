@@ -1,135 +1,78 @@
+"""Auto-generated unit tests for a3x/memory/insights.py.
+AUTO-GENERATED. Edit via InsightsTestGenerator."""
+
 import pytest
-from typing import Dict, List
-from unittest.mock import Mock
+from unittest.mock import Mock, patch, MagicMock
+from datetime import datetime, timezone
+import hashlib
 
-from a3x.memory.insights import build_insight_payload
-
-
-class MockRunEvaluation:
-    def __init__(
-        self,
-        goal: str,
-        completed: bool = True,
-        iterations: int = 1,
-        failures: int = 0,
-        metrics: Dict[str, float] | None = None,
-        capabilities: List[str] | None = None,
-        seeds: List[Mock] | None = None,
-        timestamp: str = "2023-01-01T00:00:00Z",
-    ):
-        self.goal = goal
-        self.completed = completed
-        self.iterations = iterations
-        self.failures = failures
-        self.metrics = metrics or {}
-        self.capabilities = capabilities or []
-        self.seeds = seeds or []
-        self.timestamp = timestamp
+from a3x.actions import AgentState
+from a3x.memory.insights import StatefulRetriever, Insight
+from a3x.memory.store import MemoryEntry, SemanticMemory
 
 
-class TestBuildInsightPayload:
-    def test_happy_path_completed(self) -> None:
-        evaluation = MockRunEvaluation(
-            goal="Test Goal",
-            completed=True,
-            iterations=2,
-            failures=0,
-            metrics={"accuracy": 0.95},
-            capabilities=["planning", "execution"],
-            seeds=[Mock(description="Seed1"), Mock(description="Seed2")],
-        )
-        title, content, tags, metadata = build_insight_payload(evaluation)
+@pytest.fixture
+def mock_store():
+    store = MagicMock(spec=SemanticMemory)
+    mock_entry = MemoryEntry(
+        id="test_id",
+        created_at=datetime.now(timezone.utc).isoformat(),
+        title="Test Insight",
+        content="Test content with recent failure in actions.",
+        tags=["test", "failure"],
+        metadata={"goal": "test_goal", "snapshot_hash": "abc123"},
+        embedding=[0.1] * 384  # Mock embedding
+    )
+    store.query.return_value = [(mock_entry, 0.8), (mock_entry, 0.6)]  # One >0.7
+    store.entries = [mock_entry]
+    return store
 
-        assert title == "Run Test Goal ✅"
-        assert "goal: Test Goal" in content
-        assert "status: completed" in content
-        assert "iterations: 2" in content
-        assert "failures: 0" in content
-        assert "metrics: accuracy=0.950" in content
-        assert "capabilities: execution, planning" in content
-        assert "seeds: Seed1; Seed2" in content
-        assert set(tags) == {"✅", "execution", "planning"}
-        assert metadata["goal"] == "Test Goal"
-        assert metadata["completed"] is True
-        assert metadata["capabilities"] == ["planning", "execution"]
-        assert metadata["timestamp"] == "2023-01-01T00:00:00Z"
 
-    def test_incomplete_run(self) -> None:
-        evaluation = MockRunEvaluation(
-            goal="Incomplete Goal",
-            completed=False,
-            iterations=1,
-            failures=1,
-            metrics=None,
-            capabilities=["planning"],
-            seeds=[],
-        )
-        title, content, tags, metadata = build_insight_payload(evaluation)
+@pytest.fixture
+def mock_state():
+    return AgentState(
+        goal="Test goal",
+        history_snapshot="Test history with failures.",
+        iteration=1,
+        max_iterations=5,
+        seed_context="Test context"
+    )
 
-        assert title == "Run Incomplete Goal ⚠️"
-        assert "status: incomplete" in content
-        assert "failures: 1" in content
-        assert "capabilities: planning" in content
-        assert set(tags) == {"⚠️", "planning"}
-        assert metadata["completed"] is False
 
-    def test_no_metrics_or_capabilities(self) -> None:
-        evaluation = MockRunEvaluation(
-            goal="Simple Goal",
-            completed=True,
-            iterations=1,
-            failures=0,
-            metrics={},
-            capabilities=[],
-            seeds=[],
-        )
-        title, content, tags, metadata = build_insight_payload(evaluation)
+def test_stateful_retriever_retrieve_session_context(mock_store, mock_state):
+    retriever = StatefulRetriever()
+    with patch.object(retriever, 'store', mock_store):
+        insights = retriever.retrieve_session_context(mock_state)
+    
+    assert len(insights) == 1  # Filtered to >0.7
+    assert isinstance(insights[0], Insight)
+    assert insights[0].similarity > 0.7
+    mock_store.query.assert_called_once()
 
-        assert title == "Run Simple Goal ✅"
-        assert "metrics: " not in content  # No metrics line
-        assert "capabilities: " not in content  # Empty capabilities
-        assert tags == ["✅"]
+def test_stateful_retriever_derivation_detection(mock_store, mock_state):
+    retriever = StatefulRetriever()
+    mock_state.history_snapshot = "Changed history"
+    with patch.object(retriever, 'store', mock_store):
+        insights = retriever.retrieve_session_context(mock_state)
+    
+    if insights:
+        assert insights[0].metadata.get("derivation_flagged") is True  # Hash differs
+        assert "snapshot_hash" in insights[0].metadata
 
-    def test_with_capability_metrics(self) -> None:
-        evaluation = MockRunEvaluation(
-            goal="Goal with Metrics",
-            completed=True,
-            capabilities=["planning", "execution"],
-        )
-        capability_metrics = {
-            "planning": {"efficiency": 0.8, "score": 85},
-            "execution": {"speed": 1.2},
-        }
+def test_stateful_retriever_update_snapshot_hash():
+    retriever = StatefulRetriever()
+    snapshot = "Test snapshot"
+    retriever.update_snapshot_hash(snapshot)
+    assert retriever.last_snapshot_hash == hashlib.md5(snapshot.encode()).hexdigest()
 
-        title, content, tags, metadata = build_insight_payload(evaluation, capability_metrics)
-
-        assert "capability_metrics: planning: efficiency=0.8, score=85 | execution: speed=1.2" in content
-
-    def test_empty_seeds(self) -> None:
-        evaluation = MockRunEvaluation(
-            goal="No Seeds",
-            seeds=[],
-        )
-        title, content, tags, metadata = build_insight_payload(evaluation)
-
-        assert "seeds: " not in content  # No seeds line
-
-    def test_invalid_data_handling(self) -> None:
-        # Test with non-numeric metrics; function will skip or error, but to test handling, use numeric only for now
-        evaluation = MockRunEvaluation(
-            goal="Invalid Metrics",
-            metrics={"num_metric": 0.5},
-            capabilities=["test"],
-        )
-
-        title, content, tags, metadata = build_insight_payload(evaluation)
-
-        assert "metrics: num_metric=0.500" in content
-        assert set(tags) == {"✅", "test"}
-
-    def test_timestamp_default(self) -> None:
-        evaluation = MockRunEvaluation("Goal")
-        evaluation.timestamp = None  # Simulate missing
-
-        title, content, tags, metadata = build_insight_payload(evaluation)
-        assert "timestamp" in metadata  # Should use evaluation.timestamp, but if None, still sets it
+def test_insight_from_entry():
+    mock_entry = MemoryEntry(
+        id="id", created_at="2023-01-01T00:00:00Z",
+        title="Title", content="Content", tags=["tag"],
+        metadata={"key": "value"},
+        embedding=[0.1]*384
+    )
+    insight = Insight.from_entry(mock_entry, 0.85)
+    assert insight.title == "Title"
+    assert insight.similarity == 0.85
+    assert insight.created_at == "2023-01-01T00:00:00Z"

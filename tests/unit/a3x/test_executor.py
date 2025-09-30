@@ -322,3 +322,182 @@ class TestActionExecutor:
         """Testa o método _is_safe_command com comandos de rede quando é permitido."""
         self.config.policies.allow_network = True
         assert self.executor._is_safe_command(["curl", "http://example.com"]) is True
+
+    def test_run_risk_checks_no_python_files(self) -> None:
+        """Testa _run_risk_checks com patch sem arquivos Python."""
+        patch_content = """
+--- a/file.txt
++++ b/file.txt
+@@ -1,1 +1,1 @@
+-old
++new
+"""
+        risks = self.executor._run_risk_checks(patch_content)
+        assert risks == {}
+
+    @patch('subprocess.run')
+    @patch('tempfile.TemporaryDirectory')
+    def test_run_risk_checks_success_no_issues(self, mock_tempdir, mock_subprocess) -> None:
+        """Testa _run_risk_checks com patch Python sem issues."""
+        # Create original file
+        test_file = self.workspace_path / "test.py"
+        test_file.write_text('print("ok")\n', encoding="utf-8")
+
+        mock_tempdir.return_value.__enter__.return_value = Path(tempfile.mkdtemp())
+        mock_tempdir.return_value.__exit__.return_value = None
+
+        # Mock PatchManager apply success
+        mock_pm = Mock()
+        mock_pm.apply.return_value = (True, "")
+        with patch('a3x.executor.PatchManager', return_value=mock_pm):
+            # Mock ruff and black success
+            mock_success = Mock(returncode=0, stdout="", stderr="")
+            mock_subprocess.side_effect = [mock_success, mock_success]  # ruff, black
+
+            patch_content = """
+--- a/test.py
++++ b/test.py
+@@ -1,1 +1,1 @@
+-print("ok")
++print("ok")
+"""
+            risks = self.executor._run_risk_checks(patch_content)
+            assert risks == {}
+            assert mock_subprocess.call_count == 2
+
+    @patch('subprocess.run')
+    @patch('tempfile.TemporaryDirectory')
+    def test_run_risk_checks_syntax_error(self, mock_tempdir, mock_subprocess) -> None:
+        """Testa _run_risk_checks com erro de sintaxe (high risk)."""
+        # Create original file
+        test_file = self.workspace_path / "test.py"
+        test_file.write_text('print("ok")\n', encoding="utf-8")
+
+        mock_tempdir.return_value.__enter__.return_value = Path(tempfile.mkdtemp())
+        mock_tempdir.return_value.__exit__.return_value = None
+
+        mock_pm = Mock()
+        mock_pm.apply.return_value = (True, "")
+        with patch('a3x.executor.PatchManager', return_value=mock_pm):
+
+            # Mock ruff with syntax error (E901 or similar)
+            mock_ruff = Mock(returncode=1, stdout="test.py:1:1: E901 SyntaxError: invalid syntax")
+            mock_black = Mock(returncode=0, stdout="", stderr="")
+            mock_subprocess.side_effect = [mock_ruff, mock_black]  # ruff, black
+
+            patch_content = """
+--- a/test.py
++++ b/test.py
+@@ -1,1 +1,1 @@
+-print("ok")
++print("ok"
+"""  # Invalid syntax
+            risks = self.executor._run_risk_checks(patch_content)
+            assert 'ruff_syntax' in risks
+            assert risks['ruff_syntax'] == 'high'
+            assert mock_subprocess.call_count == 2
+
+    @patch('subprocess.run')
+    @patch('tempfile.TemporaryDirectory')
+    def test_run_risk_checks_ruff_violations(self, mock_tempdir, mock_subprocess) -> None:
+        """Testa _run_risk_checks com violações ruff >5 (high)."""
+        # Create original file
+        test_file = self.workspace_path / "test.py"
+        test_file.write_text('print("ok")\n', encoding="utf-8")
+
+        mock_tempdir.return_value.__enter__.return_value = Path(tempfile.mkdtemp())
+        mock_tempdir.return_value.__exit__.return_value = None
+
+        mock_pm = Mock()
+        mock_pm.apply.return_value = (True, "")
+        with patch('a3x.executor.PatchManager', return_value=mock_pm):
+
+            # Mock ruff with 6 violations, no syntax
+            mock_ruff = Mock(returncode=1, stdout="test.py:1:1: E501\n" * 6)
+            mock_black = Mock(returncode=0)
+            mock_subprocess.side_effect = [mock_ruff, mock_black]
+
+            patch_content = """
+--- a/test.py
++++ b/test.py
+@@ -1,1 +1,1 @@
+-print("ok")
++print("ok")
+"""  # Valid patch
+            risks = self.executor._run_risk_checks(patch_content)
+            assert 'ruff' in risks
+            assert risks['ruff'] == 'high'  # >5
+            assert mock_subprocess.call_count == 2
+
+    @patch('subprocess.run')
+    @patch('tempfile.TemporaryDirectory')
+    def test_run_risk_checks_black_style(self, mock_tempdir, mock_subprocess) -> None:
+        """Testa _run_risk_checks com issues de style black (medium)."""
+        # Create original file
+        test_file = self.workspace_path / "test.py"
+        test_file.write_text('print("ok")\n', encoding="utf-8")
+
+        # Similar setup, mock black returncode=1
+        mock_tempdir.return_value.__enter__.return_value = Path(tempfile.mkdtemp())
+        mock_tempdir.return_value.__exit__.return_value = None
+
+        mock_pm = Mock()
+        mock_pm.apply.return_value = (True, "")
+        with patch('a3x.executor.PatchManager', return_value=mock_pm):
+
+            mock_ruff = Mock(returncode=0)
+            mock_black = Mock(returncode=1, stdout="would reformat")
+            mock_subprocess.side_effect = [mock_ruff, mock_black]
+
+            patch_content = """
+--- a/test.py
++++ b/test.py
+@@ -1,1 +1,1 @@
+-print("ok")
++print("ok ")
+"""  # Adds space to trigger black
+            risks = self.executor._run_risk_checks(patch_content)
+            assert 'black_style' in risks
+            assert risks['black_style'] == 'medium'
+            assert mock_subprocess.call_count == 2
+
+    @patch('a3x.executor.PatchManager')
+    @patch('subprocess.run')
+    def test_run_risk_checks_timeout(self, mock_subprocess, mock_pm) -> None:
+        """Testa _run_risk_checks com timeout (high)."""
+        # Create original file to trigger lints
+        test_file = self.workspace_path / "test.py"
+        test_file.write_text('print("ok")\n', encoding="utf-8")
+
+        # Mock patch apply success
+        mock_pm.return_value.apply.return_value = (True, "")
+
+        mock_subprocess.side_effect = subprocess.TimeoutExpired(cmd=[], timeout=10)
+        patch_content = """
+--- a/test.py
++++ b/test.py
+@@ -1,1 +1,1 @@
+-print("ok")
++print("ok")
+"""
+        risks = self.executor._run_risk_checks(patch_content)
+        assert 'lint_timeout' in risks
+        assert risks['lint_timeout'] == 'high'
+
+    @patch.object(ActionExecutor, '_run_risk_checks')
+    def test_handle_apply_patch_high_risks_reject(self, mock_risk_checks) -> None:
+        """Testa integração: rejeita patch com high risks e loga."""
+        mock_risk_checks.return_value = {'ruff_syntax': 'high'}
+
+        diff = "invalid diff"
+        action = AgentAction(type=ActionType.APPLY_PATCH, diff=diff)
+        observation = self.executor._handle_apply_patch(action)
+
+        assert observation.success is False
+        assert "High risks detected" in observation.output
+        mock_risk_checks.assert_called_once_with(diff)
+
+        # Verify log file was created
+        log_path = self.workspace_path / 'seed' / 'reports' / 'risk_log.md'
+        assert log_path.exists()
+        assert log_path.read_text(encoding='utf-8').strip() != ""

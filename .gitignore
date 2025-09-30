@@ -5,8 +5,12 @@ __pycache__/
 a3x.egg-info/
 .env
 *.log
+*.pid
+.DS_Store
 seed/evaluations/
 seed/metrics/
-tests/generated/
-
+seed/changes/
+seed/daemon_logs/
 seed/archive/*.diff
+tests/generated/
+.hypothesis/

@@ -6,14 +6,15 @@ import ast
 import json
 import subprocess
 import tempfile
-from dataclasses import dataclass, asdict
+import subprocess
+from dataclasses import dataclass, asdict, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from .testgen import GrowthTestGenerator
+from .testgen import GrowthTestGenerator, E2ETestGenerator
 from .report import generate_capability_report
-from .seeds import SeedBacklog
+from .seeds import SeedBacklog, Seed
 from .planner import Planner, PlannerThresholds
 from .planning.mission_planner import MissionPlanner
 from .capabilities import CapabilityRegistry
@@ -49,8 +50,8 @@ class RunEvaluation:
     seeds: List[EvaluationSeed]
     metrics: Dict[str, float]
     capabilities: List[str]
-    human_feedback: Optional[str] = None
     notes: Optional[str] = None
+    errors: List[str] = field(default_factory=list)
 
 
 class AutoEvaluator:
@@ -90,8 +91,8 @@ class AutoEvaluator:
         seeds: Optional[List[EvaluationSeed]] = None,
         metrics: Optional[Dict[str, float]] = None,
         capabilities: Optional[List[str]] = None,
-        human_feedback: Optional[str] = None,
         notes: Optional[str] = None,
+        errors: Optional[List[str]] = None,
     ) -> RunEvaluation:
         evaluation = RunEvaluation(
             goal=goal,
@@ -103,8 +104,8 @@ class AutoEvaluator:
             seeds=seeds or [],
             metrics={k: float(v) for k, v in (metrics or {}).items()},
             capabilities=capabilities or [],
-            human_feedback=human_feedback,
             notes=notes,
+            errors=errors or [],
         )
         self._append(evaluation)
         return evaluation
@@ -112,6 +113,7 @@ class AutoEvaluator:
     def _append(self, evaluation: RunEvaluation) -> None:
         entry = asdict(evaluation)
         entry["seeds"] = [asdict(seed) for seed in evaluation.seeds]
+        entry["errors"] = evaluation.errors
         with self.log_file.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
         self._update_metric_history(evaluation.metrics)
@@ -125,6 +127,7 @@ class AutoEvaluator:
         evaluation.seeds.extend(quality_seeds)
         
         self._growth_test_generator.ensure_tests()
+        self._detect_and_run_e2e_tests(evaluation)
         generate_capability_report(
             metrics_history=self.metrics_history_file,
         )
@@ -150,7 +153,10 @@ class AutoEvaluator:
             return
         history: Dict[str, List[float]] = {}
         if self.metrics_history_file.exists():
-            history = json.loads(self.metrics_history_file.read_text(encoding="utf-8"))
+            try:
+                history = json.loads(self.metrics_history_file.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                history = {} # Initialize as empty if corrupted
         for key, value in metrics.items():
             history.setdefault(key, []).append(float(value))
         with self.metrics_history_file.open("w", encoding="utf-8") as fh:
@@ -167,6 +173,10 @@ class AutoEvaluator:
             caps = last_eval.get("capabilities") or []
             if caps:
                 parts.append("Capacidades exercitadas: " + ", ".join(caps))
+            # Adicionar resumo de erros
+            errors = last_eval.get("errors")
+            if errors:
+                parts.append(f"Erros na última execução: {', '.join(errors[:2])}{'...' if len(errors) > 2 else ''}")
         metrics_history = self._read_metrics_history()
         if metrics_history:
             summaries = []
@@ -280,6 +290,12 @@ class AutoEvaluator:
                 notes = last_eval.get("notes")
                 if notes:
                     lines.append(f"- Notas: {notes}")
+                errors = last_eval.get("errors") or []
+                if errors:
+                    lines.append("")
+                    lines.append("### Erros da Execução")
+                    for error in errors:
+                        lines.append(f"- {error}")
                 seeds = last_eval.get("seeds") or []
                 if seeds:
                     lines.append("")
@@ -363,6 +379,9 @@ class AutoEvaluator:
 
         lint_config_path = str((seed_configs_root / "seed_lint.yaml").resolve())
 
+        last_eval = self._read_last_evaluation()
+        last_errors = last_eval.get("errors") if last_eval else None
+
         planner = Planner(thresholds=self.thresholds)
         for seed in planner.propose(
             history,
@@ -371,9 +390,27 @@ class AutoEvaluator:
             tests_config_path=tests_config_path,
             lint_config_path=lint_config_path,
             capability_metrics=capability_metrics,
+            last_errors=last_errors,
         ):
-            if not backlog.exists(seed.id):
-                backlog.add_seed(seed)
+            # Ensure metadata values are strings
+            processed_metadata = {k: ", ".join(v) if isinstance(v, list) else str(v) for k, v in seed.metadata.items()}
+            processed_seed = Seed(
+                id=seed.id,
+                goal=seed.goal,
+                priority=seed.priority,
+                status=seed.status,
+                type=seed.type,
+                config=seed.config,
+                max_steps=seed.max_steps,
+                metadata=processed_metadata,
+                history=seed.history,
+                attempts=seed.attempts,
+                max_attempts=seed.max_attempts,
+                next_run_at=seed.next_run_at,
+                last_error=seed.last_error,
+            )
+            if not backlog.exists(processed_seed.id):
+                backlog.add_seed(processed_seed)
 
         if mission_state:
             mission_planner = MissionPlanner()
@@ -385,8 +422,25 @@ class AutoEvaluator:
                 tests_config_path=tests_config_path,
                 lint_config_path=lint_config_path,
             ):
-                if not backlog.exists(seed.id):
-                    backlog.add_seed(seed)
+                # Ensure metadata values are strings
+                processed_metadata = {k: ", ".join(v) if isinstance(v, list) else str(v) for k, v in seed.metadata.items()}
+                processed_seed = Seed(
+                    id=seed.id,
+                    goal=seed.goal,
+                    priority=seed.priority,
+                    status=seed.status,
+                    type=seed.type,
+                    config=seed.config,
+                    max_steps=seed.max_steps,
+                    metadata=processed_metadata,
+                    history=seed.history,
+                    attempts=seed.attempts,
+                    max_attempts=seed.max_attempts,
+                    next_run_at=seed.next_run_at,
+                    last_error=seed.last_error,
+                )
+                if not backlog.exists(processed_seed.id):
+                    backlog.add_seed(processed_seed)
 
         if registry:
             config_map = {
@@ -400,8 +454,25 @@ class AutoEvaluator:
             meta_engine = MetaCapabilityEngine(config=self.config, auto_evaluator=self)
             existing_ids = backlog.list_all_ids()
             for seed in meta_engine.propose_new_skills():
-                if not backlog.exists(seed.id):
-                    backlog.add_seed(seed)
+                # Ensure metadata values are strings
+                processed_metadata = {k: ", ".join(v) if isinstance(v, list) else str(v) for k, v in seed.metadata.items()}
+                processed_seed = Seed(
+                    id=seed.id,
+                    goal=seed.goal,
+                    priority=seed.priority,
+                    status=seed.status,
+                    type=seed.type,
+                    config=seed.config,
+                    max_steps=seed.max_steps,
+                    metadata=processed_metadata,
+                    history=seed.history,
+                    attempts=seed.attempts,
+                    max_attempts=seed.max_attempts,
+                    next_run_at=seed.next_run_at,
+                    last_error=seed.last_error,
+                )
+                if not backlog.exists(processed_seed.id):
+                    backlog.add_seed(processed_seed)
 
     def _update_capability_metrics(
         self, capability_metrics: Dict[str, Dict[str, float | int | None]]
@@ -760,6 +831,69 @@ class AutoEvaluator:
             )
             
         return seeds
+
+
+    def _detect_code_modifications(self) -> bool:
+        """Detect if any Python files in a3x/ have been modified since last check."""
+        check_file = self.log_dir / "last_mod_check.txt"
+        last_time = 0.0
+        if check_file.exists():
+            try:
+                last_time = datetime.fromisoformat(check_file.read_text(encoding="utf-8")).timestamp()
+            except (ValueError, OSError):
+                pass
+        py_files = list(Path("a3x").rglob("*.py"))
+        if not py_files:
+            return False
+        try:
+            current_max_mtime = max(f.stat().st_mtime for f in py_files)
+            if current_max_mtime > last_time:
+                check_file.write_text(datetime.now(timezone.utc).isoformat(), encoding="utf-8")
+                return True
+        except OSError:
+            pass
+        return False
+
+    def _detect_and_run_e2e_tests(self, evaluation: RunEvaluation) -> None:
+        """Detect code mods, generate/ensure e2e tests, run them, seed failures if any."""
+        if not self._detect_code_modifications():
+            return
+        try:
+            gen = E2ETestGenerator()
+            gen.generate_basic_cycle_test()
+            gen.generate_multi_cycle_test(cycles=3)
+            gen.generate_seed_runner_test()
+            result = subprocess.run(
+                ["pytest", "-q", "tests/integration/"],
+                capture_output=True,
+                text=True,
+                cwd=str(Path.cwd())
+            )
+            if result.returncode != 0:
+                failure_seed = EvaluationSeed(
+                    description="Falha em testes E2E após modificações de código - revisar integrações e rollbacks de segurança.",
+                    priority="high",
+                    capability="core.testing",
+                    seed_type="e2e_failure",
+                    data={"pytest_stderr": result.stderr[:1000] if result.stderr else None}
+                )
+                evaluation.seeds.append(failure_seed)
+                # Seed back to backlog
+                backlog = SeedBacklog(self.backlog_path)
+                seed_id = f"e2e_failure_{datetime.now(timezone.utc).isoformat().replace(':', '-').split('.')[0].replace('+00:00', 'Z')}"
+                seed_obj = Seed(
+                    id=seed_id,
+                    description=failure_seed.description,
+                    priority=failure_seed.priority,
+                    capability=failure_seed.capability,
+                    type=failure_seed.seed_type,
+                    data=failure_seed.data or {},
+                    status="pending"
+                )
+                backlog.add_seed(seed_obj)
+        except Exception:
+            # Non-critical; log if needed but don't fail eval
+            pass
 
 
 __all__ = [

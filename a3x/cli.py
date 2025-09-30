@@ -13,6 +13,7 @@ from .seed_runner import main as seed_main
 from .seed_daemon import main as seed_daemon_main
 from .memory.store import SemanticMemory
 from .autoloop import load_goal_rotation, run_autopilot
+from .autonomous_planner import run_autonomous_planning  # Nova importação
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -127,6 +128,41 @@ def main(argv: list[str] | None = None) -> int:
         help="Override de max_iterations para seeds executadas",
     )
 
+    # Novo comando plan
+    plan_parser = subparsers.add_parser("plan", help="Planejamento autônomo de evolução")
+    plan_sub = plan_parser.add_subparsers(dest="plan_command")
+    plan_run_parser = plan_sub.add_parser("run", help="Executa planejamento autônomo")
+    plan_run_parser.add_argument(
+        "--workspace", 
+        default=".", 
+        help="Diretório raiz do workspace"
+    )
+
+    # Novo comando daemon
+    daemon_parser = subparsers.add_parser("daemon", help="Daemon de auto-evolução contínua")
+    daemon_sub = daemon_parser.add_subparsers(dest="daemon_command")
+    daemon_start_parser = daemon_sub.add_parser("start", help="Inicia o daemon de auto-evolução")
+    daemon_start_parser.add_argument(
+        "--workspace", 
+        default=".", 
+        help="Diretório raiz do workspace"
+    )
+    daemon_start_parser.add_argument(
+        "--config", 
+        help="Arquivo de configuração"
+    )
+    daemon_start_parser.add_argument(
+        "--max-cycles", 
+        type=int, 
+        help="Número máximo de ciclos (padrão: infinito)"
+    )
+    daemon_start_parser.add_argument(
+        "--interval", 
+        type=int, 
+        default=300, 
+        help="Intervalo entre ciclos em segundos (padrão: 300)"
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "memory":
@@ -162,6 +198,54 @@ def main(argv: list[str] | None = None) -> int:
             seed_max_steps=args.seed_max_steps,
         )
         return exit_code
+
+    if args.command == "plan":
+        if args.plan_command == "run":
+            workspace_root = Path(args.workspace).resolve()
+            print(f"🤖 Executando planejamento autônomo no workspace: {workspace_root}")
+            
+            try:
+                seeds = run_autonomous_planning(workspace_root)
+                print(f"✅ Planejamento autônomo concluído! {len(seeds)} seeds gerados.")
+                return 0
+            except Exception as e:
+                print(f"❌ Erro durante planejamento autônomo: {e}")
+                import traceback
+                traceback.print_exc()
+                return 1
+        else:
+            plan_parser.print_help()
+            return 1
+
+    # Comando daemon (NOVO)
+    if args.command == "daemon":
+        if args.daemon_command == "start":
+            from .continuous_evolution_daemon import start_continuous_evolution_daemon
+            workspace_root = Path(args.workspace).resolve()
+            config_path = Path(args.config) if args.config else None
+            
+            print(f"🚀 Iniciando daemon de auto-evolução contínua...")
+            print(f"   Workspace: {workspace_root}")
+            print(f"   Config: {config_path or 'padrão'}")
+            print(f"   Ciclos máximos: {args.max_cycles or 'infinito'}")
+            print(f"   Intervalo: {args.interval} segundos")
+            
+            try:
+                start_continuous_evolution_daemon(
+                    workspace_root=workspace_root,
+                    max_cycles=args.max_cycles,
+                    analysis_interval=args.interval,
+                    config_path=config_path
+                )
+                return 0
+            except Exception as e:
+                print(f"❌ Erro no daemon: {e}")
+                import traceback
+                traceback.print_exc()
+                return 1
+        else:
+            daemon_parser.print_help()
+            return 1
 
     if args.command == "seed":
         if args.seed_command == "run":
@@ -261,3 +345,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":  # pragma: no cover
     sys.exit(main())
+

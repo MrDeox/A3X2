@@ -9,8 +9,9 @@ from typing import Dict, List, Optional
 import json
 import yaml
 from .llm import OpenRouterLLMClient
+from .actions import AgentState
+from .memory.insights import StatefulRetriever
 
-from .seeds import Seed
 
 
 @dataclass
@@ -65,7 +66,9 @@ class Planner:
         tests_config_path: str,
         lint_config_path: str,
         capability_metrics: Optional[Dict[str, Dict[str, float | int | None]]] = None,
+        last_errors: Optional[List[str]] = None,
     ) -> List[Seed]:
+        from .seeds import Seed
         seeds: List[Seed] = []
         capability_metrics = capability_metrics or {}
 
@@ -76,6 +79,30 @@ class Planner:
         def ensure_seed(id: str, seed: Seed) -> None:
             # Caller decides dedup with backlog; here we just list proposals
             seeds.append(seed)
+
+        def ensure_error_seed(errors: List[str]) -> None:
+            error_description = "; ".join(errors)
+            seed_id = f"auto.error.reflection.{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
+            ensure_seed(
+                seed_id,
+                Seed(
+                    id=seed_id,
+                    goal=f"Investigar e corrigir erros de execução: {error_description}",
+                    priority="high",
+                    status="pending",
+                    type="analysis",
+                    config=manual_config_path,
+                    max_steps=8,
+                    metadata={
+                        "description": "Seed gerada automaticamente para refletir sobre erros de execução.",
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "errors": error_description,
+                    },
+                ),
+            )
+
+        if last_errors:
+            ensure_error_seed(last_errors)
 
         apc = history.get("apply_patch_count", [])
         if apc and max(apc) == 0:
@@ -226,18 +253,50 @@ class Planner:
         actions_rate = latest("actions_success_rate")
         if actions_rate is not None and actions_rate < 0.9:
             feedback = self.prompts.low_rate.format(rate=actions_rate)
+            
+            # Hook stateful retrieval for context-aware planning
+            mock_state = AgentState(
+                goal="Dynamic seed planning based on low actions_success_rate",
+                history_snapshot=json.dumps({
+                    "metrics_history": {k: v[-5:] for k, v in history.items() if len(v) >= 5},  # Recent history
+                    "capability_metrics": capability_metrics or {},
+                    "last_errors": last_errors or []
+                }),
+                iteration=1,
+                max_iterations=1,
+                seed_context="Planning seeds to improve actions success from recent sessions."
+            )
+            retriever = StatefulRetriever()
+            session_context = retriever.retrieve_session_context(mock_state)
+            
+            # Summarize context, highlight recent failures or derivations
+            context_parts = []
+            derivation_count = 0
+            for insight in session_context:
+                context_parts.append(f"Insight: {insight.title} - {insight.content[:200]}... (similarity: {insight.similarity:.2f})")
+                if insight.metadata.get("derivation_flagged"):
+                    derivation_count += 1
+            context_str = "\n".join(context_parts) if context_parts else "No relevant session context found."
+            
+            derivation_note = f" (Note: {derivation_count} insights show derivation changes - review for drift)" if derivation_count > 0 else ""
+            
             prompt = f"""{self.prompts.base}
 
 {feedback}
+
+Recent session context{derivation_note}:
+{context_str}
 
 History summary: {json.dumps({k: v[-1] if isinstance(v, list) and v else None for k, v in history.items()}, indent=2) if history else 'No history available'}
 
 Capability metrics: {json.dumps(capability_metrics or {}, indent=2)}
 
+Last run errors: {', '.join(last_errors) if last_errors else 'None'}
+
 Use chain-of-thought reasoning step-by-step:
-1. Analyze gaps: Why is actions_success_rate low? (e.g., suboptimal action selection, lack of examples in prompts, insufficient planning for recursion). Consider recent failures in executor.py like patch applications or command executions.
-2. Reason about improvements: For self-modify, detail how to add CoT and examples to prompts in planner.py to boost ROI and enable full real recursion (depth >=5). Also, suggest fixes for executor.py to improve patch success via better AST handling or simplified auto-commit logic.
-3. Propose high-ROI seeds: Focus on benchmarks for practice (e.g., simple file writes/patches), refactors for prompt tuning in planner.py, and targeted fixes in executor.py for reliable commits and error recovery. Ensure seeds include safeguards and validation steps.
+1. Analyze gaps: Why is actions_success_rate low? Incorporate session context on recent failures (e.g., suboptimal action selection, lack of examples in prompts, insufficient planning for recursion). Consider recent failures in executor.py like patch applications or command executions.
+2. Reason about improvements: For self-modify, detail how to add CoT and examples to prompts in planner.py to boost ROI and enable full real recursion (depth >=5). Also, suggest fixes for executor.py to improve patch success via better AST handling or simplified auto-commit logic. Use context for rationale.
+3. Propose high-ROI seeds: Focus on benchmarks for practice (e.g., simple file writes/patches), refactors for prompt tuning in planner.py, and targeted fixes in executor.py for reliable commits and error recovery. Ensure seeds include safeguards and validation steps. Base on session context for continuity.
 
 {self.prompts.examples}
 
@@ -267,8 +326,13 @@ Output ONLY a valid YAML list of 1-3 new seeds. Each seed must include: id (uniq
                             data.setdefault('max_steps', 6)
                             data.setdefault('config', manual_config_path)
                             data.setdefault('metadata', {})
-                            data['metadata'].setdefault('description', 'LLM-optimized seed for actions_rate improvement')
+                            data['metadata'].setdefault('description', 'LLM-optimized seed for actions_rate improvement with session context')
                             data['metadata'].setdefault('created_at', datetime.now(timezone.utc).isoformat())
+                            
+                            # Ensure metadata values are strings
+                            processed_metadata = {k: ", ".join(v) if isinstance(v, list) else str(v) for k, v in data['metadata'].items()}
+                            data['metadata'] = processed_metadata
+
                             seeds.append(Seed(**data))
             except Exception:
                 # Fallback to rule-based proposals if LLM fails

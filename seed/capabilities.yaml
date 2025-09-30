@@ -3,7 +3,7 @@
   name: Edição por diffs unificados
   category: vertical
   description: Aplicar patches gerados pelo LLM usando utilitário `patch` com dry-run.
-  maturity: established
+  maturity: baseline
   metrics:
     success_rate: 0.8
     avg_iterations: 3.5
@@ -32,8 +32,8 @@
   maturity: baseline
   metrics:
     tasks_completed: 21
-    regression_rate: 0.087
-    runs: 23
+    regression_rate: 0.16
+    runs: 25
     completed_runs: 21
   seeds:
   - Expandir para frameworks (Flask, FastAPI) com blueprints dedicados.

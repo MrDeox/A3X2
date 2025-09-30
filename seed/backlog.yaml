@@ -1,36 +1,153 @@
-- id: initial.self_awareness.2
-  goal: Analisar minhas próprias capacidades e identificar oportunidades de auto-aperfeiçoamento
+- id: auto.error.reflection.20250930221030
+  goal: 'Investigar e corrigir erros de execução: Arquivo não encontrado: /home/arthur/Projetos/A3X/configs/scripts/a3x/__init__.py;
+    Executável não encontrado para comando: python -c ''import a3x; print("SeedAI
+    está funcionando corretamente")'''
   priority: high
-  status: in_progress
-  type: evolution
+  status: completed
+  type: analysis
   config: configs/seed_manual.yaml
-  max_steps: null
+  max_steps: 8
   metadata:
-    description: Seed inicial para autoavaliação e autoevolução
-    created_by: initial_setup
-    tags: '[''self_awareness'', ''evolution'', ''optimization'']'
+    created_at: '2025-09-30T22:10:30.149255+00:00'
+    description: Seed gerada automaticamente para refletir sobre erros de execução.
+    errors: 'Arquivo não encontrado: /home/arthur/Projetos/A3X/configs/scripts/a3x/__init__.py;
+      Executável não encontrado para comando: python -c ''import a3x; print("SeedAI
+      está funcionando corretamente")'''
   history:
   - status: in_progress
-    timestamp: '2025-09-30T18:55:17.705186+00:00'
+    timestamp: '2025-09-30T23:28:34.523355+00:00'
+  - status: completed
+    timestamp: '2025-09-30T23:28:57.750274+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-- id: meta.self_improvement.2
-  goal: Implementar melhorias na minha própria capacidade de auto-avaliação e auto-modificação
+- id: auto.benchmark.report
+  goal: Regenerar relatório SeedAI para testar ciclo seed-run.
+  priority: medium
+  status: pending
+  type: benchmark_report
+  config: configs/seed_manual.yaml
+  max_steps: 3
+  metadata:
+    created_at: '2025-09-30T22:10:30.149269+00:00'
+    description: Seed auto-gerada para refresh de relatórios
+  history: []
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
+- id: auto.patch.success
+  goal: Atualizar configs/doc.md adicionando uma linha final de validação
   priority: high
   status: completed
-  type: evolution
-  config: configs/seed_manual.yaml
-  max_steps: null
+  type: benchmark_diff
+  config: configs/seed_patch.yaml
+  max_steps: 5
   metadata:
-    description: Melhorar capacidades meta de auto-aperfeiçoamento
-    tags: '[''meta'', ''improvement'', ''self_modification'']'
+    created_at: '2025-09-30T22:10:30.149276+00:00'
+    description: Seed corretiva para garantir sucesso no apply_patch
   history:
   - status: in_progress
-    timestamp: '2025-09-30T18:57:29.057164+00:00'
+    timestamp: '2025-09-30T23:28:57.753775+00:00'
   - status: completed
-    timestamp: '2025-09-30T18:57:50.013146+00:00'
+    timestamp: '2025-09-30T23:29:06.341050+00:00'
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
+- id: auto.actions.recovery
+  goal: Verificar logs de seeds falhas e propor correção
+  priority: medium
+  status: pending
+  type: analysis
+  config: configs/seed_manual.yaml
+  max_steps: 4
+  metadata:
+    created_at: '2025-09-30T22:10:30.149279+00:00'
+    description: Seed diagnóstica quando actions_success_rate cai.
+  history: []
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
+- id: mission.core-diffing-growth.diff-established
+  goal: Alcançar success_rate >= 0.90
+  priority: high
+  status: completed
+  type: mission
+  config: configs/seed_patch.yaml
+  max_steps: 6
+  metadata:
+    created_at: '2025-09-30T22:10:49.447835+00:00'
+    description: Alcançar success_rate >= 0.90
+    milestone: diff-established
+    mission: core-diffing-growth
+  history:
+  - status: in_progress
+    timestamp: '2025-09-30T23:29:06.344769+00:00'
+  - status: completed
+    timestamp: '2025-09-30T23:29:14.787941+00:00'
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
+- id: mission.core-testing-growth.tests-established
+  goal: Disparar testes automaticamente em 70% das runs
+  priority: high
+  status: completed
+  type: mission
+  config: configs/seed_tests.yaml
+  max_steps: 6
+  metadata:
+    created_at: '2025-09-30T22:10:49.447860+00:00'
+    description: Disparar testes automaticamente em 70% das runs
+    milestone: tests-established
+    mission: core-testing-growth
+  history:
+  - status: in_progress
+    timestamp: '2025-09-30T23:29:14.791694+00:00'
+  - status: completed
+    timestamp: '2025-09-30T23:29:23.755393+00:00'
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
+- id: auto_core.stability_20250930_221108_0
+  goal: '[EMERGÊNCIA] Resolver Taxa crítica de sucesso em patches: 0.0% criticamente'
+  priority: high
+  status: completed
+  type: emergency_fix
+  config: configs/seed_manual.yaml
+  max_steps: 3
+  metadata:
+    created_by: continuous_evolution_daemon
+    description: '[EMERGÊNCIA] Resolver Taxa crítica de sucesso em patches: 0.0% criticamente'
+    tags: '[''autonomous'', ''continuous'', ''core.stability'', ''emergency_fix'']'
+    created_at: '2025-09-30T22:11:08.000000+00:00'
+  history:
+  - status: in_progress
+    timestamp: '2025-09-30T23:29:23.759497+00:00'
+  - status: completed
+    timestamp: '2025-09-30T23:29:45.447668+00:00'
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
+- id: auto.apply.patch.success.rate.1759274914
+  goal: Adicionar verificações de segurança ao patch.py
+  priority: high
+  status: in_progress
+  type: refactor
+  config: configs/sample.yaml
+  max_steps: 8
+  metadata:
+    description: Adicionar safety checks ao patch.py
+    created_at: '2025-09-30T23:28:34.514101+00:00'
+    triggered_by: apply_patch_success_rate
+  history:
+  - status: in_progress
+    timestamp: '2025-09-30T23:29:45.451980+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null

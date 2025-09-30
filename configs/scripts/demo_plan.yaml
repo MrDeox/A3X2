@@ -16,7 +16,7 @@
     +++ b/README.md
     @@ -1,5 +1,6 @@
      # A3X – Ferramenta Autônoma de Codificação Local
-    
+    +
      A3X é um esqueleto de ferramenta CLI desenhada para orquestrar um agente de codificação local inspirado no Replit Agent 3 e em iniciativas open-source como OpenHands, SWE-Agent e GPT-Engineer.
 - type: "message"
   text: "Auto-aperfeiçoamento realizado com sucesso!"

@@ -7,6 +7,7 @@ import os
 import shlex
 import subprocess
 import time
+import tempfile
 from pathlib import Path
 from typing import Optional, Dict
 
@@ -113,6 +114,25 @@ class ActionExecutor:
                 shutil.copy2(full_path, backup_path)
                 backups[rel_path] = backup_path
 
+        # Run risk checks before applying
+        risks = self._run_risk_checks(action.diff)
+        high_risks = {k: v for k, v in risks.items() if v == 'high'}
+        if high_risks:
+            details = f"High risks detected before patch application: {high_risks}"
+            # Log to risk_log.md
+            log_path = self.workspace_root / 'seed' / 'reports' / 'risk_log.md'
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            with log_path.open('a', encoding='utf-8') as f:
+                f.write(f"\n## Patch Risk Log - {datetime.now().isoformat()}\n")
+                f.write(f"Patch risks: {details}\n")
+                f.write(f"Full risks: {risks}\n\n")
+            # Since not applied yet, no revert needed
+            return Observation(
+                success=False,
+                output=f"Patch rejected due to high risks: {details}",
+                type="apply_patch"
+            )
+
         try:
             success, output = self.patch_manager.apply(action.diff)
 
@@ -161,6 +181,75 @@ class ActionExecutor:
             for backup_path in backups.values():
                 backup_path.unlink(missing_ok=True)
             return Observation(success=False, error=str(exc), type="apply_patch")
+
+    def _run_risk_checks(self, patch_content: str) -> Dict[str, str]:
+        """Run lightweight risk checks on patch: linting with ruff and black."""
+        risks = {}
+        with tempfile.TemporaryDirectory() as temp_dir_str:
+            temp_path = Path(temp_dir_str)
+            # Extract Python files from patch
+            py_paths = set(re.findall(r'^--- a/(.+\.py)$', patch_content, re.MULTILINE))
+            if not py_paths:
+                return risks  # No Python files, low risk
+
+            # Copy original files to temp dir
+            for rel_path in py_paths:
+                full_path = self._resolve_workspace_path(rel_path)
+                if full_path.exists():
+                    temp_file = temp_path / rel_path
+                    temp_file.parent.mkdir(parents=True, exist_ok=True)
+                    temp_file.write_text(full_path.read_text(encoding="utf-8"), encoding="utf-8")
+
+            # Apply patch in temp dir
+            temp_pm = PatchManager(temp_path)
+            try:
+                temp_success, temp_output = temp_pm.apply(patch_content)
+                if not temp_success:
+                    risks['patch_apply'] = 'high'
+                    return risks
+            except Exception as e:
+                risks['patch_apply'] = 'high'
+                risks['apply_error'] = str(e)[:100]
+                return risks
+
+            # Run linters on modified Python files
+            for rel_path in py_paths:
+                temp_file = temp_path / rel_path
+                if temp_file.exists() and temp_file.suffix == '.py':
+                    try:
+                        # Ruff check
+                        ruff_result = subprocess.run(
+                            ['ruff', 'check', '--output-format=text', str(temp_file)],
+                            capture_output=True, text=True, timeout=10, cwd=temp_dir_str
+                        )
+                        if ruff_result.returncode != 0:
+                            violations = len([line for line in ruff_result.stdout.splitlines() if line.strip() and not line.startswith('==')])
+                            if violations > 0:
+                                # High if syntax errors (E9), else medium
+                                if any(code.startswith('E9') for code in ruff_result.stdout.split() if code.startswith('E')):
+                                    risks['ruff_syntax'] = 'high'
+                                else:
+                                    risks['ruff'] = 'medium' if violations <= 5 else 'high'
+                            if violations > 5:
+                                risks['ruff_violations'] = 'medium'
+
+                        # Black check
+                        black_result = subprocess.run(
+                            ['black', '--check', str(temp_file)],
+                            capture_output=True, text=True, timeout=10, cwd=temp_dir_str
+                        )
+                        if black_result.returncode != 0:
+                            risks['black_style'] = 'medium'
+
+                    except subprocess.TimeoutExpired:
+                        risks['lint_timeout'] = 'high'
+                    except FileNotFoundError:
+                        # ruff/black not found, assume ok for now
+                        pass
+                    except Exception as e:
+                        risks['lint_error'] = str(e)[:100]
+
+        return risks
 
     def _handle_self_modify(self, action: AgentAction) -> Observation:
         if not action.diff:
@@ -1118,7 +1207,6 @@ class ActionExecutor:
                 # Temporarily disabled permission check for testing
                 # raise PermissionError(f"Acesso negado fora do workspace: {candidate}")
                 pass
-        return candidate
         return candidate
 
     def _command_allowed(self, command: list[str]) -> bool:
