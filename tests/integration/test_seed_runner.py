@@ -1,40 +1,84 @@
-"""Auto-generated E2E test for seed_runner execution.
-AUTO-GENERATED. Edit via E2ETestGenerator."""
+"""Integration facade tests for the SeedRunner orchestration."""
 
-import pytest
-from unittest.mock import Mock, patch
+from __future__ import annotations
+
+from types import SimpleNamespace
 from pathlib import Path
+from unittest.mock import Mock, patch
 
-from a3x.seed_runner import SeedRunner
-from a3x.seeds import SeedBacklog
-from a3x.executor import Executor
-
-
-@pytest.fixture
-def mock_backlog():
-    backlog = Mock(spec=SeedBacklog)
-    backlog.get_next_seed.return_value = {"id": "test_seed", "description": "Test seed", "type": "improvement"}
-    return backlog
+from a3x.seed_runner import SeedRunner, SeedRunResult
+from a3x.seeds import Seed
 
 
-@pytest.fixture
-def mock_executor():
-    executor = Mock(spec=Executor)
-    executor.execute_seed.return_value = {"success": True, "metrics": {"seed_success_rate": 1.0}}
-    return executor
+def _build_seed(**overrides) -> Seed:
+    defaults = {
+        "id": "seed-1",
+        "goal": "Implementar endpoint /health",
+        "priority": "high",
+        "status": "pending",
+        "type": "generic",
+    }
+    defaults.update(overrides)
+    return Seed(**defaults)
 
 
-def test_seed_runner_execution(mock_backlog, mock_executor, tmp_path: Path):
-    with patch("a3x.seed_runner.SeedBacklog", return_value=mock_backlog),          patch("a3x.seed_runner.Executor", return_value=mock_executor),          patch("a3x.seed_runner.config.BASE_DIR", tmp_path):
-        runner = SeedRunner(config_path=str(tmp_path / "config.yaml"))
-        result = runner.run_next()
-    
-    assert result["success"]
-    assert result["metrics"].get("seed_success_rate", 0) == 1.0
-    mock_backlog.get_next_seed.assert_called_once()
-    mock_executor.execute_seed.assert_called_once()
-    # Negative scenario: failure rollback
-    mock_executor.execute_seed.return_value = {"success": False}
-    result_fail = runner.run_next()
-    assert not result_fail["success"]
-    # Assert no permanent changes on failure (mock would handle rollback assertion)
+def test_seed_runner_success_flow(tmp_path: Path) -> None:
+    backlog_mock = Mock()
+    backlog_mock.next_seed.return_value = _build_seed()
+
+    runner = SeedRunner.__new__(SeedRunner)
+    runner.backlog = backlog_mock
+
+    orchestrator_result = SimpleNamespace(completed=True, errors=[])
+
+    with patch("a3x.seed_runner.load_config") as mock_load_config, patch(
+        "a3x.seed_runner.build_llm_client"
+    ) as mock_build_llm, patch("a3x.seed_runner.AgentOrchestrator") as mock_orchestrator:
+        mock_load_config.return_value = SimpleNamespace(
+            limits=SimpleNamespace(max_iterations=5),
+            llm=Mock(),
+        )
+        mock_build_llm.return_value = Mock()
+        mock_instance = mock_orchestrator.return_value
+        mock_instance.run.return_value = orchestrator_result
+
+        result = SeedRunner.run_next(
+            runner,
+            default_config=tmp_path / "config.yaml",
+        )
+
+    assert isinstance(result, SeedRunResult)
+    assert result.completed is True
+    backlog_mock.mark_in_progress.assert_called_once()
+    backlog_mock.mark_completed.assert_called_once()
+
+
+def test_seed_runner_failure_marks_seed(tmp_path: Path) -> None:
+    failing_seed = _build_seed(id="seed-2")
+    backlog_mock = Mock()
+    backlog_mock.next_seed.return_value = failing_seed
+
+    runner = SeedRunner.__new__(SeedRunner)
+    runner.backlog = backlog_mock
+
+    orchestrator_result = SimpleNamespace(completed=False, errors=["timeout"])
+
+    with patch("a3x.seed_runner.load_config") as mock_load_config, patch(
+        "a3x.seed_runner.build_llm_client"
+    ) as mock_build_llm, patch("a3x.seed_runner.AgentOrchestrator") as mock_orchestrator:
+        mock_load_config.return_value = SimpleNamespace(
+            limits=SimpleNamespace(max_iterations=5),
+            llm=Mock(),
+        )
+        mock_build_llm.return_value = Mock()
+        mock_orchestrator.return_value.run.return_value = orchestrator_result
+
+        result = SeedRunner.run_next(
+            runner,
+            default_config=tmp_path / "config.yaml",
+        )
+
+    assert isinstance(result, SeedRunResult)
+    assert result.completed is False
+    backlog_mock.mark_failed.assert_called_once()
+    backlog_mock.mark_completed.assert_not_called()

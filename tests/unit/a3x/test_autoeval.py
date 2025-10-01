@@ -17,6 +17,20 @@ class TestAutoEvaluator:
         self.test_dir = Path(tempfile.mkdtemp())
         self.log_dir = self.test_dir / "evaluations"
         self.evaluator = AutoEvaluator(log_dir=self.log_dir)
+        # Evitar efeitos colaterais pesados durante testes
+        self.evaluator._detect_code_modifications = lambda: False
+        self.evaluator._maybe_generate_auto_seeds = lambda *args, **kwargs: None
+        self.evaluator._update_missions = lambda *args, **kwargs: None
+        self.evaluator._update_semantic_memory = lambda *args, **kwargs: None
+        self.evaluator._write_run_status = lambda: None
+        self.evaluator._write_reflection = lambda: None
+        self.evaluator._growth_test_generator.ensure_tests = lambda: None
+        import a3x.autoeval as autoeval_module
+
+        autoeval_module.generate_capability_report = lambda *args, **kwargs: None
+        autoeval_module.compute_capability_metrics = lambda *args, **kwargs: {}
+        autoeval_module.load_mission_state = lambda *args, **kwargs: None
+        autoeval_module.save_mission_state = lambda *args, **kwargs: None
     
     def teardown_method(self) -> None:
         """Limpeza após cada teste."""
@@ -149,11 +163,60 @@ class TestAutoEvaluator:
             "apply_patch_count": 2.0,   # Few patches
             "file_diversity": 5.0,      # Good diversity
         }
-        
+
         seeds = self.evaluator._check_code_quality_issues(quality_metrics)
-        
+
         # Should have no quality-related seeds
         assert len(seeds) == 0
+
+    def test_detect_and_run_e2e_tests_enqueues_seed(self, monkeypatch):
+        """Falhas E2E devem gerar seed válida no backlog."""
+
+        evaluation = RunEvaluation(
+            goal="Goal",
+            completed=False,
+            iterations=1,
+            failures=1,
+            duration_seconds=None,
+            timestamp="2024-01-01T00:00:00Z",
+            seeds=[],
+            metrics={},
+            capabilities=[],
+        )
+
+        monkeypatch.setattr(self.evaluator, "_detect_code_modifications", lambda: True)
+
+        class DummyGenerator:
+            def generate_basic_cycle_test(self) -> None:
+                return None
+
+            def generate_multi_cycle_test(self, cycles: int) -> None:
+                return None
+
+            def generate_seed_runner_test(self) -> None:
+                return None
+
+        monkeypatch.setattr("a3x.autoeval.E2ETestGenerator", lambda: DummyGenerator())
+
+        subprocess_result = Mock(returncode=1, stderr="boom")
+        monkeypatch.setattr("a3x.autoeval.subprocess.run", lambda *_, **__: subprocess_result)
+
+        mock_backlog = Mock()
+        monkeypatch.setattr("a3x.autoeval.SeedBacklog.load", Mock(return_value=mock_backlog))
+
+        self.evaluator._detect_and_run_e2e_tests(evaluation)
+
+        assert evaluation.seeds, "Seed E2E deveria ser adicionada ao RunEvaluation"
+        added_seed = evaluation.seeds[-1]
+        assert added_seed.seed_type == "e2e_failure"
+        assert added_seed.priority == "high"
+
+        mock_backlog.add_seed.assert_called_once()
+        seed_arg = mock_backlog.add_seed.call_args.args[0]
+        from a3x.seeds import Seed  # Import local to evitar ciclo no topo
+
+        assert isinstance(seed_arg, Seed)
+        assert seed_arg.goal.startswith("Investigar e corrigir falha")
 
 
 class TestCodeComplexityAnalysis:
