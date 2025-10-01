@@ -879,16 +879,19 @@ class AutoEvaluator:
                 )
                 evaluation.seeds.append(failure_seed)
                 # Seed back to backlog
-                backlog = SeedBacklog(self.backlog_path)
-                seed_id = f"e2e_failure_{datetime.now(timezone.utc).isoformat().replace(':', '-').split('.')[0].replace('+00:00', 'Z')}"
+                backlog = SeedBacklog.load(self.backlog_path)
+                seed_id = (
+                    f"e2e_failure_{datetime.now(timezone.utc).isoformat().replace(':', '-').split('.')[0].replace('+00:00', 'Z')}"
+                )
                 seed_obj = Seed(
                     id=seed_id,
-                    description=failure_seed.description,
+                    goal="Investigar e corrigir falha detectada nos testes E2E automáticos.",
                     priority=failure_seed.priority,
-                    capability=failure_seed.capability,
                     type=failure_seed.seed_type,
-                    data=failure_seed.data or {},
-                    status="pending"
+                    metadata={
+                        "source": "autoeval",
+                        "capability": failure_seed.capability or "",
+                    },
                 )
                 backlog.add_seed(seed_obj)
         except Exception:

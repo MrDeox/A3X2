@@ -1,43 +1,66 @@
-"""Auto-generated E2E test for basic autoloop cycle.
-AUTO-GENERATED. Edit via E2ETestGenerator."""
+"""Integration-style tests for the autopilot loop helpers."""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
+from pathlib import Path
+from unittest.mock import Mock, patch
 
 import pytest
-from unittest.mock import Mock, patch
-from pathlib import Path
 
-from a3x.autoloop import AutoLoop
-from a3x.llm import LLMClient
-from a3x.executor import Executor
-from a3x.seeds import SeedBacklog
+from a3x.autoloop import GoalSpec, run_autopilot
 
 
-@pytest.fixture
-def mock_llm_client():
-    client = Mock(spec=LLMClient)
-    client.generate_action.return_value = {"action": "write_file", "params": {"path": "test.py", "content": "print('test')"}}
-    return client
+def _build_event(type_name: str, *, success: bool, command: list[str] | None = None) -> SimpleNamespace:
+    return SimpleNamespace(
+        action=SimpleNamespace(
+            type=SimpleNamespace(name=type_name),
+            command=command,
+        ),
+        observation=SimpleNamespace(success=success),
+    )
 
 
-@pytest.fixture
-def mock_executor():
-    executor = Mock(spec=Executor)
-    executor.apply.return_value = True
-    return executor
+def test_run_autopilot_single_cycle(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("dummy", encoding="utf-8")
+    backlog_path = tmp_path / "backlog.yaml"
 
+    run_result = SimpleNamespace(
+        completed=True,
+        iterations=2,
+        failures=0,
+        history=SimpleNamespace(
+            events=[
+                _build_event("RUN_COMMAND", success=True, command=["pytest", "-q"]),
+                _build_event("APPLY_PATCH", success=True),
+            ]
+        ),
+    )
 
-@pytest.fixture
-def mock_backlog():
-    backlog = Mock(spec=SeedBacklog)
-    backlog.load.return_value = {"goals": ["test goal"]}
-    return backlog
+    mock_backlog = Mock()
+    mock_auto_seeder = Mock()
+    mock_auto_seeder.monitor_and_seed.return_value = []
 
+    with patch("a3x.autoloop.SeedBacklog.load", return_value=mock_backlog), patch(
+        "a3x.autoloop.AutoSeeder", return_value=mock_auto_seeder
+    ), patch("a3x.autoloop._run_goal", return_value=run_result) as mock_run_goal, patch(
+        "a3x.autoloop._drain_seeds"
+    ) as mock_drain:
+        goals = [GoalSpec(goal="Test goal", config=config_path)]
+        exit_code = run_autopilot(
+            goals,
+            cycles=1,
+            backlog_path=backlog_path,
+            seed_default_config=config_path,
+        )
 
-def test_basic_autoloop_cycle(mock_llm_client, mock_executor, mock_backlog, tmp_path: Path):
-    with patch("a3x.autoloop.LLMClient", return_value=mock_llm_client),          patch("a3x.autoloop.Executor", return_value=mock_executor),          patch("a3x.autoloop.SeedBacklog", return_value=mock_backlog),          patch("a3x.autoloop.config.BASE_DIR", tmp_path):
-        loop = AutoLoop(goal="test goal", max_iterations=1)
-        result = loop.run()
-    
-    assert result.completed
-    assert result.metrics.get("actions_success_rate", 0) > 0.8
-    mock_executor.apply.assert_called_once()
-    mock_llm_client.generate_action.assert_called()
+    assert exit_code == 0
+    mock_run_goal.assert_called_once_with(goals[0])
+    mock_auto_seeder.monitor_and_seed.assert_called_once()
+    mock_drain.assert_called_once()
+
+    metrics_passed = mock_auto_seeder.monitor_and_seed.call_args.args[0]
+    assert metrics_passed["actions_success_rate"] == pytest.approx(1.0)
+    assert metrics_passed["apply_patch_success_rate"] == pytest.approx(1.0)
+    assert metrics_passed["tests_success_rate"] == pytest.approx(1.0)

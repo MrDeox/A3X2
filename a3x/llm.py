@@ -7,7 +7,7 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Any
 
 import httpx
 import yaml
@@ -98,7 +98,8 @@ class OpenRouterLLMClient(BaseLLMClient):
         self._goal: Optional[str] = None
         self._last_metrics: dict[str, float] = {}
         # Ollama client is only initialized when needed for fallback
-        self.ollama_client = None
+        self.ollama_client: Optional[Any] = None
+        self._ollama_unavailable_reason: Optional[str] = None
 
     def start(self, goal: str) -> None:
         self._goal = goal
@@ -191,7 +192,13 @@ class OpenRouterLLMClient(BaseLLMClient):
                     "llm_status_code": float(response.status_code),
                     "llm_fallback_used": 1.0,
                 }
-                # Fallback to Ollama
+                if not self._ensure_ollama_client():
+                    reason = self._ollama_unavailable_reason or "motivo desconhecido"
+                    self._last_metrics["ollama_error"] = 1.0
+                    raise RuntimeError(
+                        "OpenRouter retornou 429 e fallback Ollama indisponível: "
+                        f"{reason}"
+                    )
                 return self._send_with_ollama(messages)
 
             if response.status_code >= 400:
@@ -265,9 +272,36 @@ class OpenRouterLLMClient(BaseLLMClient):
             content=data.get("content"),
         )
 
+    def _ensure_ollama_client(self) -> bool:
+        """Garantir que o cliente Ollama esteja inicializado antes do fallback."""
+        if self.ollama_client is not None:
+            return True
+        if self._ollama_unavailable_reason:
+            return False
+        try:
+            from ollama import Client  # type: ignore import-not-found
+        except ImportError as exc:  # pragma: no cover - depends on optional dep
+            self._ollama_unavailable_reason = (
+                "Pacote 'ollama' não encontrado; instale para habilitar fallback."
+            )
+            return False
+        try:
+            self.ollama_client = Client()
+            return True
+        except Exception as exc:  # pragma: no cover - depends on runtime env
+            self._ollama_unavailable_reason = (
+                f"Não foi possível inicializar o cliente Ollama: {exc}"
+            )
+            self.ollama_client = None
+            return False
+
     def _send_with_ollama(self, messages: list[dict[str, str]]) -> dict:
         """Send request using Ollama as fallback."""
         started_at = time.perf_counter()
+        if self.ollama_client is None:
+            raise RuntimeError(
+                "Fallback Ollama solicitado sem cliente inicializado."
+            )
         try:
             # Format messages for Ollama (ollama expects list of dicts with role and content)
             ollama_messages = [

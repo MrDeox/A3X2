@@ -166,3 +166,18 @@
   max_attempts: 3
   next_run_at: null
   last_error: null
+- id: e2e_failure_2025-10-01T00-19-47
+  goal: Investigar e corrigir falha detectada nos testes E2E automáticos.
+  priority: high
+  status: pending
+  type: e2e_failure
+  config: null
+  max_steps: null
+  metadata:
+    source: autoeval
+    capability: core.testing
+  history: []
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
