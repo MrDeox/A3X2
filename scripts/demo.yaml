@@ -1,0 +1,4 @@
+- type: message
+  text: "Iniciando execução determinística"
+- type: finish
+  text: "Execução determinística concluída"
