@@ -145,11 +145,18 @@ class ContinuousEvolutionDaemon:
             "system_health": "good"
         }
         
+        metrics_data: Dict[str, Any] = {}
+
         try:
             # Analisar métricas atuais
             if self.metrics_path.exists():
                 with open(self.metrics_path, 'r', encoding='utf-8') as f:
                     metrics_data = json.load(f)
+
+                if not isinstance(metrics_data, dict):
+                    raise ValueError(
+                        "Formato inválido de métricas: esperado objeto JSON com chaves de métricas"
+                    )
                 
                 # Calcular resumo das métricas principais
                 key_metrics = [
@@ -194,10 +201,14 @@ class ContinuousEvolutionDaemon:
                     analysis_results["system_health"] = "critical"
                 elif len(analysis_results["identified_issues"]) > 2:
                     analysis_results["system_health"] = "warning"
-                    
+            else:
+                print(
+                    "   📭 Histórico de métricas ainda não disponível; aguardando primeiro ciclo"
+                )
+
             # Analisar tendências de desempenho
             analysis_results["performance_trends"] = self._identify_performance_trends(metrics_data)
-            
+
             print(f"   📈 Saúde do sistema: {analysis_results['system_health']}")
             print(f"   📊 Métricas analisadas: {len(analysis_results['metrics_summary'])}")
             print(f"   ⚠️  Issues identificados: {len(analysis_results['identified_issues'])}")
