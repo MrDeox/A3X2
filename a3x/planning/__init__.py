@@ -11,6 +11,7 @@ from .mission_state import (
     MissionTelemetry,
 )
 from .mission_planner import MissionPlanner
+from .hierarchical_planner import HierarchicalPlanner, GoalPlan, MissionPlan, TaskPlan
 
 __all__ = [
     "MissionState",
@@ -22,4 +23,8 @@ __all__ = [
     "MilestoneStatus",
     "MetricSnapshot",
     "MissionPlanner",
+    "HierarchicalPlanner",
+    "GoalPlan",
+    "MissionPlan",
+    "TaskPlan",
 ]
