@@ -30,6 +30,10 @@ class Seed:
     max_attempts: int = 3
     next_run_at: Optional[str] = None  # ISO-8601 em UTC
     last_error: Optional[str] = None
+    last_iterations: Optional[int] = None
+    last_success: Optional[bool] = None
+    last_memories_reused: Optional[int] = None
+    _fitness_cache: Optional[float] = field(default=None, repr=False, compare=False)
 
     def mark_status(self, status: str, *, notes: Optional[str] = None) -> None:
         if status not in _VALID_STATUS:
@@ -46,6 +50,38 @@ class Seed:
     @property
     def priority_rank(self) -> int:
         return _PRIORITY_ORDER.get(self.priority, 99)
+
+    @property
+    def priority_numeric(self) -> float:
+        mapping = {"high": 3.0, "medium": 2.0, "low": 1.0}
+        return mapping.get(self.priority, 0.0)
+
+    def compute_expected_gain(self) -> float:
+        """Calcula o ganho esperado com base no histórico recente da seed."""
+
+        if self.last_success is True:
+            success_component = 1.0
+        elif self.last_success is False:
+            success_component = -0.5
+        else:
+            success_component = 0.5
+
+        iterations_component = 1.0 / (1.0 + float(self.last_iterations or 0))
+        memory_component = 0.2 * float(self.last_memories_reused or 0)
+        return success_component + iterations_component + memory_component
+
+    def compute_fitness(self) -> float:
+        attempts_factor = max(self.attempts, 0)
+        gain = self.compute_expected_gain()
+        fitness = self.priority_numeric + gain / (1 + attempts_factor)
+        self._fitness_cache = fitness
+        return fitness
+
+    @property
+    def fitness(self) -> float:
+        if self._fitness_cache is None:
+            return self.compute_fitness()
+        return self._fitness_cache
 
 
 class SeedBacklog:
@@ -69,6 +105,7 @@ class SeedBacklog:
     def save(self) -> None:
         data = []
         for seed in self._seeds.values():
+            seed.compute_fitness()
             entry = {
                 "id": seed.id,
                 "goal": seed.goal,
@@ -83,6 +120,10 @@ class SeedBacklog:
                 "max_attempts": seed.max_attempts,
                 "next_run_at": seed.next_run_at,
                 "last_error": seed.last_error,
+                "last_iterations": seed.last_iterations,
+                "last_success": seed.last_success,
+                "last_memories_reused": seed.last_memories_reused,
+                "fitness": seed.fitness,
             }
             data.append(entry)
         with self.path.open("w", encoding="utf-8") as fh:
@@ -121,8 +162,15 @@ class SeedBacklog:
             eligible.append(seed)
         if not eligible:
             return None
+        for seed in eligible:
+            seed.compute_fitness()
         eligible.sort(
-            key=lambda seed: (seed.priority_rank, seed.metadata.get("created_at", ""))
+            key=lambda seed: (
+                -seed.fitness,
+                seed.priority_rank,
+                str(seed.metadata.get("created_at", "")),
+                seed.id,
+            )
         )
         return eligible[0]
 
@@ -133,17 +181,41 @@ class SeedBacklog:
     def mark_in_progress(self, seed_id: str) -> None:
         seed = self._seeds[seed_id]
         seed.mark_status("in_progress")
+        seed.compute_fitness()
         self.save()
 
-    def mark_completed(self, seed_id: str, *, notes: Optional[str] = None) -> None:
+    def mark_completed(
+        self,
+        seed_id: str,
+        *,
+        notes: Optional[str] = None,
+        iterations: Optional[int] = None,
+        memories_reused: Optional[int] = None,
+    ) -> None:
         seed = self._seeds[seed_id]
+        seed.last_iterations = iterations
+        seed.last_success = True
+        seed.last_memories_reused = memories_reused
+        seed.next_run_at = None
+        seed.last_error = None
         seed.mark_status("completed", notes=notes)
+        seed.compute_fitness()
         self.save()
 
-    def mark_failed(self, seed_id: str, *, notes: Optional[str] = None) -> None:
+    def mark_failed(
+        self,
+        seed_id: str,
+        *,
+        notes: Optional[str] = None,
+        iterations: Optional[int] = None,
+        memories_reused: Optional[int] = None,
+    ) -> None:
         seed = self._seeds[seed_id]
         seed.last_error = notes
         seed.attempts += 1
+        seed.last_iterations = iterations
+        seed.last_success = False
+        seed.last_memories_reused = memories_reused
         seed.mark_status("failed", notes=notes)
         # Reenfileira automaticamente com backoff se houver tentativas restantes
         if seed.attempts < seed.max_attempts:
@@ -154,6 +226,7 @@ class SeedBacklog:
             seed.mark_status(
                 "pending", notes=f"requeue after backoff {backoff_seconds}s"
             )
+        seed.compute_fitness()
         self.save()
 
 
@@ -179,6 +252,22 @@ def _deserialize_seed(entry: dict) -> Seed:
         max_attempts=int(entry.get("max_attempts", 3)),
         next_run_at=entry.get("next_run_at"),
         last_error=entry.get("last_error"),
+        last_iterations=(
+            int(entry.get("last_iterations"))
+            if entry.get("last_iterations") is not None
+            else None
+        ),
+        last_success=entry.get("last_success"),
+        last_memories_reused=(
+            int(entry.get("last_memories_reused"))
+            if entry.get("last_memories_reused") is not None
+            else None
+        ),
+        _fitness_cache=(
+            float(entry.get("fitness"))
+            if entry.get("fitness") is not None
+            else None
+        ),
     )
 
 

@@ -22,6 +22,8 @@ class SeedRunResult:
     status: str
     completed: bool
     notes: str = ""
+    iterations: int = 0
+    memories_reused: int = 0
 
 
 class SeedRunner:
@@ -56,6 +58,12 @@ class SeedRunner:
             notes_parts.append("; ".join(result.errors))
 
         if result.completed:
+            self.backlog.mark_completed(
+                seed.id,
+                notes=notes,
+                iterations=result.iterations,
+                memories_reused=result.memories_reused,
+            )
             if seed.type == "skill_creation":
                 success, message = self._handle_skill_creation(seed)
                 if message:
@@ -76,13 +84,29 @@ class SeedRunner:
             notes = "; ".join(part for part in notes_parts if part)
             self.backlog.mark_completed(seed.id, notes=notes or None)
             return SeedRunResult(
-                seed_id=seed.id, status="completed", completed=True, notes=notes
+                seed_id=seed.id,
+                status="completed",
+                completed=True,
+                notes=notes,
+                iterations=result.iterations,
+                memories_reused=result.memories_reused,
             )
 
+        self.backlog.mark_failed(
+            seed.id,
+            notes=notes or "Seed não concluída",
+            iterations=result.iterations,
+            memories_reused=result.memories_reused,
+        )
         notes = "; ".join(part for part in notes_parts if part)
         self.backlog.mark_failed(seed.id, notes=notes or "Seed não concluída")
         return SeedRunResult(
-            seed_id=seed.id, status="failed", completed=False, notes=notes
+            seed_id=seed.id,
+            status="failed",
+            completed=False,
+            notes=notes,
+            iterations=result.iterations,
+            memories_reused=result.memories_reused,
         )
 
     def _handle_skill_creation(self, seed: Seed) -> Tuple[bool, str]:

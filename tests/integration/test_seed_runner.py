@@ -30,7 +30,12 @@ def test_seed_runner_success_flow(tmp_path: Path) -> None:
     runner = SeedRunner.__new__(SeedRunner)
     runner.backlog = backlog_mock
 
-    orchestrator_result = SimpleNamespace(completed=True, errors=[])
+    orchestrator_result = SimpleNamespace(
+        completed=True,
+        errors=[],
+        iterations=4,
+        memories_reused=2,
+    )
 
     with patch("a3x.seed_runner.load_config") as mock_load_config, patch(
         "a3x.seed_runner.build_llm_client"
@@ -50,8 +55,15 @@ def test_seed_runner_success_flow(tmp_path: Path) -> None:
 
     assert isinstance(result, SeedRunResult)
     assert result.completed is True
+    assert result.iterations == orchestrator_result.iterations
+    assert result.memories_reused == orchestrator_result.memories_reused
     backlog_mock.mark_in_progress.assert_called_once()
-    backlog_mock.mark_completed.assert_called_once()
+    backlog_mock.mark_completed.assert_called_once_with(
+        "seed-1",
+        notes="",
+        iterations=orchestrator_result.iterations,
+        memories_reused=orchestrator_result.memories_reused,
+    )
 
 
 def test_seed_runner_failure_marks_seed(tmp_path: Path) -> None:
@@ -62,7 +74,12 @@ def test_seed_runner_failure_marks_seed(tmp_path: Path) -> None:
     runner = SeedRunner.__new__(SeedRunner)
     runner.backlog = backlog_mock
 
-    orchestrator_result = SimpleNamespace(completed=False, errors=["timeout"])
+    orchestrator_result = SimpleNamespace(
+        completed=False,
+        errors=["timeout"],
+        iterations=7,
+        memories_reused=0,
+    )
 
     with patch("a3x.seed_runner.load_config") as mock_load_config, patch(
         "a3x.seed_runner.build_llm_client"
@@ -81,7 +98,14 @@ def test_seed_runner_failure_marks_seed(tmp_path: Path) -> None:
 
     assert isinstance(result, SeedRunResult)
     assert result.completed is False
-    backlog_mock.mark_failed.assert_called_once()
+    assert result.notes == "timeout"
+    assert result.iterations == orchestrator_result.iterations
+    backlog_mock.mark_failed.assert_called_once_with(
+        "seed-2",
+        notes="timeout",
+        iterations=orchestrator_result.iterations,
+        memories_reused=orchestrator_result.memories_reused,
+    )
     backlog_mock.mark_completed.assert_not_called()
 
 

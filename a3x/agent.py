@@ -26,6 +26,7 @@ class AgentResult:
     failures: int
     history: AgentHistory
     errors: List[str]
+    memories_reused: int = 0
 
 
 class AgentOrchestrator:
@@ -124,6 +125,7 @@ class AgentOrchestrator:
                     failures=failures,
                     history=history,
                     errors=errors,
+                    memories_reused=self._estimate_memories_reused(history),
                 )
                 self._record_auto_evaluation(goal, result, started_at)
                 return result
@@ -136,6 +138,7 @@ class AgentOrchestrator:
             failures=failures,
             history=history,
             errors=errors,
+            memories_reused=self._estimate_memories_reused(history),
         )
         self._record_auto_evaluation(goal, result, started_at)
         return result
@@ -209,6 +212,26 @@ class AgentOrchestrator:
             aggregated[f"{key}_last"] = values[-1]
             aggregated[f"{key}_avg"] = sum(values) / len(values)
         return aggregated
+
+    def _estimate_memories_reused(self, history: AgentHistory) -> int:
+        count = 0
+        for event in history.events:
+            for metadata in (event.action.metadata or {}, event.observation.metadata or {}):
+                if not metadata:
+                    continue
+                if "memories_reused" in metadata:
+                    try:
+                        count += int(metadata.get("memories_reused", 0))
+                    except (TypeError, ValueError):
+                        count += 1
+                elif "memory_hits" in metadata:
+                    try:
+                        count += int(metadata.get("memory_hits", 0))
+                    except (TypeError, ValueError):
+                        count += 1
+                elif metadata.get("memory") == "reused":
+                    count += 1
+        return count
 
     def _record_auto_evaluation(
         self, goal: str, result: AgentResult, started_at: float
@@ -340,6 +363,7 @@ class AgentOrchestrator:
         metrics["failures"] = float(result.failures)
         metrics["iterations"] = float(result.iterations)
         metrics["recursion_depth"] = float(self.recursion_depth)
+        metrics["memories_reused"] = float(result.memories_reused)
 
         test_runs = [
             event
@@ -384,18 +408,3 @@ def _infer_extension(action: AgentAction) -> str | None:
             path = match.group("path")
             return Path(path).suffix.lstrip(".") or None
     return None
-
-    def _capture_llm_metrics(self) -> None:
-        metrics = self.llm_client.get_last_metrics()
-        for key, value in metrics.items():
-            if isinstance(value, (int, float)):
-                self._llm_metrics.setdefault(key, []).append(float(value))
-
-    def _aggregate_llm_metrics(self) -> Dict[str, float]:
-        aggregated: Dict[str, float] = {}
-        for key, values in self._llm_metrics.items():
-            if not values:
-                continue
-            aggregated[f"{key}_last"] = values[-1]
-            aggregated[f"{key}_avg"] = sum(values) / len(values)
-        return aggregated
