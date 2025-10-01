@@ -1,7 +1,14 @@
 from __future__ import annotations
 
+import sys
 from dataclasses import replace
 from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[4]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from a3x.meta_capabilities import SkillProposal
 from a3x.skills.skill_creator import SkillCreator
@@ -44,8 +51,13 @@ def test_skill_creator_generates_files(tmp_path: Path) -> None:
     assert skill_path.exists(), f"Skill file not created: {message}"
     assert test_path.exists(), "Test file not created"
 
-    assert "Fake Skill" in skill_path.read_text(encoding="utf-8")
-    assert "Tests for Fake Skill" in test_path.read_text(encoding="utf-8")
+    generated_skill = skill_path.read_text(encoding="utf-8")
+    generated_test = test_path.read_text(encoding="utf-8")
+
+    assert "Fake Skill" in generated_skill
+    assert "class FakeSkill" in generated_skill
+    assert "Tests for Fake Skill" in generated_test
+    assert skill_path.name in message
 
 
 def test_skill_creator_avoids_overwriting_existing_slug(tmp_path: Path) -> None:
@@ -150,3 +162,16 @@ def test_skill_creator_handles_preexisting_test_file(tmp_path: Path) -> None:
 
     assert new_skill_path.exists()
     assert new_test_path.exists()
+
+
+@pytest.mark.parametrize(
+    ("raw_name", "expected"),
+    (
+        ("Fake Skill", "fake_skill"),
+        ("Skill com Acentuação", "skill_com_acentua_o"),
+        ("   --Complex*Skill--   ", "complex_skill"),
+        ("", "nova_skill"),
+    ),
+)
+def test_slugify_handles_various_inputs(raw_name: str, expected: str) -> None:
+    assert SkillCreator._slugify(raw_name) == expected
