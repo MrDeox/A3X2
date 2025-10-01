@@ -62,6 +62,8 @@ class LoopConfig:
     seed_interval: float = 0.0
     seed_max_runs: int | None = None
     stop_when_idle: bool = True
+    use_memory: bool = False
+    memory_top_k: int = 3
 
 
 @dataclass
@@ -181,6 +183,8 @@ def load_config(path: str | Path) -> AgentConfig:
             else None
         ),
         stop_when_idle=bool(loop_section.get("stop_when_idle", True)),
+        use_memory=bool(loop_section.get("use_memory", False)),
+        memory_top_k=max(0, int(loop_section.get("memory_top_k", 3))),
     )
 
     audit_section = data.get("audit", {})

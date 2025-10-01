@@ -35,6 +35,8 @@ loop:
   seed_config: seed_manual.yaml
   seed_interval: 0
   stop_when_idle: true
+  use_memory: false
+  memory_top_k: 3
 
 audit:
   enable_file_log: true

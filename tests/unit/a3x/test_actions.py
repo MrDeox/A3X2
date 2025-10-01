@@ -127,13 +127,15 @@ class TestAgentState:
             history_snapshot="test history",
             iteration=5,
             max_iterations=10,
-            seed_context="test context"
+            seed_context="test context",
+            memory_lessons="Lições úteis:\n1. Example lesson",
         )
         assert state.goal == "test goal"
         assert state.history_snapshot == "test history"
         assert state.iteration == 5
         assert state.max_iterations == 10
         assert state.seed_context == "test context"
+        assert state.memory_lessons == "Lições úteis:\n1. Example lesson"
 
     def test_agent_state_defaults(self) -> None:
         """Testa os valores padrão de AgentState."""
@@ -141,6 +143,8 @@ class TestAgentState:
             goal="minimal goal",
             history_snapshot="snapshot",
             iteration=1,
-            max_iterations=10
+            max_iterations=10,
         )
         assert state.seed_context == ""
+        assert state.memory_lessons == ""
+
