@@ -26,8 +26,11 @@ from .executor import ActionExecutor
 from .history import AgentHistory
 from .llm import BaseLLMClient, OpenRouterLLMClient
 from .memory.store import SemanticMemory
-from .planning.plan_composer import PlanComposer
-from .hierarchical_planner import HierarchicalPlanner
+from .memory.insights import build_retrospective, persist_retrospective
+from .planning import HierarchicalPlanner, GoalPlan, MissionState
+from .planning.storage import load_mission_state
+from .policy import PolicyOverrideManager
+from .llm_seed_strategist import LLMSeedStrategist
 
 
 @dataclass
@@ -79,14 +82,13 @@ class AgentOrchestrator:
         self.logger.info(f"Applied action biases: {self.action_biases}")
         self.logger.info(f"Applied backlog weights: {self.backlog_weights}")
         self._semantic_memory: SemanticMemory | None = None
-        self.hierarchical_planner: HierarchicalPlanner | None = None
-        self.depth = 0
-        # Initialize hierarchical planner
-        if self.auto_evaluator:
-            self.hierarchical_planner = HierarchicalPlanner(
-                workspace_root=self.config.workspace_root,
-                auto_evaluator=self.auto_evaluator
-            )
+        self._active_plan: GoalPlan | None = None
+        self._hierarchical_planner = HierarchicalPlanner(
+            thresholds=thresholds,
+        )
+        self._policy_manager = PolicyOverrideManager()
+        self._policy_manager.apply_to_agent(self)
+        self._seed_strategist = LLMSeedStrategist(self.config.loop.seed_backlog)
 
     def _load_hints(self) -> Dict[str, Any]:
         os.makedirs(self.hints_path.parent, exist_ok=True)
@@ -217,16 +219,17 @@ State: {state}"""
         context_summary = self.auto_evaluator.latest_summary()
 
         memory_lessons = self._gather_memory_lessons(goal)
+        plan_alerts: List[str] = []
 
         # Use hierarchical planner to generate persistent objectives and subgoals
-        if self.hierarchical_planner:
+        if self._hierarchical_planner:
             # Roll forward objectives to track progress
-            new_subgoals = self.hierarchical_planner.roll_forward_objectives()
+            new_subgoals = self._hierarchical_planner.roll_forward_objectives()
             
             # If goal is a persistent objective, create appropriate missions
-            for obj_id, objective in self.hierarchical_planner.objectives.items():
+            for obj_id, objective in self._hierarchical_planner.objectives.items():
                 if objective['description'] in goal and objective.get('status') == 'active':
-                    mission = self.hierarchical_planner.create_mission_from_objective(obj_id)
+                    mission = self._hierarchical_planner.create_mission_from_objective(obj_id)
                     if mission:
                         self.logger.info(f"Created mission {mission.id} for objective {obj_id}")
 
@@ -297,6 +300,8 @@ State: {state}"""
                     else:
                         combined_context = memory_lessons
 
+                self._active_plan = self._ensure_plan(combined_context, metrics_history)
+
                 state = AgentState(
                     goal=goal,
                     history_snapshot=history.snapshot(),
@@ -316,10 +321,23 @@ State: {state}"""
                 history.append(action, observation)
                 self._notify_llm(observation)
 
+                evaluation = self._hierarchical_planner.record_action_result(
+                    action,
+                    observation,
+                    timestamp=time.perf_counter(),
+                )
+                if evaluation.alerts:
+                    plan_alerts.extend(evaluation.alerts)
+                    for alert in evaluation.alerts:
+                        print(f"[planner] {alert}")
+                if evaluation.needs_replan:
+                    self._active_plan = self._force_replan(state, metrics_history)
+
                 if not observation.success:
                     failures += 1
                     if observation.error:
                         errors.append(observation.error)
+                    self._seed_strategist.capture_failure(goal, action, observation)
                     if failures > self.config.limits.max_failures:
                         errors.append("Limite de falhas excedido")
                         self.logger.warning(f"Max failures {self.config.limits.max_failures} reached at iteration {iteration}")
@@ -341,7 +359,8 @@ State: {state}"""
                         errors=errors,
                         memories_reused=self._estimate_memories_reused(history),
                     )
-                    self._record_auto_evaluation(goal, result, started_at)
+                    metrics_snapshot = self._record_auto_evaluation(goal, result, started_at)
+                    self._record_retrospective(result, metrics_snapshot, plan_alerts)
                     return result
 
             self.logger.warning(f"Loop exhausted max_iterations={max_iterations} without FINISH action. Completed=False.")
@@ -355,23 +374,9 @@ State: {state}"""
                 errors=errors,
                 memories_reused=self._estimate_memories_reused(history),
             )
-            self._record_auto_evaluation(goal, result, started_at)
+            metrics_snapshot = self._record_auto_evaluation(goal, result, started_at)
+            self._record_retrospective(result, metrics_snapshot, plan_alerts)
             return result
-
-    def run_sub_agent(self, goal: str, depth: int = None) -> AgentResult:
-        """
-        Run a sub-agent with the same configuration but potentially different parameters.
-        This enables recursive behavior for complex tasks.
-        """
-        if depth is None:
-            depth = self.depth + 1
-        # Create a new instance with the same config and llm client
-        sub_agent = AgentOrchestrator(self.config, self.llm_client, self.auto_evaluator, depth=depth)
-        
-        # Run the sub-goal
-        result = sub_agent.run(goal)
-        
-        return result
 
     def _gather_memory_lessons(self, goal: str) -> str:
         if not self.config.loop.use_memory:
@@ -428,6 +433,53 @@ State: {state}"""
             excerpt = excerpt[:1_997] + "..."
         self.llm_client.notify_observation(excerpt)
 
+    def _ensure_plan(
+        self,
+        state: AgentState,
+        metrics_history: Dict[str, List[float]],
+    ) -> GoalPlan | None:
+        missions = self._load_missions()
+        try:
+            plan = self._hierarchical_planner.ensure_plan(
+                state,
+                missions,
+                objectives=[state.goal],
+                metrics_history=metrics_history,
+            )
+            return plan
+        except Exception as exc:  # pragma: no cover - defensive
+            print(f"Planner indisponível: {exc}")
+            return self._active_plan
+
+    def _force_replan(
+        self,
+        state: AgentState,
+        metrics_history: Dict[str, List[float]],
+    ) -> GoalPlan | None:
+        missions = self._load_missions()
+        try:
+            return self._hierarchical_planner.force_replan(
+                state,
+                missions,
+                objectives=[state.goal],
+                metrics_history=metrics_history,
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            print(f"Falha ao replanejar: {exc}")
+            return self._active_plan
+
+    def _load_missions(self) -> MissionState | None:
+        if not self.auto_evaluator:
+            return None
+        missions_path = getattr(self.auto_evaluator, "missions_path", None)
+        if not missions_path:
+            return None
+        try:
+            return load_mission_state(missions_path)
+        except Exception as exc:
+            print(f"Não foi possível carregar missions.yaml: {exc}")
+            return None
+
     def _capture_llm_metrics(self) -> None:
         metrics = self.llm_client.get_last_metrics()
         for key, value in metrics.items():
@@ -465,9 +517,9 @@ State: {state}"""
 
     def _record_auto_evaluation(
         self, goal: str, result: AgentResult, started_at: float
-    ) -> None:
+    ) -> Dict[str, float]:
         if not self.auto_evaluator:
-            return
+            return {}
 
         duration = time.perf_counter() - started_at
         seeds: List[EvaluationSeed] = []
@@ -571,7 +623,7 @@ State: {state}"""
                     )
                 )
 
-        self.auto_evaluator.record(
+        evaluation = self.auto_evaluator.record(
             goal=goal,
             completed=result.completed,
             iterations=result.iterations,
@@ -587,6 +639,41 @@ State: {state}"""
         # This looks for specific patterns in the goal or results that indicate skill creation
         if "skill" in goal.lower() and ("create" in goal.lower() or "implement" in goal.lower()):
             self._check_and_register_new_skills()
+        
+        return evaluation.metrics
+
+    def _record_retrospective(
+        self,
+        result: AgentResult,
+        metrics_snapshot: Dict[str, float],
+        plan_alerts: List[str],
+    ) -> None:
+        try:
+            report = build_retrospective(
+                result,
+                self._active_plan,
+                metrics_snapshot,
+                alerts=plan_alerts,
+            )
+            persist_retrospective(report)
+            self._apply_policy_overrides(report)
+            self._flush_failure_seeds()
+        except Exception as exc:  # pragma: no cover - defensive persistence
+            print(f"Não foi possível registrar retrospectiva: {exc}")
+
+    def _apply_policy_overrides(self, report) -> None:
+        try:
+            self._policy_manager.update_from_report(report, self)
+        except Exception as exc:  # pragma: no cover - defensive
+            print(f"Falha ao aplicar overrides de política: {exc}")
+
+    def _flush_failure_seeds(self) -> None:
+        try:
+            created = self._seed_strategist.flush()
+            if created:
+                print(f"[seeds] {len(created)} seeds adicionadas a partir de falhas")
+        except Exception as exc:  # pragma: no cover - defensive
+            print(f"Não foi possível gerar seeds de falhas: {exc}")
 
     def _analyze_history(
         self, result: AgentResult
