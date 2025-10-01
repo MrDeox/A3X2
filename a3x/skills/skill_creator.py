@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from textwrap import dedent
 from typing import Tuple
 
 from a3x.meta_capabilities import SkillProposal
+from a3x.utils import slugify
 
 
 class SkillCreator:
@@ -48,8 +48,7 @@ class SkillCreator:
     def _slugify(value: str) -> str:
         """Generate a filesystem-friendly slug for skill names."""
 
-        slug = re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")
-        return slug or "nova_skill"
+        return slugify(value)
 
     def _generate_skill_implementation(self, proposal: SkillProposal) -> str:
         """Generate the actual implementation code for a skill."""
