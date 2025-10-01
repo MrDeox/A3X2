@@ -970,9 +970,12 @@ class AutonomousMonetizationEngine:
     
     def _save_evaluation_seed(self, seed: EvaluationSeed) -> None:
         """Save an evaluation seed to the backlog."""
-        # In a real implementation, this would add the seed to the evaluation backlog
-        # For now, just acknowledge it
-        pass
+        try:
+            self.auto_evaluator.enqueue_seeds(
+                [seed], source="autonomous_monetization"
+            )
+        except Exception as exc:
+            print(f"   ⚠️ Falha ao enfileirar seed de monetização: {exc}")
     
     def _save_market_opportunity(self, opportunity: MarketOpportunity) -> None:
         """Save a market opportunity to disk."""

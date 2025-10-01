@@ -578,6 +578,7 @@ class EmergentIntelligenceEngine:
         print(f"Identificadas {len(improvement_ideas)} ideias de melhoria metacognitiva")
         
         # Criar seeds para implementar as melhorias identificadas
+        seeds: List[EvaluationSeed] = []
         for idea in improvement_ideas[:3]:  # Apenas as 3 principais para não sobrecarregar
             seed = EvaluationSeed(
                 description=f"Implementar melhoria metacognitiva: {idea}",
@@ -586,13 +587,16 @@ class EmergentIntelligenceEngine:
                 seed_type="metacognitive_improvement",
                 data={
                     "improvement_idea": idea,
-                    "target_module": "emergent_intelligence"
-                }
+                    "target_module": "emergent_intelligence",
+                },
             )
-            
-            # Adicionar seed ao backlog de autoavaliação
-            # (Isto seria feito na implementação real)
+            seeds.append(seed)
             print(f"Criado seed para melhoria: {idea}")
+
+        if seeds:
+            self.auto_evaluator.enqueue_seeds(
+                seeds, source="emergent_intelligence"
+            )
 
 
 def integrate_emergent_intelligence(config: AgentConfig, auto_evaluator: AutoEvaluator) -> EmergentIntelligenceEngine:

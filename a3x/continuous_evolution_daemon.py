@@ -4,17 +4,18 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Any
-import yaml
 import asyncio
 
 from .autonomous_planner import AutonomousPlanner, run_autonomous_planning
 from .autoeval import RunEvaluation, EvaluationSeed
-from .seeds import SeedBacklog
+from .seed_runner import SeedRunner
+from .seeds import SeedBacklog, Seed
 
 
 class ContinuousEvolutionDaemon:
@@ -99,57 +100,35 @@ class ContinuousEvolutionDaemon:
         print("🔍 Verificando seeds disponíveis para execução...")
         
         seeds_executed = 0
+        if not self.backlog_path.exists():
+            print("   📭 Nenhum backlog encontrado")
+            return seeds_executed
+
+        runner = SeedRunner(self.backlog_path)
         try:
-            # Verificar se há seeds no backlog
-            if self.backlog_path.exists():
-                with open(self.backlog_path, 'r', encoding='utf-8') as f:
-                    backlog_content = f.read().strip()
-                    if backlog_content:
-                        # Aqui normalmente chamaríamos o executor de seeds
-                        # Por simplicidade, vamos simular a execução
-                        backlog_entries = list(yaml.safe_load_all(backlog_content))
-                        backlog_entries = [entry for entry in backlog_entries if entry is not None]
-                        
-                        seeds_available = len(backlog_entries)
-                        print(f"   🌱 Seeds disponíveis: {seeds_available}")
-                        
-                        if seeds_available > 0:
-                            # Simular execução de alguns seeds
-                            seeds_to_execute = min(3, seeds_available)  # Executar até 3 seeds
-                            print(f"   ▶️  Executando {seeds_to_execute} seeds...")
-                            
-                            for i in range(seeds_to_execute):
-                                seed_id = backlog_entries[i].get('id', f'seed_{i}')
-                                print(f"     • Executando seed: {seed_id}")
-                                time.sleep(1)  # Simular tempo de execução
-                                seeds_executed += 1
-                                self.total_seeds_executed += 1
-                                
-                                # Simular sucesso/fracasso aleatório
-                                import random
-                                if random.random() > 0.2:  # 80% de sucesso
-                                    self.successful_seeds += 1
-                                    print(f"       ✅ Sucesso!")
-                                else:
-                                    self.failed_seeds += 1
-                                    print(f"       ❌ Falha!")
-                            
-                            # Remover seeds executados do backlog (simulação)
-                            remaining_seeds = backlog_entries[seeds_to_execute:]
-                            if remaining_seeds:
-                                with open(self.backlog_path, 'w', encoding='utf-8') as f:
-                                    yaml.dump(remaining_seeds, f, default_flow_style=False, allow_unicode=True, indent=2)
-                            else:
-                                # Limpar arquivo se não houver mais seeds
-                                self.backlog_path.write_text("", encoding='utf-8')
-                    else:
+            while seeds_executed < 3:  # Evitar ciclos intermináveis em um único tick
+                result = runner.run_next(default_config=self.config_path)
+                if result is None:
+                    if seeds_executed == 0:
                         print("   📭 Nenhum seed disponível no backlog")
-            else:
-                print("   📭 Nenhum backlog encontrado")
-                
+                    break
+
+                seeds_executed += 1
+                self.total_seeds_executed += 1
+
+                if result.completed:
+                    self.successful_seeds += 1
+                    status_msg = "✅ Sucesso"
+                else:
+                    self.failed_seeds += 1
+                    status_msg = f"❌ Falha ({result.notes or 'sem detalhes'})"
+
+                print(f"   ▶️  Seed {result.seed_id}: {status_msg}")
+
         except Exception as e:
+            self.failed_seeds += 1
             print(f"   ❌ Erro ao executar seeds: {e}")
-            
+
         print(f"   📊 Seeds executados neste ciclo: {seeds_executed}")
         return seeds_executed
     
@@ -399,42 +378,37 @@ class ContinuousEvolutionDaemon:
     def _add_seeds_to_backlog(self, seeds: List[EvaluationSeed]) -> None:
         """Adiciona novos seeds ao backlog existente."""
         try:
-            # Ler backlog atual
-            backlog_entries = []
-            if self.backlog_path.exists():
-                with open(self.backlog_path, 'r', encoding='utf-8') as f:
-                    content = f.read().strip()
-                    if content:
-                        backlog_entries = list(yaml.safe_load_all(content))
-                        backlog_entries = [entry for entry in backlog_entries if entry is not None]
-            
-            # Converter seeds para formato do backlog
-            timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
-            for i, seed in enumerate(seeds):
-                backlog_entry = {
-                    "id": f"auto_{seed.capability}_{timestamp}_{i}",
-                    "goal": seed.description,
-                    "priority": seed.priority,
-                    "type": seed.seed_type,
-                    "config": str(self.config_path),
-                    "metadata": {
-                        "description": seed.description,
-                        "created_by": "continuous_evolution_daemon",
-                        "tags": ["autonomous", "continuous", seed.capability, seed.seed_type]
-                    },
-                    "history": [],
-                    "attempts": 0,
-                    "max_attempts": 3,
-                    "next_run_at": None,
-                    "last_error": None,
-                    "data": seed.data
+            backlog = SeedBacklog.load(self.backlog_path)
+            timestamp = datetime.now(timezone.utc)
+
+            for index, seed in enumerate(seeds):
+                slug_source = seed.capability or seed.seed_type or "seed"
+                slug = re.sub(r"[^a-z0-9]+", "-", slug_source.lower()).strip("-")
+                if not slug:
+                    slug = "seed"
+                seed_id = f"daemon.{slug}.{timestamp.strftime('%Y%m%d%H%M%S')}{index}"
+                metadata = {
+                    "description": seed.description,
+                    "created_by": "continuous_evolution_daemon",
+                    "tags": ",".join(
+                        [tag for tag in ["autonomous", "continuous", seed.capability, seed.seed_type] if tag]
+                    ),
                 }
-                backlog_entries.append(backlog_entry)
-            
-            # Salvar backlog atualizado
-            with open(self.backlog_path, 'w', encoding='utf-8') as f:
-                yaml.dump(backlog_entries, f, default_flow_style=False, allow_unicode=True, indent=2)
-                
+                for key, value in (seed.data or {}).items():
+                    metadata[f"data.{key}"] = str(value)
+
+                backlog.add_seed(
+                    Seed(
+                        id=seed_id,
+                        goal=seed.description,
+                        priority=seed.priority or "medium",
+                        status="pending",
+                        type=seed.seed_type or "improvement",
+                        config=str(self.config_path),
+                        metadata=metadata,
+                    )
+                )
+
         except Exception as e:
             print(f"   ❌ Erro ao adicionar seeds ao backlog: {e}")
     
