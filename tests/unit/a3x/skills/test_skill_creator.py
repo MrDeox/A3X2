@@ -1,14 +1,34 @@
 from __future__ import annotations
 
 import sys
+import importlib.util
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[4]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+
+
+def _ensure_package(package: str, package_dir: Path) -> None:
+    if package in sys.modules:
+        return
+
+    spec = importlib.util.spec_from_file_location(
+        package,
+        package_dir / "__init__.py",
+        submodule_search_locations=[str(package_dir)],
+    )
+
+    if spec is None or spec.loader is None:  # pragma: no cover - defensive guard
+        raise ImportError(f"Unable to load package '{package}' from {package_dir}")
+
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[package] = module
+    spec.loader.exec_module(module)
+
+
+_ensure_package("a3x", ROOT / "a3x")
 
 from a3x.meta_capabilities import SkillProposal
 from a3x.skills.skill_creator import SkillCreator
