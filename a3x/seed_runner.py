@@ -19,6 +19,8 @@ class SeedRunResult:
     status: str
     completed: bool
     notes: str = ""
+    iterations: int = 0
+    memories_reused: int = 0
 
 
 class SeedRunner:
@@ -52,14 +54,34 @@ class SeedRunner:
         if result.errors:
             notes = "; ".join(result.errors)
         if result.completed:
-            self.backlog.mark_completed(seed.id, notes=notes)
+            self.backlog.mark_completed(
+                seed.id,
+                notes=notes,
+                iterations=result.iterations,
+                memories_reused=result.memories_reused,
+            )
             return SeedRunResult(
-                seed_id=seed.id, status="completed", completed=True, notes=notes
+                seed_id=seed.id,
+                status="completed",
+                completed=True,
+                notes=notes,
+                iterations=result.iterations,
+                memories_reused=result.memories_reused,
             )
 
-        self.backlog.mark_failed(seed.id, notes=notes or "Seed não concluída")
+        self.backlog.mark_failed(
+            seed.id,
+            notes=notes or "Seed não concluída",
+            iterations=result.iterations,
+            memories_reused=result.memories_reused,
+        )
         return SeedRunResult(
-            seed_id=seed.id, status="failed", completed=False, notes=notes
+            seed_id=seed.id,
+            status="failed",
+            completed=False,
+            notes=notes,
+            iterations=result.iterations,
+            memories_reused=result.memories_reused,
         )
 
 
