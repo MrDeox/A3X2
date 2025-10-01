@@ -21,6 +21,7 @@ from .planning.storage import load_mission_state, save_mission_state
 from .capabilities import CapabilityRegistry, Capability
 from .capability_metrics import compute_capability_metrics
 from .seeds import SeedBacklog, Seed
+from .utils import slugify
 
 
 @dataclass
@@ -84,8 +85,7 @@ class MetaCapabilityEngine:
 
     @staticmethod
     def _slugify(value: str, *, separator: str = "_") -> str:
-        slug = re.sub(r"[^a-z0-9]+", separator, value.lower()).strip(separator)
-        return slug or "nova_skill"
+        return slugify(value, separator=separator)
     
     def _load_capability_registry(self) -> CapabilityRegistry:
         """Load the existing capability registry."""
