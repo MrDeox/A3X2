@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import json
-from __future__ import annotations
-
 from pathlib import Path
 
 from a3x.meta_capabilities import SkillProposal
