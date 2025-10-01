@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 from a3x.meta_capabilities import SkillProposal
@@ -45,3 +46,45 @@ def test_skill_creator_generates_files(tmp_path: Path) -> None:
 
     assert "Fake Skill" in skill_path.read_text(encoding="utf-8")
     assert "Tests for Fake Skill" in test_path.read_text(encoding="utf-8")
+
+
+def test_skill_creator_avoids_overwriting_existing_slug(tmp_path: Path) -> None:
+    creator = SkillCreator(tmp_path)
+
+    original_proposal = _build_fake_proposal()
+    duplicate_proposal = replace(
+        original_proposal,
+        id="skill.fake.duplicate",
+        name="Fake Skill!!!",
+        description="Skill duplicada para validar sufixo único.",
+    )
+
+    first_success, first_message = creator.create_skill_from_proposal(original_proposal)
+    assert first_success, first_message
+
+    second_success, second_message = creator.create_skill_from_proposal(duplicate_proposal)
+    assert second_success, second_message
+
+    base_slug = SkillCreator._slugify(original_proposal.name)
+    original_skill_path = tmp_path / "a3x" / "skills" / f"{base_slug}.py"
+    duplicated_skill_path = tmp_path / "a3x" / "skills" / f"{base_slug}_2.py"
+
+    assert original_skill_path.exists()
+    assert duplicated_skill_path.exists()
+
+    assert "Uma skill fake apenas para testes." in original_skill_path.read_text(encoding="utf-8")
+    assert "Skill duplicada para validar sufixo único." in duplicated_skill_path.read_text(
+        encoding="utf-8"
+    )
+
+    duplicated_test_path = (
+        tmp_path
+        / "tests"
+        / "unit"
+        / "a3x"
+        / "skills"
+        / f"test_{base_slug}_2.py"
+    )
+
+    assert duplicated_test_path.exists()
+    assert "Tests for Fake Skill!!!" in duplicated_test_path.read_text(encoding="utf-8")

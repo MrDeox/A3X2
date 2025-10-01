@@ -15,6 +15,9 @@ class SkillCreator:
         self.workspace_root = workspace_root
         self.skills_dir = workspace_root / "a3x" / "skills"
         self.skills_dir.mkdir(parents=True, exist_ok=True)
+        self.tests_dir = (
+            workspace_root / "tests" / "unit" / "a3x" / "skills"
+        )
 
     def create_skill_from_proposal(self, proposal: SkillProposal) -> Tuple[bool, str]:
         """Create an actual skill implementation from a proposal."""
@@ -22,19 +25,10 @@ class SkillCreator:
             implementation = self._generate_skill_implementation(proposal)
 
             skill_slug = self._slugify(proposal.name)
+            skill_slug, skill_path, test_path = self._resolve_unique_paths(skill_slug)
             skill_filename = f"{skill_slug}.py"
-            skill_path = self.skills_dir / skill_filename
             skill_path.write_text(implementation, encoding="utf-8")
 
-            test_filename = f"test_{skill_slug}.py"
-            test_path = (
-                self.workspace_root
-                / "tests"
-                / "unit"
-                / "a3x"
-                / "skills"
-                / test_filename
-            )
             test_path.parent.mkdir(parents=True, exist_ok=True)
 
             test_implementation = self._generate_skill_test(proposal, skill_filename)
@@ -50,6 +44,22 @@ class SkillCreator:
 
         slug = re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")
         return slug or "nova_skill"
+
+    def _resolve_unique_paths(self, base_slug: str) -> Tuple[str, Path, Path]:
+        """Ensure skill and test paths do not overwrite existing files."""
+
+        candidate_slug = base_slug
+        counter = 1
+
+        while True:
+            skill_path = self.skills_dir / f"{candidate_slug}.py"
+            test_path = self.tests_dir / f"test_{candidate_slug}.py"
+
+            if not skill_path.exists() and not test_path.exists():
+                return candidate_slug, skill_path, test_path
+
+            counter += 1
+            candidate_slug = f"{base_slug}_{counter}"
 
     def _generate_skill_implementation(self, proposal: SkillProposal) -> str:
         """Generate the actual implementation code for a skill."""
