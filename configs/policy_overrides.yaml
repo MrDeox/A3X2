@@ -1,0 +1,4 @@
+# Ajustes derivados de retrospectivas automáticas.
+agent:
+  recursion_depth: 3
+  max_failures: 10

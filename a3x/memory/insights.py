@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Dict, List, Optional
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Dict, Iterable, List, Optional
 from hashlib import md5
+import json
 
 from ..actions import AgentState
 from .store import MemoryEntry, SemanticMemory
@@ -13,6 +16,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..autoeval import RunEvaluation
+    from ..agent import AgentResult
+    from ..planning import GoalPlan
 
 
 def build_insight_payload(
@@ -134,3 +139,130 @@ class StatefulRetriever:
     def update_snapshot_hash(self, snapshot: str) -> None:
         """Update last known snapshot hash for future comparisons."""
         self.last_snapshot_hash = md5(snapshot.encode()).hexdigest()
+
+
+@dataclass
+class RetrospectiveReport:
+    """Synthetic retrospective persisted after each run."""
+
+    goal: str
+    completed: bool
+    iterations: int
+    failures: int
+    duration_seconds: Optional[float]
+    metrics: Dict[str, float]
+    recommendations: List[str] = field(default_factory=list)
+    notes: List[str] = field(default_factory=list)
+    created_at: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
+
+    def to_dict(self) -> Dict[str, object]:
+        return {
+            "goal": self.goal,
+            "completed": self.completed,
+            "iterations": self.iterations,
+            "failures": self.failures,
+            "duration_seconds": self.duration_seconds,
+            "metrics": self.metrics,
+            "recommendations": self.recommendations,
+            "notes": self.notes,
+            "created_at": self.created_at,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, object]) -> "RetrospectiveReport":
+        return cls(
+            goal=str(data.get("goal", "")),
+            completed=bool(data.get("completed", False)),
+            iterations=int(data.get("iterations", 0)),
+            failures=int(data.get("failures", 0)),
+            duration_seconds=(
+                float(data.get("duration_seconds"))
+                if data.get("duration_seconds") is not None
+                else None
+            ),
+            metrics={
+                str(k): float(v)
+                for k, v in (data.get("metrics") or {}).items()
+                if isinstance(v, (int, float))
+            },
+            recommendations=list(data.get("recommendations", []) or []),
+            notes=list(data.get("notes", []) or []),
+            created_at=str(data.get("created_at", datetime.now(timezone.utc).isoformat())),
+        )
+
+
+def build_retrospective(
+    result: "AgentResult",
+    plan: Optional["GoalPlan"],
+    metrics: Dict[str, float],
+    *,
+    alerts: Iterable[str] | None = None,
+) -> RetrospectiveReport:
+    recommendations: List[str] = []
+    notes: List[str] = []
+    alerts_list = list(alerts or [])
+    if alerts_list:
+        notes.append("; ".join(alerts_list))
+        recommendations.extend(alerts_list)
+
+    if not result.completed:
+        recommendations.append("Replanejar objetivo e aumentar supervisão humana")
+    if result.failures > 2:
+        recommendations.append("Reduzir profundidade recursiva para estabilizar")
+    if plan and plan.current_task:
+        notes.append(f"Passo corrente: {plan.current_task}")
+
+    return RetrospectiveReport(
+        goal=plan.goal if plan else "",
+        completed=result.completed,
+        iterations=result.iterations,
+        failures=result.failures,
+        duration_seconds=None,
+        metrics=metrics,
+        recommendations=recommendations,
+        notes=notes,
+    )
+
+
+def persist_retrospective(
+    report: RetrospectiveReport,
+    path: Path | str = Path("seed/memory/retrospectives.jsonl"),
+) -> None:
+    path_obj = Path(path)
+    path_obj.parent.mkdir(parents=True, exist_ok=True)
+    with path_obj.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(report.to_dict(), ensure_ascii=False) + "\n")
+
+
+def load_recent_retrospectives(
+    limit: int = 5,
+    path: Path | str = Path("seed/memory/retrospectives.jsonl"),
+) -> List[RetrospectiveReport]:
+    path_obj = Path(path)
+    if not path_obj.exists():
+        return []
+    lines = path_obj.read_text(encoding="utf-8").splitlines()
+    reports: List[RetrospectiveReport] = []
+    for row in lines[-limit:]:
+        row = row.strip()
+        if not row:
+            continue
+        try:
+            payload = json.loads(row)
+        except json.JSONDecodeError:
+            continue
+        reports.append(RetrospectiveReport.from_dict(payload))
+    return reports
+
+
+__all__ = [
+    "build_insight_payload",
+    "Insight",
+    "StatefulRetriever",
+    "RetrospectiveReport",
+    "build_retrospective",
+    "persist_retrospective",
+    "load_recent_retrospectives",
+]
