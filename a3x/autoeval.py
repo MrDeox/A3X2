@@ -10,8 +10,9 @@ import tempfile
 from dataclasses import dataclass, asdict, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
+import yaml
 from .testgen import GrowthTestGenerator, E2ETestGenerator
 from .report import generate_capability_report
 from .seeds import SeedBacklog, Seed
@@ -78,6 +79,9 @@ class AutoEvaluator:
         self.backlog_path = self.base_dir / "backlog.yaml"
         self.capabilities_path = self.base_dir / "capabilities.yaml"
         self.missions_path = self.base_dir / "missions.yaml"
+        self.curriculum_path = self.base_dir / "curriculum.yaml"
+        self.curriculum_progress_path = self.base_dir / "reports" / "curriculum_progress.yaml"
+        self.auto_critique_path = self.base_dir / "reports" / "auto_critique.md"
         self.config = config  # Store the config
         self.memory_path = self.base_dir / "memory" / "memory.jsonl"
         self.thresholds = thresholds or PlannerThresholds()
@@ -151,6 +155,8 @@ class AutoEvaluator:
         self._write_run_status()
         # Registrar reflexão pós-run
         self._write_reflection()
+        # Auto-crítica e avanço de currículo
+        self._post_reflection_follow_up()
 
     def _update_metric_history(self, metrics: Dict[str, float]) -> None:
         if not metrics:
@@ -346,6 +352,219 @@ class AutoEvaluator:
             reflection_path.write_text("\n".join(lines), encoding="utf-8")
         except Exception:
             pass
+
+    def _post_reflection_follow_up(self) -> None:
+        """Gera auto-crítica e avança o currículo com base na última execução."""
+
+        try:
+            last_eval = self._read_last_evaluation()
+            if not last_eval:
+                return
+
+            critique = self._build_auto_critique(last_eval)
+            if critique:
+                self._append_auto_critique_entry(last_eval, critique)
+
+            self._progress_curriculum(last_eval)
+        except Exception:
+            # Não falhar o ciclo caso a etapa de auto-crítica tenha problemas
+            pass
+
+    def _build_auto_critique(self, evaluation: Dict[str, Any]) -> str:
+        """Constrói texto curto de auto-crítica a partir dos resultados do run."""
+
+        goal = evaluation.get("goal")
+        completed = evaluation.get("completed")
+        metrics = evaluation.get("metrics") or {}
+        failures = evaluation.get("failures")
+        iterations = evaluation.get("iterations")
+
+        parts: List[str] = []
+        if completed:
+            parts.append("Execução concluída, avaliar próximos incrementos de qualidade.")
+        else:
+            parts.append("Objetivo não foi concluído; priorizar mitigação dos bloqueios identificados.")
+
+        failure_rate = metrics.get("failure_rate")
+        success_rate = metrics.get("success_rate")
+        if isinstance(failure_rate, (int, float)) and failure_rate > 0.25:
+            parts.append("Taxa de falhas acima de 25%; revisar estratégia de execução e cobertura de testes.")
+        elif isinstance(success_rate, (int, float)) and success_rate < 0.8:
+            parts.append("Sucesso abaixo de 80%; identificar gargalos antes de avançar no currículo.")
+
+        if isinstance(iterations, int) and isinstance(failures, int) and failures > 0:
+            parts.append(
+                f"{failures} falhas em {iterations} iterações; documentar lições aprendidas no relatório."
+            )
+
+        errors = evaluation.get("errors") or []
+        if errors:
+            parts.append("Erros recorrentes detectados; tratar itens prioritários na próxima seed.")
+
+        if not parts:
+            return ""
+
+        header = f"Auto-crítica do objetivo '{goal}'" if goal else "Auto-crítica"
+        return f"{header}: {' '.join(parts)}"
+
+    def _append_auto_critique_entry(self, evaluation: Dict[str, Any], critique: str) -> None:
+        """Persiste auto-crítica incremental no relatório dedicado."""
+
+        timestamp = datetime.now(timezone.utc).isoformat()
+        lines: List[str] = []
+
+        path = self.auto_critique_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if not path.exists():
+            lines.append("# Auto-críticas do agente")
+            lines.append("")
+
+        goal = evaluation.get("goal") or "(sem objetivo registrado)"
+        status = "✅" if evaluation.get("completed") else "⚠️"
+        lines.append(f"## {timestamp} — {goal}")
+        lines.append(f"Status: {status}")
+        lines.append("")
+        lines.append(critique)
+
+        errors = evaluation.get("errors") or []
+        if errors:
+            lines.append("")
+            lines.append("Principais erros capturados:")
+            for error in errors[:3]:
+                lines.append(f"- {error}")
+
+        lines.append("")
+
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write("\n".join(lines) + "\n")
+
+    def _progress_curriculum(self, evaluation: Dict[str, Any]) -> None:
+        steps = self._load_curriculum()
+        if not steps:
+            return
+
+        progress = self._load_curriculum_progress()
+        now = datetime.now(timezone.utc).isoformat()
+
+        current_index = int(progress.get("current_index", 0))
+        completed_steps: List[str] = list(progress.get("completed_steps", []))
+        active_step_id: Optional[str] = progress.get("active_step_id")
+
+        def find_step(step_id: Optional[str]) -> Optional[Dict[str, Any]]:
+            if step_id is None:
+                return None
+            for step in steps:
+                if str(step.get("id")) == str(step_id):
+                    return step
+            return None
+
+        active_step = find_step(active_step_id)
+        if not active_step and current_index < len(steps):
+            active_step = steps[current_index]
+            active_step_id = str(active_step.get("id"))
+
+        goal = evaluation.get("goal")
+        if active_step and goal == active_step.get("goal") and evaluation.get("completed"):
+            step_id = str(active_step.get("id"))
+            if step_id not in completed_steps:
+                completed_steps.append(step_id)
+            try:
+                current_index = max(current_index, steps.index(active_step) + 1)
+            except ValueError:
+                current_index += 1
+            active_step_id = None
+            progress["last_completed_goal"] = goal
+            progress["last_completed_at"] = now
+
+        # Determina próximo passo e enfileira seed correspondente
+        if current_index < len(steps):
+            next_step = steps[current_index]
+            next_step_id = str(next_step.get("id"))
+            backlog_has_seed = self._has_curriculum_seed(next_step_id)
+
+            if active_step_id is None and backlog_has_seed:
+                active_step_id = next_step_id
+
+            needs_enqueue = not backlog_has_seed
+            if active_step_id not in (None, next_step_id):
+                needs_enqueue = True
+
+            if needs_enqueue:
+                metadata = {
+                    "curriculum_step_id": next_step_id,
+                    "difficulty": next_step.get("difficulty", ""),
+                    "title": next_step.get("title", ""),
+                }
+                priority_value = next_step.get("priority")
+                if not priority_value:
+                    priority_value = "medium"
+                else:
+                    priority_value = str(priority_value)
+                seed = EvaluationSeed(
+                    description=str(next_step.get("goal")),
+                    priority=priority_value,
+                    capability=None,
+                    seed_type="curriculum",
+                    data=metadata,
+                )
+                self.enqueue_seeds([seed], source="curriculum")
+                active_step_id = next_step_id
+                progress["last_enqueued_goal"] = next_step.get("goal")
+                progress["last_enqueued_at"] = now
+
+        progress["current_index"] = current_index
+        ordered_ids = [str(step.get("id")) for step in steps]
+        progress["completed_steps"] = [
+            step_id for step_id in ordered_ids if step_id in completed_steps
+        ]
+        progress["active_step_id"] = active_step_id
+        progress["last_goal_evaluated"] = goal
+        progress["updated_at"] = now
+
+        self._save_curriculum_progress(progress)
+
+    def _has_curriculum_seed(self, step_id: str) -> bool:
+        backlog = SeedBacklog.load(self.backlog_path)
+        slug = self._slugify(str(step_id))
+        target_prefix = f"curriculum.{slug}"
+        for seed_id in backlog.list_all_ids():
+            if seed_id.startswith(target_prefix):
+                return True
+        return False
+
+    def _slugify(self, value: str) -> str:
+        slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+        return slug or "seed"
+
+    def _load_curriculum(self) -> List[Dict[str, Any]]:
+        if not self.curriculum_path.exists():
+            return []
+        try:
+            data = yaml.safe_load(self.curriculum_path.read_text(encoding="utf-8")) or {}
+        except Exception:
+            return []
+        steps = data.get("steps") if isinstance(data, dict) else None
+        if not isinstance(steps, list):
+            return []
+        return [step for step in steps if isinstance(step, dict)]
+
+    def _load_curriculum_progress(self) -> Dict[str, Any]:
+        path = self.curriculum_progress_path
+        if not path.exists():
+            return {"current_index": 0, "completed_steps": []}
+        try:
+            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            if not isinstance(data, dict):
+                return {"current_index": 0, "completed_steps": []}
+            return data
+        except Exception:
+            return {"current_index": 0, "completed_steps": []}
+
+    def _save_curriculum_progress(self, progress: Dict[str, Any]) -> None:
+        path = self.curriculum_progress_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w", encoding="utf-8") as fh:
+            yaml.safe_dump(progress, fh, allow_unicode=True, sort_keys=False)
 
     def _validate_curriculum_thresholds(self, history: Dict[str, List[float]]) -> bool:
         """Validate post-run metrics against curriculum thresholds."""
