@@ -88,3 +88,65 @@ def test_skill_creator_avoids_overwriting_existing_slug(tmp_path: Path) -> None:
 
     assert duplicated_test_path.exists()
     assert "Tests for Fake Skill!!!" in duplicated_test_path.read_text(encoding="utf-8")
+
+
+def test_skill_creator_handles_preexisting_skill_file(tmp_path: Path) -> None:
+    creator = SkillCreator(tmp_path)
+    proposal = _build_fake_proposal()
+
+    base_slug = SkillCreator._slugify(proposal.name)
+    existing_skill = tmp_path / "a3x" / "skills" / f"{base_slug}.py"
+    existing_skill.parent.mkdir(parents=True, exist_ok=True)
+    existing_skill.write_text("# existing skill implementation", encoding="utf-8")
+
+    success, message = creator.create_skill_from_proposal(proposal)
+
+    assert success, message
+
+    new_skill_path = tmp_path / "a3x" / "skills" / f"{base_slug}_2.py"
+    new_test_path = (
+        tmp_path
+        / "tests"
+        / "unit"
+        / "a3x"
+        / "skills"
+        / f"test_{base_slug}_2.py"
+    )
+
+    assert not message.endswith(f"{existing_skill}")
+    assert new_skill_path.exists()
+    assert new_test_path.exists()
+
+
+def test_skill_creator_handles_preexisting_test_file(tmp_path: Path) -> None:
+    creator = SkillCreator(tmp_path)
+    proposal = _build_fake_proposal()
+
+    base_slug = SkillCreator._slugify(proposal.name)
+    existing_test = (
+        tmp_path
+        / "tests"
+        / "unit"
+        / "a3x"
+        / "skills"
+        / f"test_{base_slug}.py"
+    )
+    existing_test.parent.mkdir(parents=True, exist_ok=True)
+    existing_test.write_text("# existing test placeholder", encoding="utf-8")
+
+    success, message = creator.create_skill_from_proposal(proposal)
+
+    assert success, message
+
+    new_skill_path = tmp_path / "a3x" / "skills" / f"{base_slug}_2.py"
+    new_test_path = (
+        tmp_path
+        / "tests"
+        / "unit"
+        / "a3x"
+        / "skills"
+        / f"test_{base_slug}_2.py"
+    )
+
+    assert new_skill_path.exists()
+    assert new_test_path.exists()
