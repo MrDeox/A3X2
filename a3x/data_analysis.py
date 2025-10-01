@@ -313,7 +313,7 @@ class DataAnalyzer:
         for column in df_cleaned.columns:
             if df_cleaned[column].dtype == 'object':
                 # Tentar converter para numérico
-                numeric_series = pd.to_numeric(df_cleaned[column], errors='ignore')
+                numeric_series = pd.to_numeric(df_cleaned[column], errors='coerce', downcast=None)
                 if not numeric_series.equals(df_cleaned[column]):
                     df_cleaned[column] = numeric_series
         

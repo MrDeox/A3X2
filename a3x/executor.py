@@ -20,11 +20,31 @@ import ast
 import re
 import shutil
 from datetime import datetime, timedelta
+from functools import lru_cache
 import logging
 
 
 class ActionExecutor:
+    """Executes actions requested by the agent.
+
+    Handles various action types including file reads/writes, patch applications,
+    command execution, and self-modifications with safety checks, risk analysis,
+    and rollback capabilities. Ensures operations are confined to the workspace
+    and adhere to configured policies.
+    """
+
     def __init__(self, config: AgentConfig) -> None:
+        """Initialize the ActionExecutor with configuration and logging.
+
+        Sets up patch manager, change logger, and rollback system based on config.
+
+        Args:
+            config (AgentConfig): The agent configuration containing workspace,
+                limits, policies, and audit settings.
+
+        Returns:
+            None
+        """
         self.config = config
         self.workspace_root = Path(config.workspace.root).resolve()
         self.patch_manager = PatchManager(self.workspace_root)
@@ -41,6 +61,24 @@ class ActionExecutor:
         self._initialize_rollback_system()
 
     def execute(self, action: AgentAction) -> Observation:
+        """Execute the given agent action and return an observation.
+
+        Dispatches to specific handlers based on action type (e.g., _handle_read_file).
+        Returns success status, output, error, and metadata.
+
+        Args:
+            action (AgentAction): The action to execute, containing type, command,
+                path, content, or diff as appropriate.
+
+        Returns:
+            Observation: Result of execution with success flag, output, error message,
+                return code (for commands), duration, and type.
+
+        Examples:
+            obs = executor.execute(AgentAction(type=ActionType.READ_FILE, path="config.yaml"))
+            if obs.success:
+                print(obs.output)  # File content
+        """
         handler_name = f"_handle_{action.type.name.lower()}"
         handler = getattr(self, handler_name, None)
         if handler is None:
@@ -183,7 +221,24 @@ class ActionExecutor:
             return Observation(success=False, error=str(exc), type="apply_patch")
 
     def _run_risk_checks(self, patch_content: str) -> Dict[str, str]:
-        """Run lightweight risk checks on patch: linting with ruff and black."""
+        """Run lightweight risk checks on patch using linters in a temp environment.
+
+        Applies patch temporarily and runs ruff/black on affected Python files.
+        Classifies risks as 'high' (syntax errors, many violations), 'medium' (style/lint issues),
+        or logs timeouts/errors. Used before applying patches to prevent bad code.
+
+        Args:
+            patch_content (str): The patch diff to analyze.
+
+        Returns:
+            Dict[str, str]: Risk dictionary with keys like 'ruff_syntax', 'black_style',
+                values 'high'/'medium' or error details.
+
+        Examples:
+            risks = executor._run_risk_checks(patch_diff)
+            if 'high' in risks.values():
+                print("Patch rejected due to high risks")
+        """
         risks = {}
         with tempfile.TemporaryDirectory() as temp_dir_str:
             temp_path = Path(temp_dir_str)
@@ -252,6 +307,26 @@ class ActionExecutor:
         return risks
 
     def _handle_self_modify(self, action: AgentAction) -> Observation:
+        """Handles self-modification actions with safety checks and auto-commit.
+
+        Applies patches to agent code (a3x/ and configs/ only), performs impact analysis,
+        runs tests, and conditionally auto-commits low-risk changes. High-risk changes
+        prompt for confirmation. Includes rollback preparation and risk logging.
+
+        Args:
+            action (AgentAction): Self-modify action with diff content.
+
+        Returns:
+            Observation: Execution result with success, output including commit status,
+                error if rejected, and type "self_modify".
+
+        Examples:
+            obs = executor._handle_self_modify(AgentAction(type=ActionType.SELF_MODIFY, diff=patch_str))
+            if obs.success:
+                print("Self-modify applied and committed.")
+            else:
+                print(f"Rejected: {obs.error}")
+        """
         if not action.diff:
             return Observation(success=False, error="Diff vazio para self-modify", type="self_modify")
         
@@ -447,9 +522,25 @@ class ActionExecutor:
         return False
 
     def _analyze_impact_before_apply(self, action: AgentAction) -> tuple[bool, str]:
-        """
-        Analisa o impacto de uma auto-modificação antes de aplicar.
-        Retorna (is_safe, message).
+        """Analyze the impact of a self-modification before applying it.
+
+        Performs static analysis, security checks, quality metrics, and complexity
+        evaluation on the diff. Rejects high-risk changes (e.g., security alterations,
+        syntax errors, excessive complexity). Generates a safety report.
+
+        Args:
+            action (AgentAction): The self-modify action with diff to analyze.
+
+        Returns:
+            tuple[bool, str]: (is_safe: bool, message: str) - True if safe to apply,
+                with summary; False with rejection reason.
+
+        Examples:
+            is_safe, msg = executor._analyze_impact_before_apply(action)
+            if is_safe:
+                print(f"Approved: {msg}")
+            else:
+                print(f"Rejected: {msg}")
         """
         if not action.diff:
             return False, "Diff vazio para análise de impacto"
@@ -580,6 +671,7 @@ class ActionExecutor:
         # Se está removendo mais testes do que adicionando, pode ser manipulação
         return removed_assertions > added_assertions
 
+    @lru_cache(maxsize=128)
     def _analyze_static_code_quality(self, diff: str) -> Dict[str, float]:
         """Analisa qualidade estática do código nas mudanças."""
         quality_metrics = {}
@@ -631,6 +723,7 @@ class ActionExecutor:
         
         return '\n'.join(python_code)
 
+    @lru_cache(maxsize=128)
     def _analyze_code_complexity(self, tree: ast.AST) -> Dict[str, int]:
         """Analisa complexidade do código AST."""
         stats = {

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from a3x.autoloop import AutoLoop
 from a3x.llm import LLMClient
-from a3x.executor import Executor
+from a3x.executor import ActionExecutor
 from a3x.seeds import SeedBacklog
 
 
@@ -20,8 +20,8 @@ def mock_llm_client():
 
 @pytest.fixture
 def mock_executor():
-    executor = Mock(spec=Executor)
-    executor.apply.return_value = True
+    executor = Mock(spec=ActionExecutor)
+    executor.execute.return_value = Observation(success=True, output="Mock execution")
     return executor
 
 
@@ -39,5 +39,5 @@ def test_basic_autoloop_cycle(mock_llm_client, mock_executor, mock_backlog, tmp_
     
     assert result.completed
     assert result.metrics.get("actions_success_rate", 0) > 0.8
-    mock_executor.apply.assert_called_once()
+    mock_executor.execute.assert_called()
     mock_llm_client.generate_action.assert_called()

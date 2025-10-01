@@ -70,3 +70,10 @@ class PatchManager:
             text=True,
             capture_output=True,
         )
+
+    def extract_paths(self, diff: str) -> List[str]:
+        """Extracts file paths from unified diff."""
+        import re
+        # Match --- a/path and +++ b/path
+        path_matches = re.findall(r'^(--- |\++\+ )([ab]/.*)$', diff, re.MULTILINE)
+        return [match[1] for match in path_matches]

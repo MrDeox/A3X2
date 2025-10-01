@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import math
+import os
+import tempfile
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -68,9 +70,16 @@ class SemanticMemory:
             embedding=embedding,
         )
         self._entries.append(entry)
-        with self.path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(entry.as_json(), ensure_ascii=False) + "\n")
+        self._save_atomic()
         return entry
+
+    def _save_atomic(self) -> None:
+        """Atomically save all entries to JSONL file using tempfile."""
+        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', suffix='.jsonl.tmp', delete=False) as tmp:
+            for entry in self._entries:
+                tmp.write(json.dumps(entry.as_json(), ensure_ascii=False) + "\n")
+            tmp_path = tmp.name
+        os.replace(tmp_path, self.path)
 
     def query(self, text: str, *, top_k: int = 5) -> List[tuple[MemoryEntry, float]]:
         if not self._entries:

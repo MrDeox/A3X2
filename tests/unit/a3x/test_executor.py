@@ -474,12 +474,12 @@ class TestActionExecutor:
 
         mock_subprocess.side_effect = subprocess.TimeoutExpired(cmd=[], timeout=10)
         patch_content = """
---- a/test.py
-+++ b/test.py
-@@ -1,1 +1,1 @@
--print("ok")
-+print("ok")
-"""
+ --- a/test.py
+ +++ b/test.py
+ @@ -1,1 +1,1 @@
+ -print("ok")
+ +print("ok")
+ """
         risks = self.executor._run_risk_checks(patch_content)
         assert 'lint_timeout' in risks
         assert risks['lint_timeout'] == 'high'
@@ -501,3 +501,297 @@ class TestActionExecutor:
         log_path = self.workspace_path / 'seed' / 'reports' / 'risk_log.md'
         assert log_path.exists()
         assert log_path.read_text(encoding='utf-8').strip() != ""
+
+
+class TestExecutorSelfModify:
+    """Testes para self-modify no ActionExecutor."""
+
+    def setup_method(self) -> None:
+        """Configuração para testes de self-modify."""
+        self.workspace_path = Path(tempfile.mkdtemp())
+        self.config = AgentConfig(
+            llm=Mock(),
+            workspace=WorkspaceConfig(root=self.workspace_path),
+            limits=LimitsConfig(command_timeout=10),
+            tests=Mock(),
+            policies=PoliciesConfig(allow_network=False, deny_commands=[]),
+            goals=Mock(),
+            loop=Mock(),
+            audit=AuditConfig()
+        )
+        self.executor = ActionExecutor(self.config)
+
+    def teardown_method(self) -> None:
+        """Limpeza após cada teste."""
+        import shutil
+        shutil.rmtree(self.workspace_path, ignore_errors=True)
+
+    def test_handle_self_modify_missing_diff(self) -> None:
+        """Testa _handle_self_modify sem diff."""
+        action = AgentAction(type=ActionType.SELF_MODIFY)
+        observation = self.executor._handle_self_modify(action)
+
+        assert observation.success is False
+        assert "Diff vazio para self-modify" in observation.error
+        assert observation.type == "self_modify"
+
+    def test_handle_self_modify_invalid_paths(self) -> None:
+        """Testa _handle_self_modify com caminhos inválidos."""
+        diff = """
+ --- a/invalid/path/outside.py
+ +++ b/invalid/path/outside.py
+ @@ -1,1 +1,1 @@
+ -old
+ +new
+ """
+        action = AgentAction(type=ActionType.SELF_MODIFY, diff=diff)
+        observation = self.executor._handle_self_modify(action)
+
+        assert observation.success is False
+        assert "Self-modify restrito a a3x/ e configs/" in observation.error
+        assert "inválidos" in observation.error
+
+    @patch('a3x.executor.PatchManager.extract_paths')
+    def test_handle_self_modify_allowed_paths(self, mock_extract_paths) -> None:
+        """Testa _handle_self_modify com caminhos permitidos."""
+        mock_extract_paths.return_value = ['a3x/executor.py']
+        diff = "valid diff for a3x/executor.py"
+
+        with patch.object(self.executor.patch_manager, 'apply') as mock_apply:
+            mock_apply.return_value = (True, "Applied")
+            with patch.object(self.executor.change_logger, 'log_patch') as mock_log:
+                action = AgentAction(type=ActionType.SELF_MODIFY, diff=diff)
+                observation = self.executor._handle_self_modify(action)
+
+        assert observation.success is True
+        assert "Applied" in observation.output
+        mock_apply.assert_called_once_with(diff)
+        mock_log.assert_called_once()
+
+    @patch('a3x.executor.PatchManager.extract_paths')
+    @patch('subprocess.run')
+    def test_handle_self_modify_with_pytest_success(self, mock_subprocess, mock_extract_paths) -> None:
+        """Testa _handle_self_modify com pytest sucesso e auto-commit low-risk."""
+        mock_extract_paths.return_value = ['configs/sample.yaml']  # Low risk
+        diff = "low risk diff"
+        mock_apply = Mock(return_value=(True, "Applied"))
+        with patch.object(self.executor.patch_manager, 'apply', return_value=(True, "Applied")):
+            mock_pytest = Mock(returncode=0, stderr="")
+            mock_subprocess.return_value = mock_pytest
+            with patch('subprocess.run', return_value=mock_pytest):
+                action = AgentAction(type=ActionType.SELF_MODIFY, diff=diff, dry_run=False)
+                observation = self.executor._handle_self_modify(action)
+
+        assert observation.success is True
+        assert "Auto-commit applied" in observation.output
+        mock_subprocess.assert_called_with(["pytest", "-q", "tests/"], cwd=self.workspace_path, capture_output=True, text=True, timeout=30)
+
+    @patch('a3x.executor.PatchManager.extract_paths')
+    @patch('subprocess.run')
+    def test_handle_self_modify_pytest_failure(self, mock_subprocess, mock_extract_paths) -> None:
+        """Testa _handle_self_modify com pytest falha, sem commit."""
+        mock_extract_paths.return_value = ['a3x/agent.py']  # High risk
+        diff = "high risk diff"
+        with patch.object(self.executor.patch_manager, 'apply') as mock_apply:
+            mock_apply.return_value = (True, "Applied")
+            mock_pytest = Mock(returncode=1, stderr="Tests failed")
+            mock_subprocess.return_value = mock_pytest
+            with patch('subprocess.run', return_value=mock_pytest):
+                action = AgentAction(type=ActionType.SELF_MODIFY, diff=diff)
+                observation = self.executor._handle_self_modify(action)
+
+        assert observation.success is True  # Apply succeeds, but no commit
+        assert "Tests failed" in observation.output
+        assert "Commit skipped" in observation.output
+
+    @patch('a3x.executor.PatchManager')
+    @patch('subprocess.run')
+    def test_handle_self_modify_with_pytest_success(self, mock_subprocess, mock_pm) -> None:
+        """Testa _handle_self_modify com pytest sucesso e auto-commit low-risk."""
+        # Create a3x and configs dirs for low-risk test
+        (self.workspace_path / "a3x").mkdir(exist_ok=True)
+        (self.workspace_path / "configs").mkdir(exist_ok=True)
+
+        diff = """
+ --- a/configs/sample.yaml
+ +++ b/configs/sample.yaml
+ @@ -1,1 +1,1 @@
+ -old: value
+ +new: value
+ """
+        action = AgentAction(type=ActionType.SELF_MODIFY, diff=diff, dry_run=False)
+
+        # Mock patch apply
+        mock_pm.return_value.apply.return_value = (True, "Applied")
+
+        # Mock git commands for auto-commit
+        mock_git_add = Mock(returncode=0)
+        mock_git_commit = Mock(returncode=0)
+        mock_subprocess.side_effect = [mock_git_add, mock_git_commit]
+
+        # Mock pytest success
+        mock_pytest = Mock(returncode=0, stderr="")
+        mock_subprocess.side_effect = [mock_pytest, mock_git_add, mock_git_commit]
+
+        observation = self.executor._handle_self_modify(action)
+
+        assert observation.success is True
+        assert "Auto-commit applied" in observation.output
+        mock_subprocess.assert_any_call(["pytest", "-q", "tests/"], cwd=self.workspace_path, capture_output=True, text=True, timeout=30)
+        mock_subprocess.assert_any_call(["git", "add", str(self.workspace_path / "configs/sample.yaml")], cwd=self.workspace_path, check=True, capture_output=True)
+        mock_subprocess.assert_any_call(["git", "commit", "-m", "Seed-applied: self-modify enhancement (1 files)"], cwd=self.workspace_path, check=True, capture_output=True)
+
+    def test_analyze_impact_test_manipulation(self) -> None:
+        """Testa detecção de manipulação de testes."""
+        diff_with_test_removal = """
+ --- a/tests/test_example.py
+ +++ b/tests/test_example.py
+ @@ -1,2 +1,1 @@
+ -def test_example():
+ -    assert True
+ +def test_example():
+ """
+        action = AgentAction(type=ActionType.SELF_MODIFY, diff=diff_with_test_removal)
+
+        is_safe, msg = self.executor._analyze_impact_before_apply(action)
+
+        assert is_safe is False
+        assert "Alterações suspeitas em arquivos de teste" in msg
+
+    def test_analyze_impact_quality_issues(self) -> None:
+        """Testa rejeição por questões de qualidade (magic numbers, globals)."""
+        diff_with_magic = """
+ --- a/a3x/utils.py
+ +++ b/a3x/utils.py
+ @@ -1,1 +1,2 @@
+ +def bad_func():
+ +    return 42 * 3  # Magic numbers
+ """
+        action = AgentAction(type=ActionType.SELF_MODIFY, diff=diff_with_magic)
+
+        is_safe, msg = self.executor._analyze_impact_before_apply(action)
+
+        assert is_safe is False
+        assert "questões de qualidade" in msg
+        assert "números mágicos" in msg
+
+    def test_calculate_cyclomatic_complexity(self) -> None:
+        """Testa cálculo de complexidade ciclomática."""
+        code_simple = "def simple(): pass"
+        metrics = self.executor._calculate_cyclomatic_complexity(code_simple)
+        assert metrics['total_complexity'] == 1.0
+        assert metrics['function_count'] == 1.0
+
+        code_complex = """
+def complex():
+    if True:
+        for i in range(10):
+            while i < 5:
+                try:
+                    pass
+                except:
+                    pass
+        with open('file') as f:
+            pass
+"""
+        metrics = self.executor._calculate_cyclomatic_complexity(code_complex)
+        assert metrics['total_complexity'] > 5.0
+        assert metrics['decision_points'] >= 4  # if, for, while, try
+
+    def test_check_bad_coding_practices(self) -> None:
+        """Testa detecção de práticas ruins."""
+        code_with_global = "global VAR = 42"
+        practices = self.executor._check_bad_coding_practices(code_with_global)
+        assert practices.get('global_vars', 0) == 1.0
+
+        code_with_magic = 'result = 42 * 3 + 100'
+        practices = self.executor._check_bad_coding_practices(code_with_magic)
+        assert practices.get('magic_numbers', 0) > 0
+
+        code_long_func = "def long(): " + "\n    pass" * 60  # >50 lines
+        practices = self.executor._check_bad_coding_practices(code_long_func)
+        assert practices.get('long_functions', 0) == 1.0
+
+    def test_generate_optimization_suggestions(self) -> None:
+        """Testa geração de sugestões de otimização."""
+        code_with_issues = """
+global BAD_VAR = 42
+def bad_loop():
+    s = ''
+    for i in range(10):
+        s += str(i)
+    return s
+"""
+        suggestions = self.executor._generate_optimization_suggestions(code_with_issues, {'magic_numbers': 1, 'global_vars': 1})
+        assert "variáveis globais" in " ".join(suggestions)
+        assert "concatenação" in " ".join(suggestions)
+        assert "list comprehensions" in " ".join(suggestions)
+
+    @patch('a3x.executor.ast.parse')
+    def test_analyze_static_code_quality(self, mock_ast_parse) -> None:
+        """Testa análise estática de qualidade."""
+        mock_tree = Mock()
+        mock_ast_parse.return_value = mock_tree
+
+        diff = "def func(): pass"
+        metrics = self.executor._analyze_static_code_quality(diff)
+        assert 'functions_added' in metrics
+        assert 'complexity_score' in metrics
+
+        # Test syntax error
+        mock_ast_parse.side_effect = SyntaxError("Invalid syntax")
+        metrics_error = self.executor._analyze_static_code_quality(diff)
+        assert 'syntax_errors' in metrics_error
+        assert metrics_error['syntax_errors'] == 1.0
+
+    def test_has_dangerous_self_change(self) -> None:
+        """Testa detecção de mudanças perigosas em self-modify."""
+        dangerous_diff = '+allow_network = True'
+        assert self.executor._has_dangerous_self_change(dangerous_diff) is True
+
+        safe_diff = '+print("safe")'
+        assert self.executor._has_dangerous_self_change(safe_diff) is False
+
+    @patch.object(ActionExecutor, '_has_dangerous_self_change')
+    @patch.object(ActionExecutor, '_extract_affected_functions')
+    def test_analyze_impact_before_apply_dangerous(self, mock_functions, mock_dangerous) -> None:
+        """Testa análise de impacto rejeitando mudanças perigosas."""
+        mock_dangerous.return_value = True
+        action = AgentAction(type=ActionType.SELF_MODIFY, diff="dangerous diff")
+
+        is_safe, msg = self.executor._analyze_impact_before_apply(action)
+
+        assert is_safe is False
+        assert "Mudança perigosa detectada" in msg
+
+    @patch.object(ActionExecutor, '_has_dangerous_self_change')
+    def test_analyze_impact_before_apply_safe(self, mock_dangerous) -> None:
+        """Testa análise de impacto aprovando mudanças seguras."""
+        mock_dangerous.return_value = False
+        action = AgentAction(type=ActionType.SELF_MODIFY, diff="safe diff")
+
+        is_safe, msg = self.executor._analyze_impact_before_apply(action)
+
+        assert is_safe is True
+        assert "Impacto verificado com segurança" in msg
+
+    def test_analyze_impact_large_diff(self) -> None:
+        """Testa rejeição de diff muito grande."""
+        large_diff = "line\n" * 51  # >50 lines
+        action = AgentAction(type=ActionType.SELF_MODIFY, diff=large_diff)
+
+        is_safe, msg = self.executor._analyze_impact_before_apply(action)
+
+        assert is_safe is False
+        assert "Diff muito grande" in msg
+
+    @patch.object(ActionExecutor, '_check_security_related_changes')
+    def test_analyze_impact_critical_security(self, mock_security) -> None:
+        """Testa rejeição em módulos críticos com mudanças de segurança."""
+        mock_security.return_value = True
+        action = AgentAction(type=ActionType.SELF_MODIFY, diff="security change in agent.py")
+
+        is_safe, msg = self.executor._analyze_impact_before_apply(action)
+
+        assert is_safe is False
+        assert "Alterações em funções de segurança" in msg

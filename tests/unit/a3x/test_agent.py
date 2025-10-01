@@ -49,13 +49,30 @@ class TestAgentOrchestrator:
         self.mock_config.goals.get_threshold = Mock(return_value=0.8)
         # Adicionar os atributos necessários para a inicialização
         self.mock_config.workspace = Mock()
-        self.mock_config.workspace.root = "/tmp/test_workspace"
+        self.mock_workspace_root = MagicMock(spec=Path)
+        self.mock_config.workspace_root = self.mock_workspace_root
+        self.mock_config.workspace.root = self.mock_workspace_root
         self.mock_config.audit = Mock()
         self.mock_config.audit.enable_file_log = True
-        self.mock_config.audit.file_dir = Mock()
         self.mock_config.audit.file_dir = "seed/changes"
         self.mock_config.audit.enable_git_commit = False
         self.mock_config.audit.commit_prefix = "A3X"
+        self.mock_config.loop = Mock(use_memory=False)
+
+        # Mock Path operations
+        self.mock_hints_path = MagicMock(spec=Path)
+        self.mock_hints_path.exists.return_value = False
+        self.mock_hints_path.parent.mkdir.return_value = None
+        self.mock_hints_path.with_suffix.return_value = self.mock_hints_path
+        self.mock_hints_path.replace.return_value = None
+        self.mock_workspace_root.__truediv__.return_value = self.mock_hints_path
+        self.mock_workspace_root / "seed" / "policy_hints.json"  # Cache the path
+        self.mock_workspace_root / "a3x" / "logs"  # For logging
+        self.mock_workspace_root.mkdir.return_value = None
+        self.mock_logs_path = self.mock_workspace_root / "a3x" / "logs" / "hints.log"
+        self.mock_file_handler = Mock()
+        self.mock_logger = Mock()
+        self.mock_logger.addHandler.return_value = None
         
         self.mock_llm_client = Mock()
         # Configurar o mock do LLM client para retornar métricas adequadas
@@ -415,3 +432,331 @@ class TestAgentOrchestrator:
         # Verificar capacidades inferidas
         assert "core.diffing" in capabilities
         assert "horiz.python" in capabilities  # Por causa do arquivo .py
+
+
+class TestAgentRefactoring:
+    """Testes para métodos refatorados no AgentOrchestrator."""
+
+    def setup_method(self) -> None:
+        """Configuração para testes de refatoração."""
+        self.mock_config = Mock()
+        self.mock_config.workspace_root = MagicMock(spec=Path)
+        self.mock_config.limits = Mock(spec=LimitsConfig)
+        self.mock_config.tests = Mock(spec=TestSettings)
+        self.mock_config.goals = Mock(spec=GoalsConfig)
+        self.mock_config.goals.get_threshold = Mock(return_value=0.8)
+        self.mock_config.audit = Mock()
+        self.mock_config.audit.enable_file_log = True
+        self.mock_config.audit.file_dir = "seed/changes"
+        self.mock_config.audit.enable_git_commit = False
+        self.mock_config.audit.commit_prefix = "A3X"
+        self.mock_config.loop = Mock(use_memory=False)
+
+        self.mock_llm_client = Mock()
+        self.mock_llm_client.get_last_metrics.return_value = {}
+        self.mock_llm_client.notify_observation = Mock()
+        self.mock_llm_client.propose_action.return_value = AgentAction(type=ActionType.FINISH, text="Done")
+
+        self.mock_auto_evaluator = Mock(spec=AutoEvaluator)
+        self.mock_auto_evaluator._read_metrics_history.return_value = {}
+        self.mock_auto_evaluator.latest_summary.return_value = ""
+
+        with patch('a3x.agent.ActionExecutor') as mock_executor_class:
+            mock_executor = Mock()
+            mock_executor_class.return_value = mock_executor
+            self.orchestrator = AgentOrchestrator(
+                config=self.mock_config,
+                llm_client=self.mock_llm_client,
+                auto_evaluator=self.mock_auto_evaluator
+            )
+            self.orchestrator.executor = mock_executor
+
+    @patch('a3x.agent.PlanComposer')
+    def test_decompose_goal(self, mock_composer):
+        """Testa _decompose_goal para goals complexos."""
+        mock_composer_instance = Mock()
+        mock_composer.return_value = mock_composer_instance
+        mock_composer_instance.decompose_goal.return_value = ["subtask1", "subtask2"]
+
+        goal = "Complex goal: implement feature A and B"
+        subtasks = self.orchestrator._decompose_goal(goal)
+
+        assert len(subtasks) == 2
+        assert "subtask1" in subtasks
+        mock_composer_instance.decompose_goal.assert_called_once_with(goal)
+
+        # Verify subgoals saved
+        subgoals_path = self.mock_config.workspace_root / "seed/subgoals.json"
+        mock_open = Mock()
+        with patch('builtins.open', mock_open):
+            self.orchestrator._decompose_goal(goal)
+            mock_open.assert_called()
+
+    @patch('a3x.agent.PlanComposer')
+    def test_handle_subtasks(self, mock_composer):
+        """Testa _handle_subtasks para múltiplas subtasks."""
+        mock_composer_instance = Mock()
+        mock_composer.return_value = mock_composer_instance
+        mock_composer_instance.execute_plan.return_value = [{"success": True}, {"success": False}]
+
+        subtasks = ["task1", "task2"]
+        history = AgentHistory()
+        goal = "parent goal"
+
+        result = self.orchestrator._handle_subtasks(subtasks, history, goal)
+
+        assert result.completed is True
+        assert result.iterations == 1
+        assert result.failures == 0
+        assert len(history.events) == 1
+        mock_composer_instance.execute_plan.assert_called_once_with(subtasks, parent_agent=self.orchestrator)
+
+    def test_constants_usage(self):
+        """Testa uso de constantes como DEFAULT_MAX_SUB_DEPTH."""
+        assert self.orchestrator.DEFAULT_MAX_SUB_DEPTH == 3
+        assert self.orchestrator.max_sub_depth == 3  # Default from hints
+
+        # Test adjustment
+        self.orchestrator.hints = {"max_sub_depth": 5}
+        self.orchestrator.max_sub_depth = int(self.orchestrator.hints.get("max_sub_depth", self.orchestrator.DEFAULT_MAX_SUB_DEPTH))
+        assert self.orchestrator.max_sub_depth == 5
+
+    @pytest.mark.parametrize("goal_complexity, expected_subtasks", [
+        ("simple task", 1),
+        ("implement A and B", 2),
+        ("plan and execute multi-step", 3),
+    ])
+    @patch('a3x.agent.PlanComposer')
+    def test_run_with_subtasks_parametrized(self, mock_composer, goal_complexity, expected_subtasks):
+        """Testa run variants com subtasks parametrizadas."""
+        mock_composer_instance = Mock()
+        mock_composer.return_value = mock_composer_instance
+        mock_composer_instance.decompose_goal.return_value = [f"sub_{i}" for i in range(expected_subtasks)]
+
+        goal = f"{goal_complexity} goal"
+        result = self.orchestrator.run(goal)
+
+        if expected_subtasks > 1:
+            assert result.iterations == 1  # Handled by _handle_subtasks
+            mock_composer_instance.execute_plan.assert_called()
+        else:
+            assert result.completed is True
+            mock_composer_instance.decompose_goal.assert_called()
+
+    def test_run_edge_case_max_depth(self):
+        """Testa edge case: run com depth max, no decomposition."""
+        self.orchestrator.depth = self.orchestrator.max_sub_depth
+        goal = "deep nested goal"
+        result = self.orchestrator.run(goal)
+
+        assert result.completed is True
+
+    @pytest.mark.parametrize("success_rate, expected_adjust", [
+        (0.9, 1),  # High, increase
+        (0.5, -1),  # Low, decrease
+        (0.7, 0),   # Medium, no change
+    ])
+    def test_adjust_recursion_depth_parametrized(self, success_rate, expected_adjust):
+        """Testa _adjust_recursion_depth parametrizado."""
+        self.mock_auto_evaluator._read_metrics_history.return_value = {"actions_success_rate": [success_rate] * 3}
+        initial_depth = self.orchestrator.recursion_depth
+
+        self.orchestrator._adjust_recursion_depth()
+
+        adjusted = self.orchestrator.recursion_depth
+        delta = adjusted - initial_depth
+        assert delta == expected_adjust
+
+    def test_gather_memory_lessons_no_memory(self):
+        """Testa _gather_memory_lessons quando memory desabilitado."""
+        self.mock_config.loop.use_memory = False
+        lessons = self.orchestrator._gather_memory_lessons("goal")
+        assert lessons == ""
+
+    @patch('a3x.agent.SemanticMemory')
+    def test_gather_memory_lessons_with_memory(self, mock_memory):
+        """Testa _gather_memory_lessons com memória semântica."""
+        self.mock_config.loop.use_memory = True
+        self.mock_config.loop.memory_top_k = 2
+
+        mock_mem_instance = Mock()
+        mock_memory.return_value = mock_mem_instance
+        mock_mem_instance.query.return_value = [("lesson1", 0.9), ("lesson2", 0.8)]
+
+        lessons = self.orchestrator._gather_memory_lessons("test goal")
+
+        assert "Useful lessons:" in lessons
+        assert "1. lesson1" in lessons
+        assert "2. lesson2" in lessons
+        mock_mem_instance.query.assert_called_once_with("test goal", top_k=2)
+
+
+class TestAgentRefactoring:
+    """Testes para métodos refatorados no AgentOrchestrator."""
+
+    def setup_method(self) -> None:
+        """Configuração para testes de refatoração."""
+        self.mock_config = Mock()
+        self.mock_config.workspace_root = Path("/tmp/test_workspace")
+        self.mock_config.limits = Mock(spec=LimitsConfig)
+        self.mock_config.tests = Mock(spec=TestSettings)
+        self.mock_config.goals = Mock(spec=GoalsConfig)
+        self.mock_config.goals.get_threshold = Mock(return_value=0.8)
+        self.mock_config.audit = Mock()
+        self.mock_config.audit.enable_file_log = True
+        self.mock_config.audit.file_dir = "seed/changes"
+        self.mock_config.audit.enable_git_commit = False
+        self.mock_config.audit.commit_prefix = "A3X"
+        self.mock_config.loop = Mock(use_memory=False)
+
+        self.mock_llm_client = Mock()
+        self.mock_llm_client.get_last_metrics.return_value = {}
+        self.mock_llm_client.notify_observation = Mock()
+        self.mock_llm_client.propose_action.return_value = AgentAction(type=ActionType.FINISH, text="Done")
+
+        self.mock_auto_evaluator = Mock(spec=AutoEvaluator)
+        self.mock_auto_evaluator._read_metrics_history.return_value = {}
+        self.mock_auto_evaluator.latest_summary.return_value = ""
+
+        with patch('a3x.agent.ActionExecutor') as mock_executor_class:
+            mock_executor = Mock()
+            mock_executor_class.return_value = mock_executor
+            self.orchestrator = AgentOrchestrator(
+                config=self.mock_config,
+                llm_client=self.mock_llm_client,
+                auto_evaluator=self.mock_auto_evaluator
+            )
+            self.orchestrator.executor = mock_executor
+
+    @patch('a3x.agent.PlanComposer')
+    def test_decompose_goal(self, mock_composer):
+        """Testa _decompose_goal para goals complexos."""
+        mock_composer_instance = Mock()
+        mock_composer.return_value = mock_composer_instance
+        mock_composer_instance.decompose_goal.return_value = ["subtask1", "subtask2"]
+
+        goal = "Complex goal: implement feature A and B"
+        subtasks = self.orchestrator._decompose_goal(goal)
+
+        assert len(subtasks) == 2
+        assert "subtask1" in subtasks
+        mock_composer_instance.decompose_goal.assert_called_once_with(goal)
+
+        # Verify subgoals saved
+        subgoals_path = self.mock_config.workspace_root / "seed/subgoals.json"
+        mock_open = Mock()
+        with patch('builtins.open', mock_open):
+            self.orchestrator._decompose_goal(goal)
+            mock_open.assert_called()
+
+    @patch('a3x.agent.PlanComposer')
+    def test_handle_subtasks(self, mock_composer):
+        """Testa _handle_subtasks para múltiplas subtasks."""
+        mock_composer_instance = Mock()
+        mock_composer.return_value = mock_composer_instance
+        mock_composer_instance.execute_plan.return_value = [{"success": True}, {"success": False}]
+
+        subtasks = ["task1", "task2"]
+        history = AgentHistory()
+        goal = "parent goal"
+
+        result = self.orchestrator._handle_subtasks(subtasks, history, goal)
+
+        assert result.completed is True
+        assert result.iterations == 1
+        assert result.failures == 0
+        assert len(history.events) == 1
+        mock_composer_instance.execute_plan.assert_called_once_with(subtasks, parent_agent=self.orchestrator)
+
+    @patch('a3x.agent.PlanComposer')
+    def test_handle_subtasks_max_depth(self, mock_composer):
+        """Testa _handle_subtasks quando max_sub_depth é atingido."""
+        self.orchestrator.depth = self.orchestrator.max_sub_depth
+        subtasks = self.orchestrator._decompose_goal("complex goal")  # Would be multiple, but depth max
+        assert len(subtasks) == 1  # Treated as single task
+
+        history = AgentHistory()
+        goal = "parent goal"
+        result = self.orchestrator._handle_subtasks(subtasks, history, goal)
+
+        assert result.completed is True
+        # Note: logger.info is mocked, but we can check if max depth logic applied
+
+    def test_constants_usage(self):
+        """Testa uso de constantes como DEFAULT_MAX_SUB_DEPTH."""
+        assert self.orchestrator.DEFAULT_MAX_SUB_DEPTH == 3
+        assert self.orchestrator.max_sub_depth == 3  # Default from hints
+
+        # Test adjustment
+        self.orchestrator.hints = {"max_sub_depth": 5}
+        self.orchestrator.max_sub_depth = int(self.orchestrator.hints.get("max_sub_depth", self.orchestrator.DEFAULT_MAX_SUB_DEPTH))
+        assert self.orchestrator.max_sub_depth == 5
+
+    @pytest.mark.parametrize("goal_complexity, expected_subtasks", [
+        ("simple task", 1),
+        ("implement A and B", 2),
+        ("plan and execute multi-step", 3),
+    ])
+    @patch('a3x.agent.PlanComposer')
+    def test_run_with_subtasks_parametrized(self, mock_composer, goal_complexity, expected_subtasks):
+        """Testa run variants com subtasks parametrizadas."""
+        mock_composer_instance = Mock()
+        mock_composer.return_value = mock_composer_instance
+        mock_composer_instance.decompose_goal.return_value = [f"sub_{i}" for i in range(expected_subtasks)]
+
+        goal = f"{goal_complexity} goal"
+        result = self.orchestrator.run(goal)
+
+        if expected_subtasks > 1:
+            assert result.iterations == 1  # Handled by _handle_subtasks
+            mock_composer_instance.execute_plan.assert_called()
+        else:
+            assert result.completed is True
+            mock_composer_instance.decompose_goal.assert_called()
+
+    def test_run_edge_case_max_depth(self):
+        """Testa edge case: run com depth max, no decomposition."""
+        self.orchestrator.depth = self.orchestrator.max_sub_depth
+        goal = "deep nested goal"
+        result = self.orchestrator.run(goal)
+
+        assert result.completed is True
+
+    @pytest.mark.parametrize("success_rate, expected_adjust", [
+        (0.9, 1),  # High, increase
+        (0.5, -1),  # Low, decrease
+        (0.7, 0),   # Medium, no change
+    ])
+    def test_adjust_recursion_depth_parametrized(self, success_rate, expected_adjust):
+        """Testa _adjust_recursion_depth parametrizado."""
+        self.mock_auto_evaluator._read_metrics_history.return_value = {"actions_success_rate": [success_rate] * 3}
+        initial_depth = self.orchestrator.recursion_depth
+
+        self.orchestrator._adjust_recursion_depth()
+
+        adjusted = self.orchestrator.recursion_depth
+        delta = adjusted - initial_depth
+        assert delta == expected_adjust
+
+    def test_gather_memory_lessons_no_memory(self):
+        """Testa _gather_memory_lessons quando memory desabilitado."""
+        self.mock_config.loop.use_memory = False
+        lessons = self.orchestrator._gather_memory_lessons("goal")
+        assert lessons == ""
+
+    @patch('a3x.agent.SemanticMemory')
+    def test_gather_memory_lessons_with_memory(self, mock_memory):
+        """Testa _gather_memory_lessons com memória semântica."""
+        self.mock_config.loop.use_memory = True
+        self.mock_config.loop.memory_top_k = 2
+
+        mock_mem_instance = Mock()
+        mock_memory.return_value = mock_mem_instance
+        mock_mem_instance.query.return_value = [("lesson1", 0.9), ("lesson2", 0.8)]
+
+        lessons = self.orchestrator._gather_memory_lessons("test goal")
+
+        assert "Useful lessons:" in lessons
+        assert "1. lesson1" in lessons
+        assert "2. lesson2" in lessons
+        mock_mem_instance.query.assert_called_once_with("test goal", top_k=2)

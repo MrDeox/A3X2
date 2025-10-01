@@ -28,7 +28,7 @@ dev = [
   "matplotlib>=3.8"
 ]
 memory = [
-  "sentence-transformers>=2.2.0"
+    "sentence-transformers>=2.2.0"
 ]
 
 [project.scripts]
@@ -36,3 +36,21 @@ a3x = "a3x.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+select = ["E", "F", "I", "UP", "B", "Q", "W", "T20", "ARG", "PTH"]
+ignore = ["E501"]
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    ".pytest_cache",
+    "build",
+    "dist",
+    "*.egg-info",
+]
+
+[tool.ruff.isort]
+known-first-party = ["a3x"]

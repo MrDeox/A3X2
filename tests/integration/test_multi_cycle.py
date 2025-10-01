@@ -7,7 +7,7 @@ from pathlib import Path
 
 from a3x.autoloop import AutoLoop
 from a3x.llm import LLMClient
-from a3x.executor import Executor
+from a3x.executor import ActionExecutor
 from a3x.seeds import SeedBacklog
 from a3x.autoeval import AutoEvaluator
 
@@ -27,8 +27,8 @@ def mock_llm_client():
 
 @pytest.fixture
 def mock_executor():
-    executor = Mock(spec=Executor)
-    executor.apply.side_effect = [True] * (2) + [False]  # Last fails
+    executor = Mock(spec=ActionExecutor)
+    executor.execute.side_effect = [Observation(success=True)] * 2 + [Observation(success=False)]
     return executor
 
 
