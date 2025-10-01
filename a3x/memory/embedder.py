@@ -2,9 +2,31 @@
 
 from __future__ import annotations
 
+import sys
 import threading
 from dataclasses import dataclass
 from typing import Iterable, List
+
+try:
+    import sentence_transformers  # type: ignore
+except ImportError:  # pragma: no cover - executed when dependency missing
+    import types
+
+    stub_module = types.ModuleType("sentence_transformers")
+
+    class _MissingSentenceTransformer:
+        def __init__(self, *args, **kwargs) -> None:
+            raise RuntimeError(
+                "Pacote 'sentence-transformers' não encontrado. Instale com 'pip install sentence-transformers'."
+            )
+
+        def encode(self, *args, **kwargs):  # pragma: no cover - stub only
+            raise RuntimeError(
+                "Pacote 'sentence-transformers' não encontrado. Instale com 'pip install sentence-transformers'."
+            )
+
+    stub_module.SentenceTransformer = _MissingSentenceTransformer  # type: ignore[attr-defined]
+    sys.modules["sentence_transformers"] = stub_module
 
 _MODEL_LOCK = threading.Lock()
 _MODEL_INSTANCE: "EmbeddingModel | None" = None

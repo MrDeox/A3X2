@@ -20,6 +20,7 @@ from .planning.mission_state import MissionState, Mission, MissionTelemetry
 from .planning.storage import load_mission_state, save_mission_state
 from .capabilities import CapabilityRegistry, Capability
 from .capability_metrics import compute_capability_metrics
+from .seeds import SeedBacklog, Seed
 
 
 @dataclass
@@ -40,7 +41,7 @@ class MetaSkill:
 @dataclass
 class SkillProposal:
     """Represents a proposed new skill to be created."""
-    
+
     id: str
     name: str
     description: str
@@ -51,6 +52,7 @@ class SkillProposal:
     rationale: str
     target_domain: str
     created_at: str
+    blueprint_path: Optional[str] = None
 
 
 class MetaCapabilityEngine:
@@ -62,14 +64,28 @@ class MetaCapabilityEngine:
         self.workspace_root = Path(config.workspace.root).resolve()
         self.capabilities_path = self.workspace_root / "seed" / "capabilities.yaml"
         self.missions_path = self.workspace_root / "seed" / "missions.yaml"
-        self.skills_path = self.workspace_root / "seed" / "skills"
-        self.skills_path.mkdir(parents=True, exist_ok=True)
+        self.skill_records_path = self.workspace_root / "seed" / "skills"
+        self.skill_records_path.mkdir(parents=True, exist_ok=True)
+        # Maintain backwards compatibility for existing tests/utilities
+        self.skills_path = self.skill_records_path
+        self.skill_repo_path = self.workspace_root / "a3x" / "skills"
+        self.skill_repo_path.mkdir(parents=True, exist_ok=True)
+        self.skill_tests_path = (
+            self.workspace_root / "tests" / "unit" / "a3x" / "skills"
+        )
+        self.skill_tests_path.mkdir(parents=True, exist_ok=True)
+        self.backlog_path = self.workspace_root / "seed" / "backlog.yaml"
         
         # Load existing capabilities
         self.capability_registry = self._load_capability_registry()
         
         # Define meta-skills for autonomous skill creation
         self.meta_skills = self._define_meta_skills()
+
+    @staticmethod
+    def _slugify(value: str, *, separator: str = "_") -> str:
+        slug = re.sub(r"[^a-z0-9]+", separator, value.lower()).strip(separator)
+        return slug or "nova_skill"
     
     def _load_capability_registry(self) -> CapabilityRegistry:
         """Load the existing capability registry."""
@@ -456,9 +472,26 @@ class {{optimized_skill_name}}:
     def create_skill_seed(self, proposal: SkillProposal) -> EvaluationSeed:
         """Create an evaluation seed for implementing the proposed skill."""
         implementation_code = self.generate_skill_implementation(proposal)
-        
+
+        skill_slug = self._slugify(proposal.name)
+        skill_file = self.skill_repo_path / f"{skill_slug}.py"
+        test_file = self.skill_tests_path / f"test_{skill_slug}.py"
+        proposal_record = self.skill_records_path / f"{proposal.id}.json"
+        blueprint_path = self.skill_records_path / f"{proposal.id}.py"
+        blueprint_path.write_text(implementation_code, encoding="utf-8")
+
+        proposal.blueprint_path = str(blueprint_path.relative_to(self.workspace_root))
+
+        description = (
+            f"Criar habilidade '{proposal.name}' salvando o código em "
+            f"{skill_file.relative_to(self.workspace_root)} e criando testes em "
+            f"{test_file.relative_to(self.workspace_root)}. Utilize o blueprint "
+            f"registrado em {proposal.blueprint_path} e atualize o registro "
+            f"{proposal_record.relative_to(self.workspace_root)}."
+        )
+
         seed = EvaluationSeed(
-            description=f"Criar habilidade: {proposal.name} - {proposal.description}",
+            description=description,
             priority=proposal.priority,
             capability=f"meta.skill_creation.{proposal.target_domain}",
             seed_type="skill_creation",
@@ -469,10 +502,15 @@ class {{optimized_skill_name}}:
                 "estimated_effort": str(proposal.estimated_effort),
                 "rationale": proposal.rationale,
                 "target_domain": proposal.target_domain,
-                "generated_code": implementation_code
+                "generated_code": implementation_code,
+                "skill_slug": skill_slug,
+                "skill_module": str(skill_file.relative_to(self.workspace_root)),
+                "skill_test_module": str(test_file.relative_to(self.workspace_root)),
+                "proposal_record": str(proposal_record.relative_to(self.workspace_root)),
+                "blueprint_file": proposal.blueprint_path,
             }
         )
-        
+
         return seed
     
     def evaluate_proposal_feasibility(self, proposal: SkillProposal) -> Tuple[bool, float, str]:
@@ -500,22 +538,27 @@ class {{optimized_skill_name}}:
         
         return True, feasibility_score, "Viável para implementação"
     
-    def _get_pending_seeds(self) -> List[EvaluationSeed]:
-        """Get list of pending seeds from backlog."""
-        # This would normally read from the seed backlog
-        # For now, return empty list
-        return []
+    def _get_pending_seeds(self) -> List[Seed]:
+        """Return pending seeds currently registered in the backlog."""
+        try:
+            backlog = SeedBacklog.load(self.backlog_path)
+        except Exception:
+            return []
+        try:
+            return backlog.list_pending()
+        except Exception:
+            return []
     
     def save_skill_proposal(self, proposal: SkillProposal) -> None:
         """Save a skill proposal to disk."""
-        proposal_file = self.skills_path / f"{proposal.id}.json"
+        proposal_file = self.skill_records_path / f"{proposal.id}.json"
         with proposal_file.open("w", encoding="utf-8") as f:
             json.dump(asdict(proposal), f, ensure_ascii=False, indent=2)
     
     def load_skill_proposals(self) -> List[SkillProposal]:
         """Load saved skill proposals from disk."""
         proposals = []
-        for proposal_file in self.skills_path.glob("*.json"):
+        for proposal_file in self.skill_records_path.glob("*.json"):
             try:
                 with proposal_file.open("r", encoding="utf-8") as f:
                     data = json.load(f)

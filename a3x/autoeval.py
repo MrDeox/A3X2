@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 import subprocess
 import tempfile
-import subprocess
 from dataclasses import dataclass, asdict, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,6 +22,7 @@ from .capability_metrics import compute_capability_metrics
 from .planning.storage import load_mission_state, save_mission_state
 from .memory.store import SemanticMemory
 from .memory.insights import build_insight_payload
+from .config import AgentConfig
 # Import MetaCapabilityPlanner locally to avoid circular import
 # from .meta_capabilities import MetaCapabilityPlanner
 
@@ -125,6 +126,9 @@ class AutoEvaluator:
         # Generate seeds based on code quality issues
         quality_seeds = self._check_code_quality_issues(code_quality_metrics)
         evaluation.seeds.extend(quality_seeds)
+
+        # Enfileirar seeds originadas desta execução
+        self.enqueue_seeds(evaluation.seeds, source="autoeval")
         
         self._growth_test_generator.ensure_tests()
         self._detect_and_run_e2e_tests(evaluation)
@@ -383,6 +387,7 @@ class AutoEvaluator:
         last_errors = last_eval.get("errors") if last_eval else None
 
         planner = Planner(thresholds=self.thresholds)
+        planner_seeds = []
         for seed in planner.propose(
             history,
             patch_config_path=patch_config_path,
@@ -392,8 +397,13 @@ class AutoEvaluator:
             capability_metrics=capability_metrics,
             last_errors=last_errors,
         ):
-            # Ensure metadata values are strings
-            processed_metadata = {k: ", ".join(v) if isinstance(v, list) else str(v) for k, v in seed.metadata.items()}
+            planner_seeds.append(seed)
+
+        for seed in planner_seeds:
+            processed_metadata = {
+                k: ", ".join(v) if isinstance(v, list) else str(v)
+                for k, v in seed.metadata.items()
+            }
             processed_seed = Seed(
                 id=seed.id,
                 goal=seed.goal,
@@ -414,6 +424,7 @@ class AutoEvaluator:
 
         if mission_state:
             mission_planner = MissionPlanner()
+            mission_seeds = []
             for seed in mission_planner.propose(
                 mission_state,
                 capability_metrics,
@@ -422,8 +433,13 @@ class AutoEvaluator:
                 tests_config_path=tests_config_path,
                 lint_config_path=lint_config_path,
             ):
-                # Ensure metadata values are strings
-                processed_metadata = {k: ", ".join(v) if isinstance(v, list) else str(v) for k, v in seed.metadata.items()}
+                mission_seeds.append(seed)
+
+            for seed in mission_seeds:
+                processed_metadata = {
+                    k: ", ".join(v) if isinstance(v, list) else str(v)
+                    for k, v in seed.metadata.items()
+                }
                 processed_seed = Seed(
                     id=seed.id,
                     goal=seed.goal,
@@ -443,36 +459,84 @@ class AutoEvaluator:
                     backlog.add_seed(processed_seed)
 
         if registry:
-            config_map = {
-                "patch": patch_config_path,
-                "tests": tests_config_path,
-                "lint": lint_config_path,
-                "manual": manual_config_path,
-            }
             # Import MetaCapabilityEngine locally to avoid circular import
             from .meta_capabilities import MetaCapabilityEngine
+
             meta_engine = MetaCapabilityEngine(config=self.config, auto_evaluator=self)
-            existing_ids = backlog.list_all_ids()
-            for seed in meta_engine.propose_new_skills():
-                # Ensure metadata values are strings
-                processed_metadata = {k: ", ".join(v) if isinstance(v, list) else str(v) for k, v in seed.metadata.items()}
-                processed_seed = Seed(
-                    id=seed.id,
-                    goal=seed.goal,
-                    priority=seed.priority,
-                    status=seed.status,
-                    type=seed.type,
-                    config=seed.config,
-                    max_steps=seed.max_steps,
-                    metadata=processed_metadata,
-                    history=seed.history,
-                    attempts=seed.attempts,
-                    max_attempts=seed.max_attempts,
-                    next_run_at=seed.next_run_at,
-                    last_error=seed.last_error,
+            proposals = meta_engine.propose_new_skills()
+            meta_seeds: List[EvaluationSeed] = []
+            for proposal in proposals:
+                feasible, score, reason = meta_engine.evaluate_proposal_feasibility(proposal)
+                if not feasible:
+                    continue
+                seed = meta_engine.create_skill_seed(proposal)
+                data = dict(seed.data or {})
+                data.setdefault("feasibility_score", f"{score:.2f}")
+                data.setdefault("feasibility_reason", reason)
+                seed.data = data
+                meta_seeds.append(seed)
+                meta_engine.save_skill_proposal(proposal)
+
+            if meta_seeds:
+                self.enqueue_seeds(meta_seeds, source="meta_capabilities")
+
+    def enqueue_seeds(
+        self, seeds: List[EvaluationSeed], *, source: str = "autoeval"
+    ) -> None:
+        """Add evaluation seeds to the shared backlog."""
+
+        if not seeds:
+            return
+
+        backlog = SeedBacklog.load(self.backlog_path)
+        timestamp = datetime.now(timezone.utc)
+        created_at = timestamp.isoformat()
+        default_config = self._resolve_default_seed_config()
+
+        for index, eval_seed in enumerate(seeds):
+            slug_source = (
+                (eval_seed.data or {}).get("proposal_id")
+                or (eval_seed.data or {}).get("seed_id")
+                or eval_seed.description
+            )
+            slug = re.sub(r"[^a-z0-9]+", "-", slug_source.lower()).strip("-")
+            if not slug:
+                slug = "seed"
+            seed_id = f"{source}.{slug}"
+            if backlog.exists(seed_id):
+                seed_id = f"{seed_id}-{timestamp.strftime('%H%M%S')}-{index}"
+
+            metadata = {
+                "source": source,
+                "created_at": created_at,
+                "seed_type": eval_seed.seed_type,
+            }
+            if eval_seed.capability:
+                metadata["capability"] = eval_seed.capability
+            for key, value in (eval_seed.data or {}).items():
+                if key == "generated_code" and isinstance(value, str):
+                    metadata["data.generated_code_length"] = str(len(value))
+                else:
+                    metadata[f"data.{key}"] = str(value)
+
+            backlog.add_seed(
+                Seed(
+                    id=seed_id,
+                    goal=eval_seed.description,
+                    priority=eval_seed.priority or "medium",
+                    status="pending",
+                    type=eval_seed.seed_type or "improvement",
+                    config=default_config,
+                    metadata=metadata,
                 )
-                if not backlog.exists(processed_seed.id):
-                    backlog.add_seed(processed_seed)
+            )
+
+    def _resolve_default_seed_config(self) -> str:
+        if self.config and self.config.loop.seed_config:
+            return str(self.config.loop.seed_config)
+        configs_dir = (self.base_dir / "../configs").resolve()
+        manual_config = configs_dir / "seed_manual.yaml"
+        return str(manual_config)
 
     def _update_capability_metrics(
         self, capability_metrics: Dict[str, Dict[str, float | int | None]]

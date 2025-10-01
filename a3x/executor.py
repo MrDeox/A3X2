@@ -1198,15 +1198,22 @@ class ActionExecutor:
             if not Path(path).is_absolute()
             else Path(path).resolve()
         )
-        root_str = str(self.workspace_root)
-        if (
-            not self.config.workspace.allow_outside_root
-            and not str(candidate).startswith(root_str)
-        ):
-            if not str(candidate).startswith("/tmp/a3x_sandbox/"):
-                # Temporarily disabled permission check for testing
-                # raise PermissionError(f"Acesso negado fora do workspace: {candidate}")
-                pass
+
+        def _is_within(base: Path, target: Path) -> bool:
+            try:
+                target.relative_to(base)
+                return True
+            except ValueError:
+                return False
+
+        if not self.config.workspace.allow_outside_root:
+            if not _is_within(self.workspace_root, candidate) and not _is_within(
+                Path("/tmp/a3x_sandbox"), candidate
+            ):
+                raise PermissionError(
+                    f"Acesso negado fora do workspace: {candidate}"
+                )
+
         return candidate
 
     def _command_allowed(self, command: list[str]) -> bool:
