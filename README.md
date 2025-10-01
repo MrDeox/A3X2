@@ -102,6 +102,14 @@ a3x run --goal "Adicionar endpoint /health" --config configs/sample.yaml
 
 O arquivo `configs/sample.yaml` está pronto para usar o modelo Grok 4 Fast via OpenRouter (`llm.model: "x-ai/grok-4-fast:free"`). Ajuste o campo `llm.model` conforme o slug desejado listado em <https://openrouter.ai/models>. Caso queira testar o ciclo sem chamadas externas, utilize `configs/manual.yaml`, que trabalha com scripts previamente definidos em `configs/scripts/demo_plan.yaml`.
 
+Para reproduções determinísticas sem depender de OpenRouter, force o uso do `ManualLLMClient` passando um roteiro explícito:
+
+```bash
+a3x run --goal "Rodar script determinístico" --config configs/sample.yaml --deterministic-script scripts/demo.yaml
+```
+
+Quando a flag `--deterministic-script` não é informada, a execução segue normalmente com as configurações declaradas no arquivo YAML (ex.: OpenRouter).
+
 ### Execução de Seeds Autônomas
 
 ```bash
