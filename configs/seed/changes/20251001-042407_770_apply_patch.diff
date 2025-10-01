@@ -1,0 +1,10 @@
+--- simple.py
++++ simple.py
+@@ -1,2 +1,6 @@
+ # Basic Python file for adding a function
+  def add(a, b):
++    return a + b
++
++
++if __name__ == "__main__":
++    print(add(2, 3))

@@ -1,0 +1,13 @@
+--- a/simple.py
++++ b/simple.py
+--- simple.py
++++ simple.py
+@@ -0,0 +1,8 @@
++# Basic Python file for adding a function
++
++def add(a, b):
++    return a + b
++
++# Test the function
++if __name__ == '__main__':
++    print(add(2, 3))

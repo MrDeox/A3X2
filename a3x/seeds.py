@@ -57,8 +57,9 @@ class Seed:
         return mapping.get(self.priority, 0.0)
 
     def compute_expected_gain(self) -> float:
-        """Calcula o ganho esperado com base no histórico recente da seed."""
-
+        """Calcula o ganho esperado com base no histórico recente da seed e deltas de fitness."""
+        
+        # Original components
         if self.last_success is True:
             success_component = 1.0
         elif self.last_success is False:
@@ -68,7 +69,20 @@ class Seed:
 
         iterations_component = 1.0 / (1.0 + float(self.last_iterations or 0))
         memory_component = 0.2 * float(self.last_memories_reused or 0)
-        return success_component + iterations_component + memory_component
+        
+        # Fitness delta component - use fitness history to calculate expected gain
+        fitness_delta_component = 0.0
+        if 'fitness_delta' in self.metadata:
+            try:
+                fitness_delta = float(self.metadata.get('fitness_delta', 0))
+                fitness_delta_component = fitness_delta  # Positive delta is good
+            except (ValueError, TypeError):
+                fitness_delta_component = 0.0
+        
+        # Apply a discount factor based on number of attempts (learning from repeated failures)
+        attempts_discount = 1.0 / (1.0 + self.attempts * 0.2)  # 20% penalty per attempt
+        
+        return (success_component + iterations_component + memory_component + fitness_delta_component) * attempts_discount
 
     def compute_fitness(self) -> float:
         attempts_factor = max(self.attempts, 0)

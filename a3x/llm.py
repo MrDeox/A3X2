@@ -360,13 +360,15 @@ class OpenRouterLLMClient(BaseLLMClient):
 
 
 def build_llm_client(llm_config) -> BaseLLMClient:
-    llm_type = (llm_config.type or "manual").lower()
+    llm_type = (llm_config.type or "openrouter").lower()  # Default to openrouter instead of manual
     if llm_type == "manual":
         return ManualLLMClient(llm_config.script)
     if llm_type == "openrouter":
         base_url = llm_config.base_url or llm_config.endpoint
+        # Use default model if not specified
+        model = llm_config.model or "x-ai/grok-4-fast:free"
         return OpenRouterLLMClient(
-            model=llm_config.model,
+            model=model,
             api_key_env=llm_config.api_key_env,
             base_url=base_url,
         )

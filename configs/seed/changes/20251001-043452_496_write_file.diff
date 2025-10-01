@@ -1,0 +1,6 @@
+--- a/hello.py
++++ b/hello.py
+--- hello.py
++++ hello.py
+@@ -0,0 +1 @@
++print('Hello, World!')

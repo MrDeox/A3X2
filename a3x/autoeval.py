@@ -99,6 +99,9 @@ class AutoEvaluator:
         notes: Optional[str] = None,
         errors: Optional[List[str]] = None,
     ) -> RunEvaluation:
+        # Calculate fitness_before (from previous run)
+        fitness_before = self._calculate_fitness_before()
+        
         evaluation = RunEvaluation(
             goal=goal,
             completed=completed,
@@ -112,8 +115,52 @@ class AutoEvaluator:
             notes=notes,
             errors=errors or [],
         )
+        
+        # Calculate fitness_after based on current metrics
+        fitness_after = self._calculate_fitness(evaluation.metrics)
+        
+        # Calculate delta
+        delta = fitness_after - fitness_before
+        
+        # Store the fitness data with the evaluation
+        evaluation.metrics['fitness_before'] = fitness_before
+        evaluation.metrics['fitness_after'] = fitness_after
+        evaluation.metrics['fitness_delta'] = delta
+        
         self._append(evaluation)
         return evaluation
+
+    def _calculate_fitness_before(self) -> float:
+        """Get the fitness from before this run."""
+        # Load the last evaluation to get its fitness_after
+        last_eval = self._read_last_evaluation()
+        if last_eval and 'metrics' in last_eval:
+            metrics = last_eval['metrics']
+            if 'fitness_after' in metrics:
+                return metrics['fitness_after']
+        # If no previous fitness data, return default value
+        return 0.0
+
+    def _calculate_fitness(self, metrics: Dict[str, float]) -> float:
+        """Calculate an overall fitness score based on metrics."""
+        # Weighted combination of key metrics
+        fitness = 0.0
+        
+        # Actions success rate (most important)
+        fitness += metrics.get("actions_success_rate", 0.0) * 0.4
+        
+        # Apply patch success rate  
+        if "apply_patch_success_rate" in metrics:
+            fitness += metrics["apply_patch_success_rate"] * 0.3
+        
+        # Test success rate
+        if "tests_success_rate" in metrics:
+            fitness += metrics["tests_success_rate"] * 0.2
+        
+        # Recursion depth (efficiency) - capped at 1.0
+        fitness += min(metrics.get("recursion_depth", 0) / 10.0, 1.0) * 0.1
+        
+        return fitness
 
     def _append(self, evaluation: RunEvaluation) -> None:
         entry = asdict(evaluation)
@@ -131,6 +178,15 @@ class AutoEvaluator:
         quality_seeds = self._check_code_quality_issues(code_quality_metrics)
         evaluation.seeds.extend(quality_seeds)
 
+        # Calculate fitness delta for this run
+        fitness_delta = evaluation.metrics.get('fitness_delta', 0.0)
+        
+        # Include fitness info in the metadata of seeds
+        for seed in evaluation.seeds:
+            if seed.data is None:
+                seed.data = {}
+            seed.data['fitness_delta'] = str(fitness_delta)
+        
         # Enfileirar seeds originadas desta execução
         self.enqueue_seeds(evaluation.seeds, source="autoeval")
         

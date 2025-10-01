@@ -57,13 +57,8 @@ class SeedRunner:
         if result.errors:
             notes_parts.append("; ".join(result.errors))
 
+        notes = ""
         if result.completed:
-            self.backlog.mark_completed(
-                seed.id,
-                notes=notes,
-                iterations=result.iterations,
-                memories_reused=result.memories_reused,
-            )
             if seed.type == "skill_creation":
                 success, message = self._handle_skill_creation(seed)
                 if message:
@@ -73,6 +68,8 @@ class SeedRunner:
                     self.backlog.mark_failed(
                         seed.id,
                         notes=notes or "Falha ao materializar skill",
+                        iterations=result.iterations,
+                        memories_reused=result.memories_reused,
                     )
                     return SeedRunResult(
                         seed_id=seed.id,
@@ -82,7 +79,12 @@ class SeedRunner:
                     )
 
             notes = "; ".join(part for part in notes_parts if part)
-            self.backlog.mark_completed(seed.id, notes=notes or None)
+            self.backlog.mark_completed(
+                seed.id,
+                notes=notes or None,
+                iterations=result.iterations,
+                memories_reused=result.memories_reused,
+            )
             return SeedRunResult(
                 seed_id=seed.id,
                 status="completed",
@@ -92,14 +94,13 @@ class SeedRunner:
                 memories_reused=result.memories_reused,
             )
 
+        notes = "; ".join(part for part in notes_parts if part)
         self.backlog.mark_failed(
             seed.id,
             notes=notes or "Seed não concluída",
             iterations=result.iterations,
             memories_reused=result.memories_reused,
         )
-        notes = "; ".join(part for part in notes_parts if part)
-        self.backlog.mark_failed(seed.id, notes=notes or "Seed não concluída")
         return SeedRunResult(
             seed_id=seed.id,
             status="failed",

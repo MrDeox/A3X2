@@ -1,0 +1,17 @@
+[
+  {
+    "goal": "Step 1: Plan Step 1: Plan Step 1: Plan Test simple command: echo 'Hello A3X'",
+    "priority": 1.0,
+    "parent_goal": "Step 1: Plan Step 1: Plan Test simple command: echo 'Hello A3X'"
+  },
+  {
+    "goal": "Step 2: Implement Step 1: Plan Step 1: Plan Test simple command: echo 'Hello A3X'",
+    "priority": 1.0,
+    "parent_goal": "Step 1: Plan Step 1: Plan Test simple command: echo 'Hello A3X'"
+  },
+  {
+    "goal": "Step 3: Test Step 1: Plan Step 1: Plan Test simple command: echo 'Hello A3X'",
+    "priority": 1.0,
+    "parent_goal": "Step 1: Plan Step 1: Plan Test simple command: echo 'Hello A3X'"
+  }
+]

@@ -1,9 +1,9 @@
 # Run Reflection
 
 ## Última Execução: ✅ concluído
-- Objetivo: [EMERGÊNCIA] Resolver Taxa crítica de sucesso em patches: 0.0% criticamente
+- Objetivo: Investigar e corrigir falha detectada nos testes E2E automáticos.
 - Iterações: 8 | Falhas: 1
-- Duração: 0.03s
+- Duração: 16.03s
 
 ### Seeds sugeridas pelo run
 - (analysis) Reduzir falhas durante execução (avaliar logs e políticas).
@@ -20,4 +20,4 @@
 - Status Geral: ❌ Falhou
 - ⚠️ actions_success_rate: 0.875 (alvo 0.95)
 - ⚠️ apply_patch_success_rate: 0.0 (alvo 0.95)
-- ✅ recursion_depth: 5.0 (alvo 5.0)
+- ⚠️ recursion_depth: 3.0 (alvo 5.0)

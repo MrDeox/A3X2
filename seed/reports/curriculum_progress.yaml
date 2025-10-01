@@ -1,0 +1,8 @@
+current_index: 0
+completed_steps: []
+last_enqueued_goal: Garantir que a suíte de testes básica execute sem falhas e documentar
+  o fluxo.
+last_enqueued_at: '2025-10-01T04:42:35.144799+00:00'
+active_step_id: bootstrap-tests
+last_goal_evaluated: Investigar e corrigir falha detectada nos testes E2E automáticos.
+updated_at: '2025-10-01T04:42:35.144799+00:00'
