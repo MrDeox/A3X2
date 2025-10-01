@@ -35,6 +35,10 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument(
         "--show-history", action="store_true", help="Exibe histórico completo ao final"
     )
+    run_parser.add_argument(
+        "--deterministic-script",
+        help="Força execução determinística via ManualLLMClient usando roteiro YAML",
+    )
     # Auto-watch: roda o daemon de seeds após a execução principal
     run_parser.add_argument(
         "--auto-watch",
@@ -280,6 +284,17 @@ def main(argv: list[str] | None = None) -> int:
     config = load_config(args.config)
     if args.max_steps:
         config.limits.max_iterations = args.max_steps
+
+    if args.deterministic_script:
+        script_path = Path(args.deterministic_script)
+        if not script_path.is_absolute():
+            script_path = script_path.resolve()
+        config.llm.type = "manual"
+        config.llm.script = script_path
+        config.llm.model = None
+        config.llm.endpoint = None
+        config.llm.base_url = None
+        config.llm.api_key_env = None
 
     llm_client = build_llm_client(config.llm)
     orchestrator = AgentOrchestrator(config, llm_client)
