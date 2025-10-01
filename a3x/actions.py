@@ -61,3 +61,4 @@ class AgentState:
     iteration: int
     max_iterations: int
     seed_context: str = ""
+    memory_lessons: str = ""

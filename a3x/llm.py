@@ -124,14 +124,25 @@ class OpenRouterLLMClient(BaseLLMClient):
             "Use apenas os campos necessários. 'type' deve ser um dos: "
             "message, run_command, apply_patch, write_file, read_file, finish."
         )
-        context = state.seed_context or "Sem dados SeedAI prévios disponíveis."
-        user_content = (
-            f"Objetivo: {self._goal}\n"
-            f"Iteração atual: {state.iteration} / {state.max_iterations}\n"
-            f"Contexto SeedAI:\n{context}\n\n"
-            f"Historico:\n{history}\n\n"
-            f"{instruction}"
-        )
+        lessons_block = (state.memory_lessons or "").strip()
+        context_text = (state.seed_context or "").strip()
+        if lessons_block and lessons_block in context_text:
+            context_text = context_text.replace(lessons_block, "").strip()
+        context_section = context_text or "Sem dados SeedAI prévios disponíveis."
+
+        sections = [
+            f"Objetivo: {self._goal}",
+            f"Iteração atual: {state.iteration} / {state.max_iterations}",
+            f"Contexto SeedAI:\n{context_section}",
+        ]
+
+        if lessons_block:
+            sections.append(lessons_block)
+
+        sections.append(f"Historico:\n{history}")
+        sections.append(instruction)
+
+        user_content = "\n\n".join(sections)
         return [
             {"role": "system", "content": self._SYSTEM_PROMPT},
             {"role": "user", "content": user_content},

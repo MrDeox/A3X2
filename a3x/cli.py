@@ -60,6 +60,25 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Não encerrar quando não houver seeds elegíveis",
     )
+    run_parser.add_argument(
+        "--use-memory",
+        dest="use_memory",
+        action="store_true",
+        help="Ativa consulta à memória semântica antes de cada ação",
+    )
+    run_parser.add_argument(
+        "--no-memory",
+        dest="use_memory",
+        action="store_false",
+        help="Desativa consulta à memória semântica",
+    )
+    run_parser.add_argument(
+        "--memory-top-k",
+        type=int,
+        dest="memory_top_k",
+        help="Número de lembranças semânticas a incluir no contexto",
+    )
+    run_parser.set_defaults(use_memory=None, memory_top_k=None)
 
     seed_parser = subparsers.add_parser("seed", help="Operações relacionadas a seeds")
     seed_sub = seed_parser.add_subparsers(dest="seed_command")
@@ -280,6 +299,10 @@ def main(argv: list[str] | None = None) -> int:
     config = load_config(args.config)
     if args.max_steps:
         config.limits.max_iterations = args.max_steps
+    if args.use_memory is not None:
+        config.loop.use_memory = args.use_memory
+    if args.memory_top_k is not None:
+        config.loop.memory_top_k = max(0, args.memory_top_k)
 
     llm_client = build_llm_client(config.llm)
     orchestrator = AgentOrchestrator(config, llm_client)

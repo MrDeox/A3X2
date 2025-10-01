@@ -16,6 +16,7 @@ from .planner import PlannerThresholds
 from .executor import ActionExecutor
 from .history import AgentHistory
 from .llm import BaseLLMClient
+from .memory.store import SemanticMemory
 
 
 @dataclass
@@ -49,6 +50,7 @@ class AgentOrchestrator:
         self.auto_evaluator = auto_evaluator or AutoEvaluator(thresholds=thresholds, config=config)
         self._llm_metrics: Dict[str, List[float]] = {}
         self.recursion_depth: int = 3
+        self._semantic_memory: SemanticMemory | None = None
 
     def run(self, goal: str) -> AgentResult:
         history = AgentHistory()
@@ -75,13 +77,24 @@ class AgentOrchestrator:
         started_at = time.perf_counter()
         context_summary = self.auto_evaluator.latest_summary()
 
+        memory_lessons = self._gather_memory_lessons(goal)
+
         for iteration in range(1, max_iterations + 1):
+            combined_context = context_summary or ""
+            if memory_lessons:
+                combined_context = combined_context.strip()
+                if combined_context:
+                    combined_context = f"{combined_context}\n\n{memory_lessons}"
+                else:
+                    combined_context = memory_lessons
+
             state = AgentState(
                 goal=goal,
                 history_snapshot=history.snapshot(),
                 iteration=iteration,
                 max_iterations=max_iterations,
-                seed_context=context_summary,
+                seed_context=combined_context,
+                memory_lessons=memory_lessons,
             )
 
             action = self.llm_client.propose_action(state)
@@ -126,6 +139,46 @@ class AgentOrchestrator:
         )
         self._record_auto_evaluation(goal, result, started_at)
         return result
+
+    def _gather_memory_lessons(self, goal: str) -> str:
+        if not self.config.loop.use_memory:
+            return ""
+
+        top_k = max(0, int(self.config.loop.memory_top_k))
+        if top_k <= 0:
+            return ""
+
+        if self._semantic_memory is None:
+            try:
+                self._semantic_memory = SemanticMemory()
+            except Exception as exc:  # pragma: no cover - falha inesperada ao carregar memória
+                print(f"Memória semântica indisponível: {exc}")
+                self._semantic_memory = None
+                return ""
+
+        if self._semantic_memory is None:
+            return ""
+
+        try:
+            results = self._semantic_memory.query(goal, top_k=top_k)
+        except Exception as exc:  # pragma: no cover - erros do backend de memória
+            print(f"Erro ao consultar memória semântica: {exc}")
+            return ""
+
+        if not results:
+            return ""
+
+        snippets: List[str] = []
+        for index, (entry, _score) in enumerate(results, 1):
+            content = entry.content.strip()
+            if len(content) > 400:
+                content = content[:397] + "..."
+            snippets.append(f"{index}. {entry.title}\n{content}")
+
+        if not snippets:
+            return ""
+
+        return "Lições úteis:\n" + "\n\n".join(snippets)
 
     # Internos -----------------------------------------------------------------
 
