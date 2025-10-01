@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from .agent import AgentOrchestrator
 from .config import load_config
 from .llm import build_llm_client
-from .seeds import SeedBacklog
+from .meta_capabilities import SkillProposal
+from .seeds import Seed, SeedBacklog
+from .skills.skill_creator import SkillCreator
 
 
 @dataclass
@@ -48,19 +51,199 @@ class SeedRunner:
         orchestrator = AgentOrchestrator(config, llm_client)
         result = orchestrator.run(seed.goal)
 
-        notes = ""
+        notes_parts: List[str] = []
         if result.errors:
-            notes = "; ".join(result.errors)
+            notes_parts.append("; ".join(result.errors))
+
         if result.completed:
-            self.backlog.mark_completed(seed.id, notes=notes)
+            if seed.type == "skill_creation":
+                success, message = self._handle_skill_creation(seed)
+                if message:
+                    notes_parts.append(message)
+                if not success:
+                    notes = "; ".join(part for part in notes_parts if part)
+                    self.backlog.mark_failed(
+                        seed.id,
+                        notes=notes or "Falha ao materializar skill",
+                    )
+                    return SeedRunResult(
+                        seed_id=seed.id,
+                        status="failed",
+                        completed=False,
+                        notes=notes,
+                    )
+
+            notes = "; ".join(part for part in notes_parts if part)
+            self.backlog.mark_completed(seed.id, notes=notes or None)
             return SeedRunResult(
                 seed_id=seed.id, status="completed", completed=True, notes=notes
             )
 
+        notes = "; ".join(part for part in notes_parts if part)
         self.backlog.mark_failed(seed.id, notes=notes or "Seed não concluída")
         return SeedRunResult(
             seed_id=seed.id, status="failed", completed=False, notes=notes
         )
+
+    def _handle_skill_creation(self, seed: Seed) -> Tuple[bool, str]:
+        try:
+            proposal = self._load_skill_proposal(seed)
+        except Exception as exc:
+            return False, f"Falha ao carregar SkillProposal: {exc}"
+
+        creator = SkillCreator(Path.cwd())
+        try:
+            return creator.create_skill_from_proposal(proposal)
+        except Exception as exc:  # pragma: no cover - segurança adicional
+            return False, f"Erro ao criar skill: {exc}"
+
+    def _load_skill_proposal(self, seed: Seed) -> SkillProposal:
+        metadata = seed.metadata or {}
+        payload = self._extract_proposal_payload(metadata, seed)
+        return self._build_skill_proposal(payload, metadata)
+
+    def _extract_proposal_payload(
+        self, metadata: Dict[str, str], seed: Seed
+    ) -> Dict[str, Any]:
+        for key in ("proposal_json", "skill_proposal_json", "skill_proposal"):
+            raw = metadata.get(key)
+            if raw:
+                try:
+                    return json.loads(raw)
+                except json.JSONDecodeError as exc:
+                    raise ValueError(f"JSON inválido em {key}: {exc}") from exc
+
+        proposal_path = self._resolve_proposal_path(metadata, seed)
+        if proposal_path:
+            try:
+                return json.loads(proposal_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"Arquivo de proposta inválido em {proposal_path}: {exc}"
+                ) from exc
+
+        required_fields = [
+            "id",
+            "name",
+            "description",
+            "implementation_plan",
+            "required_dependencies",
+            "estimated_effort",
+            "priority",
+            "rationale",
+            "target_domain",
+            "created_at",
+        ]
+        if all(metadata.get(field) for field in required_fields):
+            payload = {field: metadata[field] for field in required_fields}
+            blueprint = metadata.get("blueprint_path") or metadata.get("blueprint_file")
+            if blueprint:
+                payload["blueprint_path"] = blueprint
+            return payload
+
+        raise ValueError("Metadados da seed não contêm proposta de skill")
+
+    def _resolve_proposal_path(
+        self, metadata: Dict[str, str], seed: Seed
+    ) -> Optional[Path]:
+        path_keys = (
+            "proposal_record",
+            "proposal_file",
+            "proposal_path",
+            "skill_proposal_path",
+            "proposal_json_path",
+        )
+        for key in path_keys:
+            value = metadata.get(key)
+            if not value:
+                continue
+            candidate = Path(value)
+            if not candidate.is_absolute():
+                candidate = Path.cwd() / value
+            if candidate.exists():
+                return candidate
+
+        proposal_id = (
+            metadata.get("proposal_id")
+            or metadata.get("proposal")
+            or metadata.get("id")
+            or seed.metadata.get("proposal_id")
+        )
+        if proposal_id:
+            candidate = Path.cwd() / "seed" / "skills" / f"{proposal_id}.json"
+            if candidate.exists():
+                return candidate
+        return None
+
+    def _build_skill_proposal(
+        self, payload: Dict[str, Any], metadata: Dict[str, str]
+    ) -> SkillProposal:
+        fields = [
+            "id",
+            "name",
+            "description",
+            "implementation_plan",
+            "required_dependencies",
+            "estimated_effort",
+            "priority",
+            "rationale",
+            "target_domain",
+            "created_at",
+        ]
+        normalized: Dict[str, Any] = {}
+        for field in fields:
+            if field in payload and payload[field] not in (None, ""):
+                normalized[field] = payload[field]
+            elif metadata.get(field):
+                normalized[field] = metadata[field]
+
+        missing = [field for field in fields if field not in normalized]
+        if missing:
+            raise ValueError(
+                f"Campos ausentes para SkillProposal: {', '.join(sorted(missing))}"
+            )
+
+        normalized["required_dependencies"] = self._parse_dependencies(
+            normalized["required_dependencies"]
+        )
+        normalized["estimated_effort"] = self._parse_float(
+            normalized["estimated_effort"], "estimated_effort"
+        )
+
+        blueprint = (
+            payload.get("blueprint_path")
+            or payload.get("blueprint_file")
+            or metadata.get("blueprint_path")
+            or metadata.get("blueprint_file")
+        )
+        if blueprint:
+            normalized["blueprint_path"] = blueprint
+
+        return SkillProposal(**normalized)
+
+    @staticmethod
+    def _parse_dependencies(value: Any) -> List[str]:
+        if isinstance(value, list):
+            return [str(item) for item in value]
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return []
+            try:
+                parsed = json.loads(stripped)
+                if isinstance(parsed, list):
+                    return [str(item) for item in parsed]
+            except json.JSONDecodeError:
+                pass
+            return [item.strip() for item in stripped.split(",") if item.strip()]
+        raise ValueError("Lista de dependências inválida para SkillProposal")
+
+    @staticmethod
+    def _parse_float(value: Any, field_name: str) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Valor inválido para {field_name}: {value}") from exc
 
 
 def main(argv: list[str]) -> int:
