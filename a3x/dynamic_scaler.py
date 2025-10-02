@@ -125,30 +125,62 @@ class DynamicScaler:
         """Load scaling history from files."""
         history: list[ScalingDecision] = []
         history_file: Path = self.scaling_path / "history.json"
+        seen_ids: set[str] = set()
+        duplicates_removed: bool = False
+
+        def _add_decision(data: dict[str, Any]) -> None:
+            nonlocal duplicates_removed
+            try:
+                decision = ScalingDecision(**data)
+            except TypeError:
+                return
+            if decision.id in seen_ids:
+                duplicates_removed = True
+                return
+            seen_ids.add(decision.id)
+            history.append(decision)
+
         if history_file.exists():
             try:
                 with history_file.open("r", encoding="utf-8") as f:
                     data: list[dict[str, Any]] = json.load(f)
                     for item in data:
-                        history.append(ScalingDecision(**item))
+                        if isinstance(item, dict):
+                            _add_decision(item)
             except Exception:
                 pass
 
-        # Load individual files if history file missing
-        for decision_file in self.scaling_path.glob("scale_*.json"):
-            if decision_file.name != "history.json":
-                try:
-                    with decision_file.open("r", encoding="utf-8") as f:
-                        data: dict[str, Any] = json.load(f)
-                        history.append(ScalingDecision(**data))
-                except Exception:
-                    pass
+        for decision_file in sorted(self.scaling_path.glob("scale_*.json")):
+            if decision_file.name == "history.json":
+                continue
+            try:
+                with decision_file.open("r", encoding="utf-8") as f:
+                    data: dict[str, Any] = json.load(f)
+                    if isinstance(data, dict):
+                        _add_decision(data)
+            except Exception:
+                pass
+
+        if duplicates_removed and history_file.exists():
+            try:
+                with history_file.open("w", encoding="utf-8") as f:
+                    json.dump([asdict(dec) for dec in history], f, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
 
         return history
 
     def _save_scaling_history(self) -> None:
         """Save scaling history to file."""
         history_file: Path = self.scaling_path / "history.json"
+        seen_ids: set[str] = set()
+        deduplicated_history: list[ScalingDecision] = []
+        for decision in self.decision_history:
+            if decision.id in seen_ids:
+                continue
+            seen_ids.add(decision.id)
+            deduplicated_history.append(decision)
+        self.decision_history = deduplicated_history
         with history_file.open("w", encoding="utf-8") as f:
             json.dump([asdict(dec) for dec in self.decision_history], f, ensure_ascii=False, indent=2)
 
