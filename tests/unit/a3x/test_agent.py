@@ -590,7 +590,6 @@ class TestAgentRefactoring:
         assert "2. lesson2" in lessons
         mock_mem_instance.query.assert_called_once_with("test goal", top_k=2)
 
-
 class TestAgentRefactoring:
     """Testes para métodos refatorados no AgentOrchestrator."""
 
@@ -760,3 +759,29 @@ class TestAgentRefactoring:
         assert "1. lesson1" in lessons
         assert "2. lesson2" in lessons
         mock_mem_instance.query.assert_called_once_with("test goal", top_k=2)
+
+
+
+class TestAgentAutonomousModeStatus(TestAgentRefactoring):
+    """Testes específicos para o status do modo autônomo."""
+
+    def setup_method(self) -> None:
+        self._seed_strategist_patcher = patch("a3x.agent.LLMSeedStrategist")
+        self.mock_seed_strategist = self._seed_strategist_patcher.start()
+        self._meta_recursion_patcher = patch("a3x.agent.MetaRecursionEngine")
+        self.mock_meta_recursion = self._meta_recursion_patcher.start()
+        super().setup_method()
+
+    def teardown_method(self) -> None:
+        self._meta_recursion_patcher.stop()
+        self._seed_strategist_patcher.stop()
+
+    def test_get_autonomous_mode_status_uses_config_enable(self):
+        """Garante que o status do modo autônomo usa o flag correto."""
+        self.orchestrator._autonomous_config.enable = False
+
+        status = self.orchestrator.get_autonomous_mode_status()
+
+        assert status["autonomous_mode_enabled"] is False
+        assert isinstance(status["configuration"], dict)
+        assert status["configuration"].get("enable") is False
