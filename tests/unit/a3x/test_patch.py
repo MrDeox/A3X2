@@ -100,10 +100,9 @@ class TestPatchManager:
 
         success, msg = self.pm.validate_patch(invalid_diff)
         assert success is False
-        assert "Syntax error" in msg
-        assert "test_invalid.py" in msg
-        assert "Missing closing quote" in msg or "invalid syntax" in msg.lower()
-        assert "Validation failed due to syntax errors" in msg
+        assert "validation failed due to syntax errors" in msg.lower()
+        assert "syntax error in test_invalid.py after patch" in msg.lower()
+        assert "unterminated string literal" in msg.lower() or "invalid syntax" in msg.lower()
 
     def test_apply_with_pre_validation_failure(self):
         """Test apply raises PatchError if pre-validation fails."""
@@ -174,12 +173,14 @@ class TestPatchManager:
 -old
 +new
 """
+        (self.workspace_path / "test.py").write_text("old\n", encoding="utf-8")
         # Mock file read to fail
         with patch("pathlib.Path.read_text", side_effect=Exception("Permission denied")):
             success, msg = self.pm.validate_patch(diff)
 
         assert success is False
-        assert "Failed to copy" in msg
+        assert "validation failed" in msg.lower()
+        assert "permission denied" in msg.lower()
 
 
     @given(text(min_size=1))
