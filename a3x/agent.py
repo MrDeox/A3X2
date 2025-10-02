@@ -8,7 +8,7 @@ import os
 import random
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from pathlib import Path
 from typing import Any, Dict
 
@@ -723,20 +723,60 @@ class AgentOrchestrator:
             time_since_last_generation = current_time - self._last_autonomous_generation
 
         return {
-            "autonomous_mode_enabled": self._autonomous_config.enable_autonomous_goals,
+            "autonomous_mode_enabled": getattr(self._autonomous_config, "enable", False),
             "autonomous_generator_initialized": self._autonomous_goal_generator is not None,
             "last_generation_timestamp": self._last_autonomous_generation,
             "time_since_last_generation": time_since_last_generation,
             "can_generate_goals": self.should_enter_autonomous_mode(),
-            "configuration": {
-                "max_goals_per_cycle": self._autonomous_config.integration.max_goals_per_cycle,
-                "generation_interval": self._autonomous_config.integration.generation_interval_seconds,
-                "safety_checks_enabled": True,  # Default value
-                "validation_required": True,  # Default value
-                "min_impact_threshold": 0.3,  # Default value
-                "max_complexity": 3,  # Default value
-            }
+            "configuration": self._snapshot_autonomous_config(),
         }
+
+    def _snapshot_autonomous_config(self) -> dict[str, Any]:
+        """Create a serializable snapshot of the autonomous goal configuration."""
+
+        config = getattr(self, "_autonomous_config", None)
+
+        if config is None:
+            return {}
+
+        if is_dataclass(config):
+            try:
+                return asdict(config)
+            except TypeError:
+                # Fallback to manual extraction if dataclass conversion fails
+                pass
+
+        if isinstance(config, dict):
+            return dict(config)
+
+        snapshot: dict[str, Any] = {}
+
+        for attr in ("enable", "config_file"):
+            if hasattr(config, attr):
+                snapshot[attr] = getattr(config, attr)
+
+        for attr in ("triggers", "motivation_profile", "integration", "monitoring"):
+            value = getattr(config, attr, None)
+            if value is None:
+                continue
+
+            if is_dataclass(value):
+                try:
+                    snapshot[attr] = asdict(value)
+                    continue
+                except TypeError:
+                    pass
+
+            if isinstance(value, dict):
+                snapshot[attr] = dict(value)
+            else:
+                snapshot[attr] = value
+
+        goal_type_settings = getattr(config, "goal_type_settings", None)
+        if goal_type_settings is not None:
+            snapshot["goal_type_settings"] = dict(goal_type_settings)
+
+        return snapshot
 
     def enable_autonomous_mode(self, enable: bool = True) -> None:
         """Enable or disable autonomous mode.
