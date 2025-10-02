@@ -123,63 +123,107 @@ class PatchManager:
             capture_output=True,
         )
 
-    def extract_paths(self, diff: str) -> List[str]:
+    def extract_paths(self, diff: str) -> list[str]:
         """Extracts file paths from unified diff."""
         import re
-        # Match --- a/path and +++ b/path
-        path_matches = re.findall(r"^(--- |\++\+ )([ab]/.*)$", diff, re.MULTILINE)
-        return [match[1] for match in path_matches]
+
+        path_matches = re.findall(r"^(---|\+\+\+) ([ab]/[^\s]+)$", diff, re.MULTILINE)
+
+        normalized_paths: list[str] = []
+        for _, raw_path in path_matches:
+            if raw_path.startswith(("a/", "b/")):
+                normalized = raw_path[2:]
+                if normalized not in normalized_paths:
+                    normalized_paths.append(normalized)
+
+        return normalized_paths
 
     def _simulate_patch_for_file(self, original_content: str, diff: str, rel_path: str) -> str | None:
         """Simulate patch application for a single file without using recursion."""
-        try:
-            lines = original_content.splitlines()
-            patch_lines = diff.splitlines()
 
-            # Find the hunk for this specific file
-            in_file_hunk = False
-            current_old_line = 0
-            current_new_line = 0
+        def _parse_range(component: str) -> tuple[int, int]:
+            value = component[1:]
+            if "," in value:
+                start_str, count_str = value.split(",", 1)
+            else:
+                start_str, count_str = value, "1"
+            return int(start_str), int(count_str)
+
+        try:
+            patch_lines = diff.splitlines()
+            hunks: list[tuple[str, list[str]]] = []
+            current_file: str | None = None
+            current_header = ""
+            current_hunk: list[str] | None = None
 
             for line in patch_lines:
-                if line.startswith("--- a/"):
-                    if line == f"--- a/{rel_path}":
-                        in_file_hunk = True
+                if line.startswith("--- "):
+                    if current_hunk is not None:
+                        hunks.append((current_header, current_hunk))
+                        current_hunk = None
+                        current_header = ""
+                    current_file = None
+                elif line.startswith("+++ "):
+                    if current_hunk is not None:
+                        hunks.append((current_header, current_hunk))
+                        current_hunk = None
+                        current_header = ""
+                    marker = line[4:]
+                    normalized_marker = marker[2:] if marker.startswith("b/") else marker
+                    if normalized_marker == rel_path:
+                        current_file = rel_path
                     else:
-                        in_file_hunk = False
-                elif line.startswith("+++ b/"):
-                    if line == f"+++ b/{rel_path}":
-                        in_file_hunk = True
-                    else:
-                        in_file_hunk = False
-                elif in_file_hunk and line.startswith("@@"):
-                    # Parse hunk header: @@ -old_start,num_lines +new_start,num_lines @@
-                    parts = line.split()
-                    if len(parts) >= 3:
-                        old_range = parts[1]
-                        new_range = parts[2]
-                        if old_range.startswith("-") and new_range.startswith("+"):
-                            try:
-                                current_old_line = int(old_range[1:].split(",")[0])
-                                current_new_line = int(new_range[1:].split(",")[0])
-                            except ValueError:
-                                continue
-                elif in_file_hunk and line.startswith(("+", "-")) and len(lines) > 0:
-                    # Apply the change
-                    if line.startswith("-") and current_old_line > 0 and current_old_line <= len(lines):
-                        # Remove line
-                        if current_old_line <= len(lines):
-                            lines.pop(current_old_line - 1)
-                            current_new_line -= 1
-                    elif line.startswith("+") and current_new_line > 0:
-                        # Add line
-                        new_line_content = line[1:]
-                        if current_new_line <= len(lines):
-                            lines.insert(current_new_line - 1, new_line_content)
-                        else:
-                            lines.append(new_line_content)
+                        current_file = None
+                elif current_file == rel_path and line.startswith("@@"):
+                    if current_hunk is not None:
+                        hunks.append((current_header, current_hunk))
+                    current_header = line
+                    current_hunk = []
+                elif current_file == rel_path and current_hunk is not None:
+                    current_hunk.append(line)
+                else:
+                    if current_hunk is not None:
+                        hunks.append((current_header, current_hunk))
+                        current_hunk = None
+                        current_header = ""
 
-            return "\n".join(lines)
+            if current_hunk is not None:
+                hunks.append((current_header, current_hunk))
+
+            if not hunks:
+                return original_content
+
+            original_lines = original_content.splitlines()
+            result_lines: list[str] = []
+            original_index = 0  # 0-based index into original_lines
+
+            for header, hunk_lines in hunks:
+                parts = header.split()
+                if len(parts) < 3:
+                    continue
+                old_range = parts[1]
+                old_start, _ = _parse_range(old_range)
+
+                # Append unchanged lines before this hunk
+                while original_index < old_start - 1 and original_index < len(original_lines):
+                    result_lines.append(original_lines[original_index])
+                    original_index += 1
+
+                for hunk_line in hunk_lines:
+                    if hunk_line.startswith(" "):
+                        if original_index < len(original_lines):
+                            result_lines.append(original_lines[original_index])
+                        original_index += 1
+                    elif hunk_line.startswith("-"):
+                        original_index += 1
+                    elif hunk_line.startswith("+"):
+                        result_lines.append(hunk_line[1:])
+
+            # Append the rest of the original content
+            if original_index < len(original_lines):
+                result_lines.extend(original_lines[original_index:])
+
+            return "\n".join(result_lines)
 
         except Exception:
             return None
