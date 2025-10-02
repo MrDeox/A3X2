@@ -50,7 +50,9 @@ class SemanticMemory:
                     self._entries.append(MemoryEntry(**data))
                 except Exception:
                     continue
-        self.prune_old_entries()
+        with self._lock:
+            self._prune_old_entries_locked()
+            self._save_atomic()
 
     @property
     def entries(self) -> list[MemoryEntry]:
@@ -97,30 +99,42 @@ class SemanticMemory:
         )
         with self._lock:
             self._entries.append(entry)
+            self._prune_old_entries_locked()
             self._save_atomic()
         return entry
 
     def prune_old_entries(self) -> None:
-        """Delete entries older than configured days."""
+        """Delete entries older than configured days in-memory only."""
         with self._lock:
-            now: datetime = datetime.now(timezone.utc)
-            ttl: timedelta = timedelta(days=MEMORY_TTL_DAYS)
-            cutoff: datetime = now - ttl
-            self._entries = [
-                entry for entry in self._entries
-                if datetime.fromisoformat(entry.created_at) > cutoff
-            ]
-            self._save_atomic()
+            self._prune_old_entries_locked()
 
     def _save_atomic(self) -> None:
-        """Atomically save all entries to JSONL file using tempfile."""
-        self.prune_old_entries()
-        with self._lock:
-            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", suffix=".jsonl.tmp", delete=False) as tmp:
-                for entry in self._entries:
-                    tmp.write(json.dumps(entry.as_json(), ensure_ascii=False) + "\n")
-                tmp_path: str = tmp.name
-            os.replace(tmp_path, self.path)
+        """Atomically save all entries to JSONL file using tempfile.
+
+        Callers must hold ``self._lock`` while invoking this method to
+        guarantee consistency between the in-memory list and the file
+        contents.
+        """
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            suffix=".jsonl.tmp",
+            delete=False,
+        ) as tmp:
+            for entry in self._entries:
+                tmp.write(json.dumps(entry.as_json(), ensure_ascii=False) + "\n")
+            tmp_path: str = tmp.name
+        os.replace(tmp_path, self.path)
+
+    def _prune_old_entries_locked(self) -> None:
+        now: datetime = datetime.now(timezone.utc)
+        ttl: timedelta = timedelta(days=MEMORY_TTL_DAYS)
+        cutoff: datetime = now - ttl
+        self._entries = [
+            entry
+            for entry in self._entries
+            if datetime.fromisoformat(entry.created_at) > cutoff
+        ]
 
     def query(self, text: str, *, top_k: int = MEMORY_TOP_K_DEFAULT) -> list[tuple[MemoryEntry, float]]:
         if not self._entries:
