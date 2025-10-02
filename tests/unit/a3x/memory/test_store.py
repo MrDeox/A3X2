@@ -1,5 +1,6 @@
 import json
 import math
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -7,7 +8,12 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from a3x.memory.embedder import EmbeddingModel
-from a3x.memory.store import MemoryEntry, SemanticMemory, _cosine_similarity
+from a3x.memory.store import (
+    MEMORY_TTL_DAYS,
+    MemoryEntry,
+    SemanticMemory,
+    _cosine_similarity,
+)
 
 
 class TestMemoryEntry:
@@ -134,6 +140,28 @@ class TestSemanticMemory:
         assert len(memory.entries) == 2
         assert entry1.id != entry2.id
         assert self.test_path.read_text().count("\n") == 2  # Two lines
+
+    @patch("a3x.memory.store.get_embedder")
+    def test_prune_old_entries_without_deadlock(self, mock_get_embedder: Mock) -> None:
+        mock_embedder = Mock(spec=EmbeddingModel)
+        mock_get_embedder.return_value = mock_embedder
+        mock_embedder.embed.return_value = [[0.1, 0.2]]
+
+        memory = SemanticMemory(path=self.test_path)
+        memory.add("Title", "Content")
+
+        # Force the existing entry to appear expired
+        with memory._lock:  # type: ignore[attr-defined]
+            memory._entries[0].created_at = (  # type: ignore[index]
+                datetime.now(timezone.utc) - timedelta(days=MEMORY_TTL_DAYS + 1)
+            ).isoformat()
+
+        # Should prune without hanging and persist the empty list
+        memory.prune_old_entries()
+
+        assert memory.entries == []
+        assert self.test_path.exists()
+        assert self.test_path.read_text() == ""
 
     @patch("a3x.memory.store.get_embedder")
     def test_load_from_file(self, mock_get_embedder: Mock) -> None:
