@@ -95,26 +95,30 @@ class SemanticMemory:
             metadata=metadata or {},
             embedding=embedding,
         )
+        # Ensure we evict any expired entries before persisting the new one
+        self.prune_old_entries()
         with self._lock:
             self._entries.append(entry)
-            self._save_atomic()
+        self._save_atomic()
         return entry
 
     def prune_old_entries(self) -> None:
         """Delete entries older than configured days."""
+        now: datetime = datetime.now(timezone.utc)
+        ttl: timedelta = timedelta(days=MEMORY_TTL_DAYS)
+        cutoff: datetime = now - ttl
         with self._lock:
-            now: datetime = datetime.now(timezone.utc)
-            ttl: timedelta = timedelta(days=MEMORY_TTL_DAYS)
-            cutoff: datetime = now - ttl
+            original_len = len(self._entries)
             self._entries = [
                 entry for entry in self._entries
                 if datetime.fromisoformat(entry.created_at) > cutoff
             ]
+            pruned = len(self._entries) != original_len
+        if pruned:
             self._save_atomic()
 
     def _save_atomic(self) -> None:
         """Atomically save all entries to JSONL file using tempfile."""
-        self.prune_old_entries()
         with self._lock:
             with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", suffix=".jsonl.tmp", delete=False) as tmp:
                 for entry in self._entries:
