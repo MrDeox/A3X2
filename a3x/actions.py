@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Dict, List, Optional
 
 
 class ActionType(Enum):
@@ -29,14 +28,14 @@ class AgentAction:
     """Descrição estruturada de uma ação solicitada pelo LLM."""
 
     type: ActionType
-    text: Optional[str] = None
-    command: Optional[List[str]] = None
-    cwd: Optional[str] = None
-    diff: Optional[str] = None
-    path: Optional[str] = None
-    content: Optional[str] = None
+    text: str | None = None
+    command: list[str] | None = None
+    cwd: str | None = None
+    diff: str | None = None
+    path: str | None = None
+    content: str | None = None
     dry_run: bool = False  # For SELF_MODIFY: whether to simulate without applying
-    metadata: Dict[str, str] = field(default_factory=dict)
+    metadata: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -45,11 +44,11 @@ class Observation:
 
     success: bool
     output: str = ""
-    error: Optional[str] = None
-    return_code: Optional[int] = None
+    error: str | None = None
+    return_code: int | None = None
     duration: float = 0.0
     type: str = "generic"
-    metadata: Dict[str, str] = field(default_factory=dict)
+    metadata: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass

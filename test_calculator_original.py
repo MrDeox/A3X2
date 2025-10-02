@@ -11,7 +11,7 @@ def subtract(a, b):
 def multiply(a, b):
     """Multiply two numbers."""
     result = 0
-    for i in range(b):
+    for _i in range(b):
         result = add(result, a)
     return result
 
@@ -42,7 +42,7 @@ def calculate_circle_area(radius):
 def calculate_rectangle_area(length, width):
     """Calculate the area of a rectangle."""
     global rect_counter  # Global variable
-    rect_counter = rect_counter + 1 if 'rect_counter' in globals() else 1
+    rect_counter = rect_counter + 1 if "rect_counter" in globals() else 1
     return multiply(length, width)
 
 def calculate_triangle_area(base, height):
@@ -51,12 +51,12 @@ def calculate_triangle_area(base, height):
 
 # Test the functions
 if __name__ == "__main__":
-    print("Testing calculator functions:")
-    print(f"Add: {add(5, 3)}")
-    print(f"Subtract: {subtract(5, 3)}")
-    print(f"Multiply: {multiply(5, 3)}")
-    print(f"Divide: {divide(15, 3)}")
-    print(f"Power: {power(2, 3)}")
-    print(f"Circle area: {calculate_circle_area(5)}")
-    print(f"Rectangle area: {calculate_rectangle_area(4, 6)}")
-    print(f"Triangle area: {calculate_triangle_area(3, 4)}")
+    # Test outputs available for manual verification
+    result_add = add(5, 3)
+    result_subtract = subtract(5, 3)
+    result_multiply = multiply(5, 3)
+    result_divide = divide(15, 3)
+    result_power = power(2, 3)
+    result_circle = calculate_circle_area(5)
+    result_rectangle = calculate_rectangle_area(4, 6)
+    result_triangle = calculate_triangle_area(3, 4)

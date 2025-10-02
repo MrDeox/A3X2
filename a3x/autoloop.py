@@ -2,19 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
 
 import yaml
-import asyncio
-from .seeds import AutoSeeder, SeedBacklog
-from .planner import PlannerThresholds
 
-from .agent import AgentOrchestrator, AgentResult
+from .agent import AgentHistory, AgentOrchestrator, AgentResult
 from .config import load_config
+from .dynamic_scaler import integrate_dynamic_scaler
 from .llm import build_llm_client
+from .meta_recursion import integrate_meta_recursion
+from .patch import PatchManager
+from .planner import PlannerThresholds
 from .seed_runner import SeedRunner
+from .seeds import AutoSeeder, Seed, SeedBacklog
 
 
 class AutoLoop:
@@ -25,7 +27,7 @@ class AutoLoop:
         self.max_iterations = max_iterations
         self.iterations = 0
         self.completed = False
-        self.metrics = {"actions_success_rate": 0.9}
+        self.metrics = {"actions_success_rate": 0.9}  # Default metrics for testing
 
     def run(self):
         self.iterations = 1  # Mock single iteration
@@ -37,10 +39,10 @@ class AutoLoop:
 class GoalSpec:
     goal: str
     config: Path
-    max_steps: Optional[int] = None
+    max_steps: int | None = None
 
 
-def load_goal_rotation(path: str | Path) -> List[GoalSpec]:
+def load_goal_rotation(path: str | Path) -> list[GoalSpec]:
     rotation_path = Path(path)
     if not rotation_path.exists():
         raise FileNotFoundError(f"Goal rotation file not found: {rotation_path}")
@@ -48,7 +50,7 @@ def load_goal_rotation(path: str | Path) -> List[GoalSpec]:
     if not isinstance(raw, list):
         raise ValueError("Goal rotation file must contain a list")
 
-    specs: List[GoalSpec] = []
+    specs: list[GoalSpec] = []
     for item in raw:
         if not isinstance(item, dict) or "goal" not in item or "config" not in item:
             raise ValueError(
@@ -77,13 +79,13 @@ def load_goal_rotation(path: str | Path) -> List[GoalSpec]:
 
 
 async def run_autopilot(
-    goals: List[GoalSpec],
+    goals: list[GoalSpec],
     *,
     cycles: int,
     backlog_path: str | Path,
     seed_default_config: str | Path,
-    seed_max: Optional[int] = None,
-    seed_max_steps: Optional[int] = None,
+    seed_max: int | None = None,
+    seed_max_steps: int | None = None,
 ) -> int:
     if not goals:
         raise ValueError("Goal rotation list cannot be empty")
@@ -148,17 +150,42 @@ async def _run_goal(spec: GoalSpec) -> AgentResult:
     config = load_config(spec.config)
     if spec.max_steps is not None:
         config.limits.max_iterations = spec.max_steps
+
+    # Integrate DynamicScaler
+    scaler = integrate_dynamic_scaler(config)
+    initial_metrics = scaler.monitor_resources()
+    scaling_decision = scaler.make_scaling_decision(initial_metrics)
+    print(f"Scaling decision: {scaling_decision.decision_type}")
+
+    # Adjust config based on scaling
+    if scaling_decision.decision_type == "scale_down":
+        config.limits.max_iterations = int(config.limits.max_iterations * scaler.current_scaling_factor)
+
     llm_client = build_llm_client(config.llm)
     orchestrator = AgentOrchestrator(config, llm_client)
-    return await asyncio.to_thread(orchestrator.run, spec.goal)
+
+    # Integrate MetaRecursionEngine
+    from .autoeval import AutoEvaluator
+    auto_evaluator = AutoEvaluator(thresholds=PlannerThresholds(), config=config)
+    recursion_engine = integrate_meta_recursion(config, PatchManager(Path.cwd()), auto_evaluator)
+    recursion_context = recursion_engine.initiate_recursion(spec.goal)
+
+    result = await asyncio.to_thread(orchestrator.run, spec.goal)
+
+    # Evaluate recursion
+    post_metrics = scaler.monitor_resources()
+    post_scaling = scaler.make_scaling_decision(post_metrics)
+    recursion_engine.evaluate_and_recurse(recursion_context, {"actions_success_rate": result.completed and 1.0 or 0.0})
+
+    return result
 
 
 async def _drain_seeds(
     backlog_path: Path,
     *,
     default_config: Path,
-    max_runs: Optional[int],
-    max_steps_override: Optional[int],
+    max_runs: int | None,
+    max_steps_override: int | None,
 ) -> None:
     runner = SeedRunner(backlog_path)
     concurrency = max_runs or 3
@@ -171,7 +198,7 @@ async def _drain_seeds(
     for seed in to_run:
         runner.backlog.mark_in_progress(seed.id)
 
-    async def run_single_seed(seed: Seed, default_config: Path, max_steps_override: Optional[int]) -> Tuple[Seed, AgentResult]:
+    async def run_single_seed(seed: Seed, default_config: Path, max_steps_override: int | None) -> tuple[Seed, AgentResult]:
         if seed.type == "meta":
             config_path = Path("configs/sample.yaml")
         else:

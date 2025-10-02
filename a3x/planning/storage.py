@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Iterable
 
 import yaml
 
@@ -17,7 +17,7 @@ from .mission_state import (
 )
 
 
-def _metric_snapshot_from_dict(data: Dict[str, object]) -> MetricSnapshot:
+def _metric_snapshot_from_dict(data: dict[str, object]) -> MetricSnapshot:
     return MetricSnapshot(
         current=float(data.get("current", 0.0)),
         target=float(data["target"]) if data.get("target") is not None else None,
@@ -27,9 +27,9 @@ def _metric_snapshot_from_dict(data: Dict[str, object]) -> MetricSnapshot:
 
 
 def _metrics_from_dict(
-    data: Dict[str, Dict[str, object]] | None,
-) -> Dict[str, MetricSnapshot]:
-    metrics: Dict[str, MetricSnapshot] = {}
+    data: dict[str, dict[str, object]] | None,
+) -> dict[str, MetricSnapshot]:
+    metrics: dict[str, MetricSnapshot] = {}
     if not data:
         return metrics
     for name, payload in data.items():
@@ -38,7 +38,7 @@ def _metrics_from_dict(
     return metrics
 
 
-def _telemetry_from_dict(data: Dict[str, object] | None) -> MissionTelemetry:
+def _telemetry_from_dict(data: dict[str, object] | None) -> MissionTelemetry:
     if not data:
         return MissionTelemetry()
     telemetry = MissionTelemetry(
@@ -55,7 +55,7 @@ def _telemetry_from_dict(data: Dict[str, object] | None) -> MissionTelemetry:
     return telemetry
 
 
-def _milestone_from_dict(data: Dict[str, object]) -> MissionMilestone:
+def _milestone_from_dict(data: dict[str, object]) -> MissionMilestone:
     milestone = MissionMilestone(
         id=str(data["id"]),
         goal=str(data.get("goal", "")),
@@ -74,7 +74,7 @@ def _milestone_from_dict(data: Dict[str, object]) -> MissionMilestone:
     return milestone
 
 
-def _mission_from_dict(data: Dict[str, object]) -> Mission | None:
+def _mission_from_dict(data: dict[str, object]) -> Mission | None:
     try:
         created_at = (
             str(data.get("created_at"))

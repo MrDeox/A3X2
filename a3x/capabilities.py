@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import builtins
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
 
 import yaml
 
@@ -18,23 +19,23 @@ class Capability:
     category: str  # "horizontal" or "vertical"
     description: str
     maturity: str
-    metrics: Dict[str, Optional[float]] = field(default_factory=dict)
-    seeds: List[str] = field(default_factory=list)
-    requirements: Dict[str, str] = field(default_factory=dict)
-    activation: Dict[str, str] = field(default_factory=dict)
+    metrics: dict[str, float | None] = field(default_factory=dict)
+    seeds: list[str] = field(default_factory=list)
+    requirements: dict[str, str] = field(default_factory=dict)
+    activation: dict[str, str] = field(default_factory=dict)
 
 
 class CapabilityRegistry:
     """Loads and serializes the capability graph from YAML files."""
 
     def __init__(
-        self, capabilities: Iterable[Capability], raw_entries: Dict[str, dict]
+        self, capabilities: Iterable[Capability], raw_entries: dict[str, dict]
     ) -> None:
         self._by_id = {cap.id: cap for cap in capabilities}
         self._raw_entries = raw_entries
 
     @classmethod
-    def from_yaml(cls, path: str | Path) -> "CapabilityRegistry":
+    def from_yaml(cls, path: str | Path) -> CapabilityRegistry:
         entries = _read_yaml(Path(path))
         capabilities = [_deserialize_capability(item, path) for item in entries]
         raw_map = {
@@ -44,7 +45,7 @@ class CapabilityRegistry:
         }
         return cls(capabilities, raw_map)
 
-    def list(self) -> List[Capability]:
+    def list(self) -> builtins.list[Capability]:
         return list(self._by_id.values())
 
     def get(self, capability_id: str) -> Capability:
@@ -62,7 +63,7 @@ class CapabilityRegistry:
                 lines.append("  Seeds: " + "; ".join(cap.seeds))
         return "\n".join(lines)
 
-    def update_metrics(self, updates: Dict[str, Dict[str, Optional[float]]]) -> None:
+    def update_metrics(self, updates: dict[str, dict[str, float | None]]) -> None:
         for cap_id, metric_values in updates.items():
             if cap_id not in self._by_id:
                 continue
@@ -75,7 +76,7 @@ class CapabilityRegistry:
             for key, value in metric_values.items():
                 raw_metrics[key] = value
 
-    def update_maturity(self, updates: Dict[str, str]) -> None:
+    def update_maturity(self, updates: dict[str, str]) -> None:
         for cap_id, maturity in updates.items():
             if cap_id not in self._by_id:
                 continue
@@ -126,7 +127,7 @@ def _deserialize_capability(entry: dict, source: Path) -> Capability:
     if not isinstance(activation, dict):
         raise ValueError(f"Campo activation deve ser objeto em {entry['id']}")
 
-    metrics_normalized: Dict[str, Optional[float]] = {}
+    metrics_normalized: dict[str, float | None] = {}
     for key, value in metrics.items():
         if value is None:
             metrics_normalized[str(key)] = None

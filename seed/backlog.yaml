@@ -29,21 +29,25 @@
 - id: auto.benchmark.report
   goal: Regenerar relatório SeedAI para testar ciclo seed-run.
   priority: medium
-  status: pending
+  status: completed
   type: benchmark_report
   config: configs/seed_manual.yaml
   max_steps: 3
   metadata:
     created_at: '2025-09-30T22:10:30.149269+00:00'
     description: Seed auto-gerada para refresh de relatórios
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T23:19:28.343813+00:00'
+  - status: completed
+    timestamp: '2025-10-01T23:20:42.622890+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-  last_iterations: null
-  last_success: null
-  last_memories_reused: null
+  last_iterations: 1
+  last_success: true
+  last_memories_reused: 0
   fitness: 3.5
 - id: auto.patch.success
   goal: Atualizar configs/doc.md adicionando uma linha final de validação
@@ -71,21 +75,25 @@
 - id: auto.actions.recovery
   goal: Verificar logs de seeds falhas e propor correção
   priority: medium
-  status: pending
+  status: completed
   type: analysis
   config: configs/seed_manual.yaml
   max_steps: 4
   metadata:
     created_at: '2025-09-30T22:10:30.149279+00:00'
     description: Seed diagnóstica quando actions_success_rate cai.
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T23:20:42.647041+00:00'
+  - status: completed
+    timestamp: '2025-10-01T23:21:55.132546+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-  last_iterations: null
-  last_success: null
-  last_memories_reused: null
+  last_iterations: 1
+  last_success: true
+  last_memories_reused: 0
   fitness: 3.5
 - id: mission.core-diffing-growth.diff-established
   goal: Alcançar success_rate >= 0.90
@@ -165,7 +173,7 @@
 - id: auto.apply.patch.success.rate.1759274883
   goal: Adicionar verificações de segurança ao patch.py
   priority: high
-  status: pending
+  status: in_progress
   type: refactor
   config: configs/sample.yaml
   max_steps: 8
@@ -173,7 +181,9 @@
     description: Adicionar safety checks ao patch.py
     created_at: '2025-09-30T23:28:03.612259+00:00'
     triggered_by: apply_patch_success_rate
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T21:44:42.755487+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
@@ -185,7 +195,7 @@
 - id: auto.actions.success.rate.1759275912
   goal: Refatorar executor para maior sucesso em ações
   priority: high
-  status: pending
+  status: completed
   type: refactor
   config: configs/sample.yaml
   max_steps: 8
@@ -193,14 +203,18 @@
     description: Refatorar executor para maior sucesso em ações
     created_at: '2025-09-30T23:45:12.945236+00:00'
     triggered_by: actions_success_rate
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T21:45:24.011151+00:00'
+  - status: completed
+    timestamp: '2025-10-01T21:46:38.251377+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-  last_iterations: null
-  last_success: null
-  last_memories_reused: null
+  last_iterations: 1
+  last_success: true
+  last_memories_reused: 0
   fitness: 4.5
 - id: e2e_failure_2025-10-01T00-19-47
   goal: Investigar e corrigir falha detectada nos testes E2E automáticos.
@@ -226,7 +240,7 @@
 - id: autoeval.reduzir-falhas-durante-execu-o-avaliar-logs-e-pol-ticas
   goal: Reduzir falhas durante execução (avaliar logs e políticas).
   priority: medium
-  status: pending
+  status: completed
   type: analysis
   config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
   max_steps: null
@@ -234,19 +248,23 @@
     source: autoeval
     created_at: '2025-10-01T04:25:05.785626+00:00'
     seed_type: analysis
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T23:23:04.564812+00:00'
+  - status: completed
+    timestamp: '2025-10-01T23:24:01.785428+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-  last_iterations: null
-  last_success: null
-  last_memories_reused: null
+  last_iterations: 1
+  last_success: true
+  last_memories_reused: 0
   fitness: 3.5
 - id: autoeval.investigar-falhas-ao-aplicar-patches-e-aprimorar-heur-sticas-de-edi-o
   goal: Investigar falhas ao aplicar patches e aprimorar heurísticas de edição.
   priority: medium
-  status: pending
+  status: completed
   type: analysis
   config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
   max_steps: null
@@ -255,19 +273,23 @@
     created_at: '2025-10-01T04:25:05.785626+00:00'
     seed_type: analysis
     capability: core.diffing
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T23:21:55.156566+00:00'
+  - status: completed
+    timestamp: '2025-10-01T23:23:04.540257+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-  last_iterations: null
-  last_success: null
-  last_memories_reused: null
+  last_iterations: 1
+  last_success: true
+  last_memories_reused: 0
   fitness: 3.5
 - id: autoeval.garantir-teste-automatizado-para-m-trica-actions-success-rate
   goal: Garantir teste automatizado para métrica actions_success_rate.
   priority: low
-  status: pending
+  status: completed
   type: test
   config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
   max_steps: null
@@ -276,19 +298,23 @@
     created_at: '2025-10-01T04:25:05.785626+00:00'
     seed_type: test
     data.metric: actions_success_rate
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T23:33:14.803689+00:00'
+  - status: completed
+    timestamp: '2025-10-01T23:34:11.172171+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-  last_iterations: null
-  last_success: null
-  last_memories_reused: null
+  last_iterations: 1
+  last_success: true
+  last_memories_reused: 0
   fitness: 2.5
 - id: autoeval.garantir-teste-automatizado-para-m-trica-apply-patch-success-rate
   goal: Garantir teste automatizado para métrica apply_patch_success_rate.
   priority: low
-  status: pending
+  status: completed
   type: test
   config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
   max_steps: null
@@ -298,14 +324,18 @@
     seed_type: test
     capability: core.diffing
     data.metric: apply_patch_success_rate
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T23:34:11.198752+00:00'
+  - status: completed
+    timestamp: '2025-10-01T23:35:27.323786+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-  last_iterations: null
-  last_success: null
-  last_memories_reused: null
+  last_iterations: 1
+  last_success: true
+  last_memories_reused: 0
   fitness: 2.5
 - id: e2e_failure_2025-10-01T04-25-10
   goal: Investigar e corrigir falha detectada nos testes E2E automáticos.
@@ -334,7 +364,7 @@
   goal: "Investigar e corrigir erros de execução:   File \"/home/arthur/Projetos/A3X/configs/simple.py\"\
     , line 3\n    return a + b\nIndentationError: unexpected indent\n"
   priority: high
-  status: pending
+  status: completed
   type: analysis
   config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
   max_steps: 8
@@ -343,38 +373,46 @@
     created_at: '2025-10-01T04:25:10.577434+00:00'
     errors: "  File \"/home/arthur/Projetos/A3X/configs/simple.py\", line 3\n    return\
       \ a + b\nIndentationError: unexpected indent\n"
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T21:46:38.273030+00:00'
+  - status: completed
+    timestamp: '2025-10-01T21:47:46.189608+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-  last_iterations: null
-  last_success: null
-  last_memories_reused: null
+  last_iterations: 1
+  last_success: true
+  last_memories_reused: 0
   fitness: 4.5
 - id: auto.tests.run
   goal: Executar suíte de testes Pytest para garantir integridade.
   priority: high
-  status: pending
+  status: completed
   type: benchmark_tests
   config: /home/arthur/Projetos/A3X/configs/seed_tests.yaml
   max_steps: 6
   metadata:
     description: Seed auto-gerada para rodar pytest e diagnosticar falhas.
     created_at: '2025-10-01T04:25:10.577468+00:00'
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T21:47:46.210585+00:00'
+  - status: completed
+    timestamp: '2025-10-01T21:48:59.642405+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-  last_iterations: null
-  last_success: null
-  last_memories_reused: null
+  last_iterations: 1
+  last_success: true
+  last_memories_reused: 0
   fitness: 4.5
 - id: curriculum.garantir-que-a-su-te-de-testes-b-sica-execute-sem-falhas-e-documentar-o-fluxo
   goal: Garantir que a suíte de testes básica execute sem falhas e documentar o fluxo.
   priority: medium
-  status: pending
+  status: completed
   type: curriculum
   config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
   max_steps: null
@@ -385,19 +423,23 @@
     data.curriculum_step_id: bootstrap-tests
     data.difficulty: easy
     data.title: Domínio de testes básicos
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T23:24:01.809253+00:00'
+  - status: completed
+    timestamp: '2025-10-01T23:25:09.358980+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-  last_iterations: null
-  last_success: null
-  last_memories_reused: null
+  last_iterations: 1
+  last_success: true
+  last_memories_reused: 0
   fitness: 3.5
 - id: autoeval.reduzir-falhas-durante-execu-o-avaliar-logs-e-pol-ticas-042525-0
   goal: Reduzir falhas durante execução (avaliar logs e políticas).
   priority: medium
-  status: pending
+  status: completed
   type: analysis
   config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
   max_steps: null
@@ -405,19 +447,23 @@
     source: autoeval
     created_at: '2025-10-01T04:25:25.015779+00:00'
     seed_type: analysis
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T23:26:07.437498+00:00'
+  - status: completed
+    timestamp: '2025-10-01T23:27:06.902982+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-  last_iterations: null
-  last_success: null
-  last_memories_reused: null
+  last_iterations: 1
+  last_success: true
+  last_memories_reused: 0
   fitness: 3.5
 - id: autoeval.investigar-falhas-ao-aplicar-patches-e-aprimorar-heur-sticas-de-edi-o-042525-1
   goal: Investigar falhas ao aplicar patches e aprimorar heurísticas de edição.
   priority: medium
-  status: pending
+  status: completed
   type: analysis
   config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
   max_steps: null
@@ -426,19 +472,23 @@
     created_at: '2025-10-01T04:25:25.015779+00:00'
     seed_type: analysis
     capability: core.diffing
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T23:25:09.448508+00:00'
+  - status: completed
+    timestamp: '2025-10-01T23:26:07.408351+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-  last_iterations: null
-  last_success: null
-  last_memories_reused: null
+  last_iterations: 1
+  last_success: true
+  last_memories_reused: 0
   fitness: 3.5
 - id: autoeval.garantir-teste-automatizado-para-m-trica-actions-success-rate-042525-2
   goal: Garantir teste automatizado para métrica actions_success_rate.
   priority: low
-  status: pending
+  status: completed
   type: test
   config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
   max_steps: null
@@ -447,19 +497,23 @@
     created_at: '2025-10-01T04:25:25.015779+00:00'
     seed_type: test
     data.metric: actions_success_rate
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T23:35:27.350601+00:00'
+  - status: completed
+    timestamp: '2025-10-01T23:36:21.924464+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-  last_iterations: null
-  last_success: null
-  last_memories_reused: null
+  last_iterations: 1
+  last_success: true
+  last_memories_reused: 0
   fitness: 2.5
 - id: autoeval.garantir-teste-automatizado-para-m-trica-apply-patch-success-rate-042525-3
   goal: Garantir teste automatizado para métrica apply_patch_success_rate.
   priority: low
-  status: pending
+  status: completed
   type: test
   config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
   max_steps: null
@@ -469,19 +523,23 @@
     seed_type: test
     capability: core.diffing
     data.metric: apply_patch_success_rate
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T23:36:21.953919+00:00'
+  - status: completed
+    timestamp: '2025-10-01T23:37:28.651625+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-  last_iterations: null
-  last_success: null
-  last_memories_reused: null
+  last_iterations: 1
+  last_success: true
+  last_memories_reused: 0
   fitness: 2.5
 - id: curriculum.garantir-que-a-su-te-de-testes-b-sica-execute-sem-falhas-e-documentar-o-fluxo-042533-0
   goal: Garantir que a suíte de testes básica execute sem falhas e documentar o fluxo.
   priority: medium
-  status: pending
+  status: completed
   type: curriculum
   config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
   max_steps: null
@@ -492,19 +550,23 @@
     data.curriculum_step_id: bootstrap-tests
     data.difficulty: easy
     data.title: Domínio de testes básicos
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T23:27:06.936554+00:00'
+  - status: completed
+    timestamp: '2025-10-01T23:27:57.569176+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-  last_iterations: null
-  last_success: null
-  last_memories_reused: null
+  last_iterations: 1
+  last_success: true
+  last_memories_reused: 0
   fitness: 3.5
 - id: autoeval.investigar-por-que-o-objetivo-n-o-foi-conclu-do
   goal: Investigar por que o objetivo não foi concluído.
   priority: high
-  status: pending
+  status: completed
   type: analysis
   config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
   max_steps: null
@@ -512,19 +574,23 @@
     source: autoeval
     created_at: '2025-10-01T04:41:34.110803+00:00'
     seed_type: analysis
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T23:16:19.304805+00:00'
+  - status: completed
+    timestamp: '2025-10-01T23:17:12.465718+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-  last_iterations: null
-  last_success: null
-  last_memories_reused: null
+  last_iterations: 1
+  last_success: true
+  last_memories_reused: 0
   fitness: 4.5
 - id: autoeval.reduzir-falhas-durante-execu-o-avaliar-logs-e-pol-ticas-044134-1
   goal: Reduzir falhas durante execução (avaliar logs e políticas).
   priority: medium
-  status: pending
+  status: completed
   type: analysis
   config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
   max_steps: null
@@ -532,19 +598,23 @@
     source: autoeval
     created_at: '2025-10-01T04:41:34.110803+00:00'
     seed_type: analysis
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T23:31:23.463684+00:00'
+  - status: completed
+    timestamp: '2025-10-01T23:32:18.460141+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-  last_iterations: null
-  last_success: null
-  last_memories_reused: null
+  last_iterations: 1
+  last_success: true
+  last_memories_reused: 0
   fitness: 3.5
 - id: autoeval.melhorar-taxa-de-sucesso-das-a-es-ajustar-prompts-ou-pol-ticas
   goal: Melhorar taxa de sucesso das ações (ajustar prompts ou políticas).
   priority: medium
-  status: pending
+  status: completed
   type: analysis
   config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
   max_steps: null
@@ -552,19 +622,23 @@
     source: autoeval
     created_at: '2025-10-01T04:41:34.110803+00:00'
     seed_type: analysis
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T23:30:06.216099+00:00'
+  - status: completed
+    timestamp: '2025-10-01T23:31:23.430283+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-  last_iterations: null
-  last_success: null
-  last_memories_reused: null
+  last_iterations: 1
+  last_success: true
+  last_memories_reused: 0
   fitness: 3.5
 - id: autoeval.investigar-falhas-ao-aplicar-patches-e-aprimorar-heur-sticas-de-edi-o-044134-3
   goal: Investigar falhas ao aplicar patches e aprimorar heurísticas de edição.
   priority: medium
-  status: pending
+  status: completed
   type: analysis
   config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
   max_steps: null
@@ -573,19 +647,23 @@
     created_at: '2025-10-01T04:41:34.110803+00:00'
     seed_type: analysis
     capability: core.diffing
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T23:27:57.597646+00:00'
+  - status: completed
+    timestamp: '2025-10-01T23:29:04.805809+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-  last_iterations: null
-  last_success: null
-  last_memories_reused: null
+  last_iterations: 1
+  last_success: true
+  last_memories_reused: 0
   fitness: 3.5
 - id: autoeval.garantir-teste-automatizado-para-m-trica-actions-success-rate-044134-4
   goal: Garantir teste automatizado para métrica actions_success_rate.
   priority: low
-  status: pending
+  status: completed
   type: test
   config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
   max_steps: null
@@ -594,19 +672,23 @@
     created_at: '2025-10-01T04:41:34.110803+00:00'
     seed_type: test
     data.metric: actions_success_rate
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T23:37:28.683791+00:00'
+  - status: completed
+    timestamp: '2025-10-01T23:38:25.486182+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-  last_iterations: null
-  last_success: null
-  last_memories_reused: null
+  last_iterations: 1
+  last_success: true
+  last_memories_reused: 0
   fitness: 2.5
 - id: autoeval.garantir-teste-automatizado-para-m-trica-apply-patch-success-rate-044134-5
   goal: Garantir teste automatizado para métrica apply_patch_success_rate.
   priority: low
-  status: pending
+  status: completed
   type: test
   config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
   max_steps: null
@@ -616,19 +698,23 @@
     seed_type: test
     capability: core.diffing
     data.metric: apply_patch_success_rate
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T23:38:25.513944+00:00'
+  - status: completed
+    timestamp: '2025-10-01T23:39:24.012077+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-  last_iterations: null
-  last_success: null
-  last_memories_reused: null
+  last_iterations: 1
+  last_success: true
+  last_memories_reused: 0
   fitness: 2.5
 - id: autoeval.reduzir-taxa-de-falhas-durante-execu-o-alta-taxa-de-falhas-detectada
   goal: Reduzir taxa de falhas durante execução (alta taxa de falhas detectada).
   priority: high
-  status: pending
+  status: completed
   type: quality
   config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
   max_steps: null
@@ -639,20 +725,24 @@
     capability: core.execution
     data.metric: failure_rate
     data.value: '0.6'
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T23:17:12.488770+00:00'
+  - status: completed
+    timestamp: '2025-10-01T23:18:07.002980+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-  last_iterations: null
-  last_success: null
-  last_memories_reused: null
+  last_iterations: 1
+  last_success: true
+  last_memories_reused: 0
   fitness: 4.5
 - id: autoeval.melhorar-qualidade-das-altera-es-de-c-digo-aplicadas-muitos-patches-com-baixa-taxa-de-sucesso
   goal: Melhorar qualidade das alterações de código aplicadas (muitos patches com
     baixa taxa de sucesso).
   priority: medium
-  status: pending
+  status: completed
   type: quality
   config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
   max_steps: null
@@ -663,14 +753,18 @@
     capability: core.diffing
     data.metric: apply_patch_success_rate
     data.value: '0.4'
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T23:29:04.831179+00:00'
+  - status: completed
+    timestamp: '2025-10-01T23:30:06.181664+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-  last_iterations: null
-  last_success: null
-  last_memories_reused: null
+  last_iterations: 1
+  last_success: true
+  last_memories_reused: 0
   fitness: 3.5
 - id: e2e_failure_2025-10-01T04-41-39
   goal: Investigar e corrigir falha detectada nos testes E2E automáticos.
@@ -696,7 +790,7 @@
 - id: auto.error.reflection.20251001044139
   goal: 'Investigar e corrigir erros de execução: Limite de falhas excedido'
   priority: high
-  status: pending
+  status: completed
   type: analysis
   config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
   max_steps: 8
@@ -704,19 +798,23 @@
     description: Seed gerada automaticamente para refletir sobre erros de execução.
     created_at: '2025-10-01T04:41:39.405089+00:00'
     errors: Limite de falhas excedido
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T23:18:07.025777+00:00'
+  - status: completed
+    timestamp: '2025-10-01T23:19:28.320281+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
   last_error: null
-  last_iterations: null
-  last_success: null
-  last_memories_reused: null
+  last_iterations: 1
+  last_success: true
+  last_memories_reused: 0
   fitness: 4.5
 - id: curriculum.garantir-que-a-su-te-de-testes-b-sica-execute-sem-falhas-e-documentar-o-fluxo-044158-0
   goal: Garantir que a suíte de testes básica execute sem falhas e documentar o fluxo.
   priority: medium
-  status: pending
+  status: completed
   type: curriculum
   config: /home/arthur/Projetos/A3X/configs/seed_manual.yaml
   max_steps: null
@@ -727,7 +825,37 @@
     data.curriculum_step_id: bootstrap-tests
     data.difficulty: easy
     data.title: Domínio de testes básicos
-  history: []
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T23:32:18.488665+00:00'
+  - status: completed
+    timestamp: '2025-10-01T23:33:14.770627+00:00'
+  attempts: 0
+  max_attempts: 3
+  next_run_at: null
+  last_error: null
+  last_iterations: 1
+  last_success: true
+  last_memories_reused: 0
+  fitness: 3.5
+- id: daemon.core-stability.202510012148590
+  goal: '[EMERGÊNCIA] Resolver Taxa crítica de sucesso em patches: 0.0% criticamente'
+  priority: high
+  status: in_progress
+  type: emergency_fix
+  config: configs/seed_manual.yaml
+  max_steps: null
+  metadata:
+    description: '[EMERGÊNCIA] Resolver Taxa crítica de sucesso em patches: 0.0% criticamente'
+    created_by: continuous_evolution_daemon
+    tags: autonomous,continuous,core.stability,emergency_fix
+    data.issue: '{''type'': ''critical'', ''metric'': ''apply_patch_success_rate'',
+      ''value'': 0.0, ''description'': ''Taxa crítica de sucesso em patches: 0.0%''}'
+    data.urgency: critical
+    data.impact: system_stability
+  history:
+  - status: in_progress
+    timestamp: '2025-10-01T21:49:29.745421+00:00'
   attempts: 0
   max_attempts: 3
   next_run_at: null
@@ -735,4 +863,4 @@
   last_iterations: null
   last_success: null
   last_memories_reused: null
-  fitness: 3.5
+  fitness: 4.5

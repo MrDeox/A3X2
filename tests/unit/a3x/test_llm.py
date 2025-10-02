@@ -21,7 +21,7 @@ class _DummyHttpxClient:
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         pass
 
-    def __enter__(self) -> "_DummyHttpxClient":
+    def __enter__(self) -> _DummyHttpxClient:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:  # pragma: no cover - trivial

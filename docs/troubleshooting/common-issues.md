@@ -1,0 +1,378 @@
+# 🔧 Common Issues & Solutions
+
+This guide helps you resolve the most frequently encountered problems when using A3X.
+
+## Installation Issues
+
+### "Python 3.10+ is required"
+
+**Problem**: You're trying to install A3X but get an error about Python version.
+
+**Solutions**:
+1. **Check your Python version**:
+   ```bash
+   python --version
+   python3 --version
+   ```
+
+2. **Use specific Python version**:
+   ```bash
+   python3.10 -m venv .venv
+   python3.11 -m venv .venv
+   ```
+
+3. **Update alternatives** (Ubuntu/Debian):
+   ```bash
+   sudo update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1
+   ```
+
+### "Module 'a3x' not found" after installation
+
+**Problem**: Installation seems successful but A3X commands don't work.
+
+**Solutions**:
+1. **Check virtual environment**:
+   ```bash
+   which python  # Should point to your venv
+   source .venv/bin/activate
+   ```
+
+2. **Verify installation**:
+   ```bash
+   pip list | grep a3x
+   ```
+
+3. **Reinstall**:
+   ```bash
+   pip uninstall a3x
+   pip install -e .
+   ```
+
+### Permission denied errors
+
+**Problem**: Getting permission errors during installation.
+
+**Solutions**:
+1. **Use user installation**:
+   ```bash
+   pip install -e . --user
+   ```
+
+2. **Check directory permissions**:
+   ```bash
+   chmod 755 .
+   ```
+
+3. **Use sudo** (not recommended):
+   ```bash
+   sudo pip install -e .
+   ```
+
+## API and Authentication Issues
+
+### "Invalid API key" or "Authentication failed"
+
+**Problem**: A3X can't authenticate with the AI service.
+
+**Solutions**:
+1. **Verify API key**:
+   - Check if `OPENROUTER_API_KEY` is set: `echo $OPENROUTER_API_KEY`
+   - Ensure key is correct (no extra spaces)
+
+2. **Check .env file**:
+   ```bash
+   cat .env  # Should contain OPENROUTER_API_KEY=your-key
+   ```
+
+3. **Test API key manually**:
+   ```bash
+   curl -H "Authorization: Bearer $OPENROUTER_API_KEY" \
+        https://openrouter.ai/api/v1/models
+   ```
+
+4. **Get fresh API key**:
+   - Go to [OpenRouter.ai](https://openrouter.ai/)
+   - Generate new key in dashboard
+
+### "Model not available" or "Rate limit exceeded"
+
+**Problem**: The AI model you're trying to use is not accessible.
+
+**Solutions**:
+1. **Check model name in config**:
+   ```bash
+   cat configs/sample.yaml | grep model
+   ```
+
+2. **Try different model**:
+   ```yaml
+   # In configs/sample.yaml
+   llm:
+     model: "x-ai/grok-beta"  # Alternative model
+   ```
+
+3. **Check OpenRouter status**:
+   - Visit [OpenRouter status page](https://status.openrouter.ai/)
+
+### Network connectivity issues
+
+**Problem**: A3X can't reach the API endpoints.
+
+**Solutions**:
+1. **Test internet connection**:
+   ```bash
+   ping google.com
+   curl -I https://openrouter.ai
+   ```
+
+2. **Check firewall/proxy settings**:
+   ```bash
+   export HTTP_PROXY="your-proxy:port"
+   export HTTPS_PROXY="your-proxy:port"
+   ```
+
+3. **Try different API endpoint**:
+   - Some configurations support local models via Ollama
+
+## Runtime Issues
+
+### "Command not found: a3x"
+
+**Problem**: The `a3x` command is not recognized.
+
+**Solutions**:
+1. **Check if A3X is installed**:
+   ```bash
+   pip show a3x
+   ```
+
+2. **Add to PATH** (if installed globally):
+   ```bash
+   export PATH=$PATH:~/.local/bin
+   ```
+
+3. **Use python module syntax**:
+   ```bash
+   python -m a3x.cli run --goal "test" --config configs/sample.yaml
+   ```
+
+### "Configuration file not found"
+
+**Problem**: A3X can't find the specified config file.
+
+**Solutions**:
+1. **Check file exists**:
+   ```bash
+   ls -la configs/sample.yaml
+   ```
+
+2. **Use absolute path**:
+   ```bash
+   a3x run --goal "test" --config /full/path/to/configs/sample.yaml
+   ```
+
+3. **Check current directory**:
+   ```bash
+   pwd  # Should be project root
+   ```
+
+### "Goal not understood" or poor results
+
+**Problem**: A3X doesn't understand your goal or produces poor output.
+
+**Solutions**:
+1. **Be more specific**:
+   ```
+   # Instead of: "make it better"
+   # Use: "add error handling to the calculate_total function"
+   ```
+
+2. **Break down complex goals**:
+   ```bash
+   a3x run --goal "Step 1: Create user model" --config configs/sample.yaml
+   a3x run --goal "Step 2: Add authentication endpoints" --config configs/sample.yaml
+   ```
+
+3. **Provide context**:
+   ```bash
+   a3x run --goal "Fix the bug in user registration where email validation fails" --config configs/sample.yaml
+   ```
+
+4. **Check model capabilities**:
+   - Some models are better at certain tasks than others
+
+## Code Execution Issues
+
+### "Permission denied" when running commands
+
+**Problem**: A3X can't execute system commands.
+
+**Solutions**:
+1. **Check file permissions**:
+   ```bash
+   chmod +x scripts/*.sh
+   ```
+
+2. **Adjust config timeouts**:
+   ```yaml
+   # In config file
+   execution:
+     command_timeout: 300  # Increase timeout
+     max_failures: 5       # Allow more retries
+   ```
+
+3. **Run in safe mode**:
+   ```bash
+   a3x run --goal "test" --config configs/sample.yaml --dry-run
+   ```
+
+### "Import error" for generated code
+
+**Problem**: Code generated by A3X has import or dependency issues.
+
+**Solutions**:
+1. **Check Python path**:
+   ```bash
+   python -c "import sys; print(sys.path)"
+   ```
+
+2. **Install missing dependencies**:
+   ```bash
+   pip install requests flask django  # Common dependencies
+   ```
+
+3. **Verify generated code**:
+   - Review the code A3X generated
+   - Check for obvious import/syntax errors
+
+### "Test failures" after code changes
+
+**Problem**: A3X made changes but tests are failing.
+
+**Solutions**:
+1. **Run tests manually**:
+   ```bash
+   python -m pytest tests/ -v
+   ```
+
+2. **Check test output**:
+   - Look for specific error messages
+   - Understand what's failing
+
+3. **Ask A3X to fix**:
+   ```bash
+   a3x run --goal "Fix the failing tests" --config configs/sample.yaml
+   ```
+
+## Performance Issues
+
+### "A3X is running very slowly"
+
+**Problem**: Operations are taking much longer than expected.
+
+**Solutions**:
+1. **Check system resources**:
+   ```bash
+   top  # Check CPU/memory usage
+   ```
+
+2. **Optimize configuration**:
+   ```yaml
+   # In config file
+   llm:
+     max_tokens: 2000  # Reduce context size
+     temperature: 0.3  # More focused responses
+   ```
+
+3. **Try faster model**:
+   ```yaml
+   llm:
+     model: "x-ai/grok-beta"  # Usually faster
+   ```
+
+### "Out of memory" errors
+
+**Problem**: A3X runs out of memory during operation.
+
+**Solutions**:
+1. **Increase system memory**:
+   - Close other applications
+   - Add more RAM if possible
+
+2. **Reduce context size**:
+   ```yaml
+   # In config file
+   history:
+     max_context_length: 2000  # Reduce from default
+   ```
+
+3. **Process large files differently**:
+   - Break large tasks into smaller chunks
+   - Use external tools for large file processing
+
+## Configuration Issues
+
+### "YAML syntax error" in config files
+
+**Problem**: Configuration files have syntax errors.
+
+**Solutions**:
+1. **Validate YAML**:
+   ```bash
+   python -c "import yaml; yaml.safe_load(open('configs/sample.yaml'))"
+   ```
+
+2. **Check for common issues**:
+   - Indentation (use spaces, not tabs)
+   - Missing quotes around special characters
+   - Proper list syntax with dashes
+
+3. **Use online YAML validator**:
+   - Copy config content to [YAML Validator](https://yaml-online-parser.appspot.com/)
+
+### Configuration not taking effect
+
+**Problem**: Changes to config files don't seem to work.
+
+**Solutions**:
+1. **Check file path**:
+   ```bash
+   a3x run --goal "test" --config configs/sample.yaml --verbose
+   ```
+
+2. **Verify config loading**:
+   - Add debug output to see which config is loaded
+
+3. **Test with minimal config**:
+   ```bash
+   a3x run --goal "test" --config configs/manual.yaml
+   ```
+
+## Getting More Help
+
+### Still stuck?
+
+1. **Check logs**:
+   ```bash
+   a3x run --goal "test" --config configs/sample.yaml --verbose
+   ```
+
+2. **Search existing issues**:
+   - Look for similar problems in issue tracker
+
+3. **Ask for help**:
+   - Provide: error messages, config file, goal description
+   - Include: Python version, OS, relevant logs
+
+### Reporting bugs
+
+When reporting issues, please include:
+- **Error messages** (full output)
+- **Configuration** (sanitized)
+- **Goal description**
+- **Environment details** (OS, Python version)
+- **Steps to reproduce**
+
+---
+
+**Remember**: A3X is designed to be helpful and forgiving. Most issues can be resolved by providing clearer goals or adjusting configuration settings.

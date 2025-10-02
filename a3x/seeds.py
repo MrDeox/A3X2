@@ -2,17 +2,22 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
 
 import yaml
-from .planner import PlannerThresholds
 
+from .planner import PlannerThresholds
 
 _PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 _VALID_STATUS = {"pending", "in_progress", "completed", "failed"}
+_VALID_SEED_TYPES = {
+    "generic", "refactor", "autonomous_goal", "curiosity_exploration",
+    "meta_reflection", "self_optimization", "domain_expansion", "capability_gap",
+    "analysis", "test", "benchmark_report", "benchmark_diff"
+}
 
 
 @dataclass
@@ -22,20 +27,20 @@ class Seed:
     priority: str = "medium"
     status: str = "pending"
     type: str = "generic"
-    config: Optional[str] = None
-    max_steps: Optional[int] = None
-    metadata: Dict[str, str] = field(default_factory=dict)
-    history: List[Dict[str, str]] = field(default_factory=list)
+    config: str | None = None
+    max_steps: int | None = None
+    metadata: dict[str, str] = field(default_factory=dict)
+    history: list[dict[str, str]] = field(default_factory=list)
     attempts: int = 0
     max_attempts: int = 3
-    next_run_at: Optional[str] = None  # ISO-8601 em UTC
-    last_error: Optional[str] = None
-    last_iterations: Optional[int] = None
-    last_success: Optional[bool] = None
-    last_memories_reused: Optional[int] = None
-    _fitness_cache: Optional[float] = field(default=None, repr=False, compare=False)
+    next_run_at: str | None = None  # ISO-8601 em UTC
+    last_error: str | None = None
+    last_iterations: int | None = None
+    last_success: bool | None = None
+    last_memories_reused: int | None = None
+    _fitness_cache: float | None = field(default=None, repr=False, compare=False)
 
-    def mark_status(self, status: str, *, notes: Optional[str] = None) -> None:
+    def mark_status(self, status: str, *, notes: str | None = None) -> None:
         if status not in _VALID_STATUS:
             raise ValueError(f"Status inválido: {status}")
         self.status = status
@@ -48,6 +53,28 @@ class Seed:
         self.history.append(entry)
 
     @property
+    def is_autonomous_goal(self) -> bool:
+        """Verifica se esta seed é um objetivo autônomo."""
+        return self.type in {"autonomous_goal", "curiosity_exploration", "meta_reflection",
+                           "self_optimization", "domain_expansion", "capability_gap"}
+
+    @property
+    def autonomous_goal_metadata(self) -> dict[str, str]:
+        """Extrai metadados específicos de objetivos autônomos."""
+        if not self.is_autonomous_goal:
+            return {}
+
+        metadata = {}
+        if "goal_type" in self.metadata:
+            metadata["goal_type"] = self.metadata["goal_type"]
+        if "estimated_impact" in self.metadata:
+            metadata["estimated_impact"] = self.metadata["estimated_impact"]
+        if "motivation_factors" in self.metadata:
+            metadata["motivation_factors"] = self.metadata["motivation_factors"]
+
+        return metadata
+
+    @property
     def priority_rank(self) -> int:
         return _PRIORITY_ORDER.get(self.priority, 99)
 
@@ -58,7 +85,7 @@ class Seed:
 
     def compute_expected_gain(self) -> float:
         """Calcula o ganho esperado com base no histórico recente da seed e deltas de fitness."""
-        
+
         # Original components
         if self.last_success is True:
             success_component = 1.0
@@ -69,19 +96,19 @@ class Seed:
 
         iterations_component = 1.0 / (1.0 + float(self.last_iterations or 0))
         memory_component = 0.2 * float(self.last_memories_reused or 0)
-        
+
         # Fitness delta component - use fitness history to calculate expected gain
         fitness_delta_component = 0.0
-        if 'fitness_delta' in self.metadata:
+        if "fitness_delta" in self.metadata:
             try:
-                fitness_delta = float(self.metadata.get('fitness_delta', 0))
+                fitness_delta = float(self.metadata.get("fitness_delta", 0))
                 fitness_delta_component = fitness_delta  # Positive delta is good
             except (ValueError, TypeError):
                 fitness_delta_component = 0.0
-        
+
         # Apply a discount factor based on number of attempts (learning from repeated failures)
         attempts_discount = 1.0 / (1.0 + self.attempts * 0.2)  # 20% penalty per attempt
-        
+
         return (success_component + iterations_component + memory_component + fitness_delta_component) * attempts_discount
 
     def compute_fitness(self) -> float:
@@ -103,10 +130,28 @@ class SeedBacklog:
         self._seeds = {seed.id: seed for seed in seeds}
         self.path = path
 
+    def list_autonomous_goals(self) -> list[Seed]:
+        """Lista todas as seeds de objetivos autônomos."""
+        return [seed for seed in self._seeds.values() if seed.is_autonomous_goal]
+
+    def list_by_goal_type(self, goal_type: str) -> list[Seed]:
+        """Lista seeds por tipo específico de objetivo autônomo."""
+        return [seed for seed in self._seeds.values()
+                if seed.metadata.get("goal_type") == goal_type]
+
+    def get_autonomous_goals_stats(self) -> dict[str, int]:
+        """Obtém estatísticas sobre objetivos autônomos."""
+        stats = {}
+        for seed in self._seeds.values():
+            if seed.is_autonomous_goal:
+                goal_type = seed.metadata.get("goal_type", "unknown")
+                stats[goal_type] = stats.get(goal_type, 0) + 1
+        return stats
+
     @classmethod
-    def load(cls, path: str | Path) -> "SeedBacklog":
+    def load(cls, path: str | Path) -> SeedBacklog:
         path_obj = Path(path)
-        seeds: List[Seed] = []
+        seeds: list[Seed] = []
         if path_obj.exists():
             with path_obj.open("r", encoding="utf-8") as fh:
                 raw = yaml.safe_load(fh) or []
@@ -152,19 +197,19 @@ class SeedBacklog:
     def exists(self, seed_id: str) -> bool:
         return seed_id in self._seeds
 
-    def list_pending(self) -> List[Seed]:
+    def list_pending(self) -> list[Seed]:
         return [seed for seed in self._seeds.values() if seed.status == "pending"]
 
-    def list_all_ids(self) -> List[str]:
+    def list_all_ids(self) -> list[str]:
         return list(self._seeds.keys())
 
-    def next_seed(self) -> Optional[Seed]:
+    def next_seed(self) -> Seed | None:
         pending = self.list_pending()
         if not pending:
             return None
         # Filtra por janela de execução (respeita next_run_at quando definido)
         now = datetime.now(timezone.utc)
-        eligible: List[Seed] = []
+        eligible: list[Seed] = []
         for seed in pending:
             if seed.next_run_at:
                 try:
@@ -202,9 +247,9 @@ class SeedBacklog:
         self,
         seed_id: str,
         *,
-        notes: Optional[str] = None,
-        iterations: Optional[int] = None,
-        memories_reused: Optional[int] = None,
+        notes: str | None = None,
+        iterations: int | None = None,
+        memories_reused: int | None = None,
     ) -> None:
         seed = self._seeds[seed_id]
         seed.last_iterations = iterations
@@ -220,9 +265,9 @@ class SeedBacklog:
         self,
         seed_id: str,
         *,
-        notes: Optional[str] = None,
-        iterations: Optional[int] = None,
-        memories_reused: Optional[int] = None,
+        notes: str | None = None,
+        iterations: int | None = None,
+        memories_reused: int | None = None,
     ) -> None:
         seed = self._seeds[seed_id]
         seed.last_error = notes
@@ -249,15 +294,22 @@ def _deserialize_seed(entry: dict) -> Seed:
     missing = required - set(entry)
     if missing:
         raise ValueError(f"Seed com campos ausentes: {missing}")
+
+    # Validar tipo de seed se especificado
+    seed_type = entry.get("type", "generic")
+    if seed_type not in _VALID_SEED_TYPES:
+        raise ValueError(f"Tipo de seed inválido: {seed_type}")
+
     history = entry.get("history") or []
     if not isinstance(history, list):
         raise ValueError("Campo history deve ser lista")
+
     return Seed(
         id=str(entry["id"]),
         goal=str(entry["goal"]),
         priority=str(entry.get("priority", "medium")),
         status=str(entry.get("status", "pending")),
-        type=str(entry.get("type", "generic")),
+        type=seed_type,
         config=entry.get("config"),
         max_steps=entry.get("max_steps"),
         metadata={str(k): str(v) for k, v in (entry.get("metadata") or {}).items()},
@@ -285,7 +337,7 @@ def _deserialize_seed(entry: dict) -> Seed:
     )
 
 
-def _parse_iso(value: str) -> Optional[datetime]:
+def _parse_iso(value: str) -> datetime | None:
     if not value:
         return None
     try:
@@ -297,11 +349,11 @@ def _parse_iso(value: str) -> Optional[datetime]:
 
 
 class AutoSeeder:
-    def __init__(self, thresholds: Optional[PlannerThresholds] = None) -> None:
+    def __init__(self, thresholds: PlannerThresholds | None = None) -> None:
         self.thresholds = thresholds or PlannerThresholds()
 
-    def monitor_and_seed(self, metrics: Dict[str, float]) -> List[Seed]:
-        seeds: List[Seed] = []
+    def monitor_and_seed(self, metrics: dict[str, float]) -> list[Seed]:
+        seeds: list[Seed] = []
         gap_templates = {
             "actions_success_rate": {
                 "threshold": self.thresholds.actions_success_rate,

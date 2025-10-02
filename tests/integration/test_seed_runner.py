@@ -1,13 +1,14 @@
 """Auto-generated E2E test for seed_runner execution.
 AUTO-GENERATED. Edit via E2ETestGenerator."""
 
-import pytest
-from unittest.mock import Mock, patch
 from pathlib import Path
+from unittest.mock import Mock, patch
 
+import pytest
+
+from a3x.executor import ActionExecutor, Observation
 from a3x.seed_runner import SeedRunner
 from a3x.seeds import SeedBacklog
-from a3x.executor import ActionExecutor
 
 
 @pytest.fixture
@@ -15,6 +16,13 @@ def mock_backlog():
     backlog = Mock(spec=SeedBacklog)
     backlog.get_next_seed.return_value = {"id": "test_seed", "description": "Test seed", "type": "improvement"}
     return backlog
+
+
+@pytest.fixture
+def mock_curriculum_state(tmp_path: Path):
+    state_file = tmp_path / "curriculum_state.json"
+    state_file.write_text('{"current_step": 0, "completed_steps": [], "total_steps": 3}', encoding="utf-8")
+    return state_file
 
 
 @pytest.fixture
@@ -28,7 +36,7 @@ def test_seed_runner_execution(mock_backlog, mock_executor, tmp_path: Path):
     with patch("a3x.seed_runner.SeedBacklog", return_value=mock_backlog),          patch("a3x.seed_runner.Executor", return_value=mock_executor),          patch("a3x.seed_runner.config.BASE_DIR", tmp_path):
         runner = SeedRunner(config_path=str(tmp_path / "config.yaml"))
         result = runner.run_next()
-    
+
     assert result.success
     assert result.metrics.get("seed_success_rate", 0) == 1.0
     mock_backlog.get_next_seed.assert_called_once()

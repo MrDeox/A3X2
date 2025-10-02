@@ -1,17 +1,16 @@
 """Testes para a análise estática de código do executor."""
 
-import pytest
-from unittest.mock import Mock, patch
 from pathlib import Path
+from unittest.mock import Mock
 
-from a3x.executor import ActionExecutor
+from a3x.actions import ActionType, AgentAction
 from a3x.config import AgentConfig
-from a3x.actions import AgentAction, ActionType
+from a3x.executor import ActionExecutor
 
 
 class TestStaticCodeAnalysis:
     """Testes para a análise estática de código."""
-    
+
     def setup_method(self) -> None:
         """Configuração antes de cada teste."""
         self.mock_config = Mock(spec=AgentConfig)
@@ -26,7 +25,7 @@ class TestStaticCodeAnalysis:
         self.mock_config.audit.enable_git_commit = False
         self.mock_config.audit.commit_prefix = "A3X"
         self.executor = ActionExecutor(self.mock_config)
-    
+
     def test_extract_python_code_from_diff_simple(self) -> None:
         """Testa a extração de código Python de um diff simples."""
         diff = """--- a/test.py
@@ -38,14 +37,14 @@ class TestStaticCodeAnalysis:
 +    result = new_code * 2
 +    return result
 """
-        
+
         extracted = self.executor._extract_python_code_from_diff(diff)
-        
+
         assert "def old_function():" in extracted
         assert "new_code = 2" in extracted
         assert "result = new_code * 2" in extracted
         assert "return result" in extracted
-    
+
     def test_analyze_code_complexity_simple(self) -> None:
         """Testa a análise de complexidade de código simples."""
         import ast
@@ -59,12 +58,12 @@ class SimpleClass:
 """
         tree = ast.parse(code)
         complexity = self.executor._analyze_code_complexity(tree)
-        
+
         assert complexity["function_count"] >= 1
         assert complexity["class_count"] >= 1
         assert complexity["total_nodes"] > 0
         assert complexity["max_depth"] > 0
-    
+
     def test_check_bad_coding_practices_magic_numbers(self) -> None:
         """Testa a detecção de números mágicos."""
         # Use more magic numbers to exceed the threshold
@@ -73,12 +72,12 @@ def calculate():
     result = 10 * 3.14159 * 42 * 7 * 23 * 99 * 1
     return result
 """
-        
+
         bad_practices = self.executor._check_bad_coding_practices(code)
-        
+
         # Should detect multiple magic numbers (7 numbers should exceed threshold of 5)
         # The function should return magic_numbers when more than 5 are found
-    
+
     def test_check_bad_coding_practices_global_vars(self) -> None:
         """Testa a detecção de variáveis globais."""
         code = """
@@ -90,13 +89,13 @@ def increment():
     counter += 1
     return counter
 """
-        
+
         bad_practices = self.executor._check_bad_coding_practices(code)
-        
+
         # Should detect global variables
         assert "global_vars" in bad_practices
         assert bad_practices["global_vars"] >= 1
-    
+
     def test_check_bad_coding_practices_hardcoded_paths(self) -> None:
         """Testa a detecção de caminhos hardcoded."""
         code = """
@@ -109,13 +108,13 @@ def save_data():
     with open(path, 'w') as f:
         f.write("data")
 """
-        
+
         bad_practices = self.executor._check_bad_coding_practices(code)
-        
+
         # Should detect hardcoded paths
         assert "hardcoded_paths" in bad_practices
         assert bad_practices["hardcoded_paths"] >= 1
-    
+
     def test_analyze_static_code_quality_syntax_error(self) -> None:
         """Testa a análise de qualidade com erro de sintaxe."""
         # Invalid Python code
@@ -125,13 +124,13 @@ def save_data():
 -def invalid(:  # Missing closing parenthesis
 +    return
 """
-        
+
         quality_metrics = self.executor._analyze_static_code_quality(diff)
-        
+
         # Should detect syntax error
         assert "syntax_errors" in quality_metrics
         assert quality_metrics["syntax_errors"] == 1.0
-    
+
     def test_analyze_static_code_quality_valid_code(self) -> None:
         """Testa a análise de qualidade com código válido."""
         diff = """--- a/good.py
@@ -141,16 +140,16 @@ def save_data():
 +    return 3.14159 * radius * radius
 +    
 """
-        
+
         quality_metrics = self.executor._analyze_static_code_quality(diff)
-        
+
         # Should analyze valid code
         assert "functions_added" in quality_metrics
         assert quality_metrics["functions_added"] >= 1.0
-        
+
         # The function should work without errors
         # Magic numbers are only flagged when > 5 are present, so not asserting that here
-    
+
     def test_analyze_static_code_quality_no_python(self) -> None:
         """Testa a análise de qualidade com diff não-Python."""
         diff = """--- a/README.md
@@ -159,12 +158,12 @@ def save_data():
 -Old documentation
 +New documentation
 """
-        
+
         quality_metrics = self.executor._analyze_static_code_quality(diff)
-        
+
         # Should return empty metrics for non-Python files
         assert quality_metrics == {}
-    
+
     def test_analyze_impact_with_quality_issues(self) -> None:
         """Testa análise de impacto com problemas de qualidade."""
         # Diff with syntax error
@@ -174,15 +173,15 @@ def save_data():
 -def broken_func(:  # Syntax error - missing closing paren
 +    return None
 """
-        
+
         action = AgentAction(type=ActionType.SELF_MODIFY, diff=bad_diff)
-        
+
         is_safe, message = self.executor._analyze_impact_before_apply(action)
-        
+
         # Should reject due to syntax error
         assert is_safe is False
         assert "erros de sintaxe" in message
-    
+
     def test_analyze_impact_with_complexity_issues(self) -> None:
         """Testa análise de impacto com código muito complexo."""
         # Very complex diff that exceeds complexity limits
@@ -233,11 +232,11 @@ def save_data():
 +                                                                                    return q
 +    return x
 """
-        
+
         action = AgentAction(type=ActionType.SELF_MODIFY, diff=complex_diff)
-        
+
         is_safe, message = self.executor._analyze_impact_before_apply(action)
-        
+
         # May or may not reject based on exact complexity scoring
         # But should at least analyze without crashing
         assert isinstance(is_safe, bool)

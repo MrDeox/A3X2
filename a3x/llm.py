@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 import json
 import os
 import time
+from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, Optional, Any
+from typing import Any
 
 import httpx
 import yaml
-# Ollama client is imported only when needed for fallback
 
+# Ollama client is imported only when needed for fallback
 from .actions import ActionType, AgentAction, AgentState
+from .cache import llm_cache_manager
 
 
 class BaseLLMClient(ABC):
@@ -43,7 +45,7 @@ class BaseLLMClient(ABC):
 class ManualLLMClient(BaseLLMClient):
     """Cliente simples que lê ações pré-definidas de um arquivo YAML."""
 
-    def __init__(self, script_path: Optional[Path]) -> None:
+    def __init__(self, script_path: Path | None) -> None:
         if script_path is None:
             raise ValueError("ManualLLMClient requer um caminho para script YAML")
         self.actions = list(_load_actions(Path(script_path)))
@@ -75,8 +77,8 @@ class OpenRouterLLMClient(BaseLLMClient):
     def __init__(
         self,
         model: str,
-        api_key_env: Optional[str] = None,
-        base_url: Optional[str] = None,
+        api_key_env: str | None = None,
+        base_url: str | None = None,
         timeout: float = 60.0,
         max_retries: int = 3,
         retry_backoff: float = 2.0,
@@ -95,11 +97,11 @@ class OpenRouterLLMClient(BaseLLMClient):
         self.timeout = timeout
         self.max_retries = max_retries
         self.retry_backoff = retry_backoff
-        self._goal: Optional[str] = None
+        self._goal: str | None = None
         self._last_metrics: dict[str, float] = {}
         # Ollama client is only initialized when needed for fallback
-        self.ollama_client: Optional[Any] = None
-        self._ollama_unavailable_reason: Optional[str] = None
+        self.ollama_client: Any | None = None
+        self._ollama_unavailable_reason: str | None = None
 
     def start(self, goal: str) -> None:
         self._goal = goal
@@ -111,8 +113,26 @@ class OpenRouterLLMClient(BaseLLMClient):
             )
 
         messages = self._build_messages(state)
+
+        # Try cache first
+        llm_cache = llm_cache_manager.get_cache("openrouter_responses")
+        cached_response = llm_cache.get(self.model, messages, temperature=0.1)
+
+        if cached_response:
+            content = cached_response.get_content()
+            self._last_metrics["cache_hit"] = 1.0
+            return self._content_to_action(content)
+
+        # Cache miss - make API call
         response = self._send_request(messages)
         content = self._extract_content(response)
+
+        # Cache the response
+        usage = response.get("usage", {"prompt_tokens": 0, "completion_tokens": 0})
+        finish_reason = response.get("choices", [{}])[0].get("finish_reason", "completed")
+        llm_cache.put(self.model, messages, response, usage, finish_reason, temperature=0.1)
+
+        self._last_metrics["cache_hit"] = 0.0
         return self._content_to_action(content)
 
     # Internos -----------------------------------------------------------------
@@ -267,7 +287,7 @@ class OpenRouterLLMClient(BaseLLMClient):
 
         action_type = mapping[type_name]
         command_value = data.get("command")
-        command_list: Optional[list[str]] = None
+        command_list: list[str] | None = None
         if isinstance(command_value, str):
             command_list = command_value.split()
         elif isinstance(command_value, list):
@@ -291,7 +311,7 @@ class OpenRouterLLMClient(BaseLLMClient):
             return False
         try:
             from ollama import Client  # type: ignore import-not-found
-        except ImportError as exc:  # pragma: no cover - depends on optional dep
+        except ImportError:  # pragma: no cover - depends on optional dep
             self._ollama_unavailable_reason = (
                 "Pacote 'ollama' não encontrado; instale para habilitar fallback."
             )

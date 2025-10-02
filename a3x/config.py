@@ -4,24 +4,30 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Optional
 
 import yaml
+
+try:
+    from a3x.config.validation import validate_config_file, ValidationError
+    HAS_VALIDATION = True
+except ImportError:
+    HAS_VALIDATION = False
 
 
 @dataclass
 class LLMConfig:
     type: str
-    model: Optional[str] = None
-    script: Optional[Path] = None
-    endpoint: Optional[str] = None
-    api_key_env: Optional[str] = None
-    base_url: Optional[str] = None
+    model: str | None = None
+    script: Path | None = None
+    endpoint: str | None = None
+    api_key_env: str | None = None
+    base_url: str | None = None
 
 
 @dataclass
 class WorkspaceConfig:
-    root: Path = Path(".")
+    root: Path = Path()
     allow_outside_root: bool = False
 
 
@@ -30,25 +36,25 @@ class LimitsConfig:
     max_iterations: int = 50
     command_timeout: int = 120
     max_failures: int = 10
-    total_timeout: Optional[int] = None
+    total_timeout: int | None = None
 
 
 @dataclass
 class TestSettings:
     auto: bool = False
-    commands: List[List[str]] = field(default_factory=list)
+    commands: list[list[str]] = field(default_factory=list)
 
 
 @dataclass
 class PoliciesConfig:
     allow_network: bool = False
     allow_shell_write: bool = True
-    deny_commands: List[str] = field(default_factory=list)
+    deny_commands: list[str] = field(default_factory=list)
 
 
 @dataclass
 class GoalsConfig:
-    thresholds: Dict[str, float] = field(default_factory=dict)
+    thresholds: dict[str, float] = field(default_factory=dict)
 
     def get_threshold(self, metric: str, default: float) -> float:
         return float(self.thresholds.get(metric, default))
@@ -64,6 +70,7 @@ class LoopConfig:
     stop_when_idle: bool = True
     use_memory: bool = False
     memory_top_k: int = 3
+    interactive: bool = False
 
 
 @dataclass
@@ -72,6 +79,13 @@ class AuditConfig:
     file_dir: Path = Path("seed/changes")
     enable_git_commit: bool = False
     commit_prefix: str = "A3X"
+
+
+@dataclass
+class ScalingConfig:
+    cpu_threshold: float = 0.8
+    memory_threshold: float = 0.8
+    max_recursion_adjust: int = 3
 
 
 @dataclass
@@ -84,14 +98,38 @@ class AgentConfig:
     goals: GoalsConfig
     loop: LoopConfig
     audit: AuditConfig
+    scaling: ScalingConfig = field(default_factory=ScalingConfig)
 
     @property
     def workspace_root(self) -> Path:
         return self.workspace.root.resolve()
 
 
-def load_config(path: str | Path) -> AgentConfig:
+def load_config(path: str | Path, validate: bool = True) -> AgentConfig:
+    """
+    Load and validate configuration from file.
+
+    Args:
+        path: Path to configuration file
+        validate: Whether to validate configuration against schema
+
+    Returns:
+        Validated AgentConfig object
+
+    Raises:
+        ValidationError: If validation fails
+        FileNotFoundError: If config file doesn't exist
+    """
     config_path = Path(path).resolve()
+
+    # Validate configuration file if validation is enabled
+    if validate and HAS_VALIDATION:
+        try:
+            validate_config_file(config_path, strict=True)
+        except ImportError:
+            # Validation framework not available, continue without validation
+            pass
+
     data = _read_yaml(config_path)
     base_dir = config_path.parent
 
@@ -133,7 +171,7 @@ def load_config(path: str | Path) -> AgentConfig:
 
     tests_section = data.get("tests", {})
     raw_commands = tests_section.get("commands", [])
-    commands: List[List[str]] = []
+    commands: list[list[str]] = []
     for entry in raw_commands:
         if isinstance(entry, list):
             commands.append([str(part) for part in entry])
@@ -152,7 +190,7 @@ def load_config(path: str | Path) -> AgentConfig:
     )
 
     goals_section = data.get("goals", {})
-    goal_thresholds: Dict[str, float] = {}
+    goal_thresholds: dict[str, float] = {}
     for metric, spec in goals_section.items():
         if isinstance(spec, dict) and "min" in spec:
             goal_thresholds[str(metric)] = float(spec["min"])
@@ -195,6 +233,13 @@ def load_config(path: str | Path) -> AgentConfig:
         commit_prefix=str(audit_section.get("commit_prefix", "A3X")),
     )
 
+    scaling_section = data.get("scaling", {})
+    scaling = ScalingConfig(
+        cpu_threshold=float(scaling_section.get("cpu_threshold", 0.8)),
+        memory_threshold=float(scaling_section.get("memory_threshold", 0.8)),
+        max_recursion_adjust=int(scaling_section.get("max_recursion_adjust", 3)),
+    )
+
     return AgentConfig(
         llm=llm,
         workspace=workspace,
@@ -204,6 +249,7 @@ def load_config(path: str | Path) -> AgentConfig:
         goals=goals,
         loop=loop,
         audit=audit,
+        scaling=scaling,
     )
 
 

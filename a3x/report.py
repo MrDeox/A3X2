@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable
 
 from .capabilities import CapabilityRegistry
 
@@ -45,7 +45,7 @@ def generate_capability_report(
         return
 
     registry = CapabilityRegistry.from_yaml(capabilities_path)
-    usage_map: Dict[str, CapabilityUsage] = {
+    usage_map: dict[str, CapabilityUsage] = {
         cap.id: CapabilityUsage(
             capability_id=cap.id, name=cap.name, category=cap.category
         )
@@ -77,11 +77,11 @@ def generate_capability_report(
     output_path.write_text(report, encoding="utf-8")
 
 
-def _load_metrics_summary(path: Path) -> Dict[str, Dict[str, float]]:
+def _load_metrics_summary(path: Path) -> dict[str, dict[str, float]]:
     if not path.exists():
         return {}
     history = json.loads(path.read_text(encoding="utf-8"))
-    summary: Dict[str, Dict[str, float]] = {}
+    summary: dict[str, dict[str, float]] = {}
     for metric, values in history.items():
         if not values:
             continue
@@ -97,7 +97,7 @@ def _render_report(
     usage: Iterable[CapabilityUsage],
     evaluation_count: int,
     completed_count: int,
-    metrics_summary: Dict[str, Dict[str, float]],
+    metrics_summary: dict[str, dict[str, float]],
 ) -> str:
     lines = ["# SeedAI Capability Report"]
     lines.append("")

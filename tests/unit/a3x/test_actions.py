@@ -1,26 +1,25 @@
 """Testes para o módulo de ações do agente A3X."""
 
-import pytest
-from a3x.actions import ActionType, AgentAction, Observation, AgentState
+from a3x.actions import ActionType, AgentAction, AgentState, Observation
 
 
 class TestActionType:
     """Testes para os tipos de ações."""
-    
+
     def test_action_types_exist(self) -> None:
         """Verifica que todos os tipos de ação existem."""
-        assert hasattr(ActionType, 'MESSAGE')
-        assert hasattr(ActionType, 'RUN_COMMAND')
-        assert hasattr(ActionType, 'APPLY_PATCH')
-        assert hasattr(ActionType, 'WRITE_FILE')
-        assert hasattr(ActionType, 'READ_FILE')
-        assert hasattr(ActionType, 'SELF_MODIFY')
-        assert hasattr(ActionType, 'FINISH')
+        assert hasattr(ActionType, "MESSAGE")
+        assert hasattr(ActionType, "RUN_COMMAND")
+        assert hasattr(ActionType, "APPLY_PATCH")
+        assert hasattr(ActionType, "WRITE_FILE")
+        assert hasattr(ActionType, "READ_FILE")
+        assert hasattr(ActionType, "SELF_MODIFY")
+        assert hasattr(ActionType, "FINISH")
 
 
 class TestAgentAction:
     """Testes para a classe AgentAction."""
-    
+
     def test_agent_action_creation(self) -> None:
         """Testa a criação de uma ação do agente."""
         action = AgentAction(
@@ -72,7 +71,7 @@ class TestAgentAction:
 
 class TestObservation:
     """Testes para a classe Observation."""
-    
+
     def test_observation_creation(self) -> None:
         """Testa a criação de uma observação."""
         observation = Observation(
@@ -119,7 +118,7 @@ class TestObservation:
 
 class TestAgentState:
     """Testes para a classe AgentState."""
-    
+
     def test_agent_state_creation(self) -> None:
         """Testa a criação de um estado do agente."""
         state = AgentState(

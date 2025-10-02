@@ -1,13 +1,14 @@
 """Auto-generated unit tests for a3x/memory/insights.py.
 AUTO-GENERATED. Edit via InsightsTestGenerator."""
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime, timezone
 import hashlib
+from datetime import datetime, timezone
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from a3x.actions import AgentState
-from a3x.memory.insights import StatefulRetriever, Insight
+from a3x.memory.insights import Insight, StatefulRetriever
 from a3x.memory.store import MemoryEntry, SemanticMemory
 
 
@@ -41,9 +42,9 @@ def mock_state():
 
 def test_stateful_retriever_retrieve_session_context(mock_store, mock_state):
     retriever = StatefulRetriever()
-    with patch.object(retriever, 'store', mock_store):
+    with patch.object(retriever, "store", mock_store):
         insights = retriever.retrieve_session_context(mock_state)
-    
+
     assert len(insights) == 1  # Filtered to >0.7
     assert isinstance(insights[0], Insight)
     assert insights[0].similarity > 0.7
@@ -52,9 +53,9 @@ def test_stateful_retriever_retrieve_session_context(mock_store, mock_state):
 def test_stateful_retriever_derivation_detection(mock_store, mock_state):
     retriever = StatefulRetriever()
     mock_state.history_snapshot = "Changed history"
-    with patch.object(retriever, 'store', mock_store):
+    with patch.object(retriever, "store", mock_store):
         insights = retriever.retrieve_session_context(mock_state)
-    
+
     if insights:
         assert insights[0].metadata.get("derivation_flagged") is True  # Hash differs
         assert "snapshot_hash" in insights[0].metadata

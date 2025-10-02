@@ -6,7 +6,7 @@ import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from .agent import AgentOrchestrator
 from .config import load_config
@@ -31,8 +31,8 @@ class SeedRunner:
         self.backlog = SeedBacklog.load(backlog_path)
 
     def run_next(
-        self, *, default_config: str | Path, max_steps_override: Optional[int] = None
-    ) -> Optional[SeedRunResult]:
+        self, *, default_config: str | Path, max_steps_override: int | None = None
+    ) -> SeedRunResult | None:
         seed = self.backlog.next_seed()
         if not seed:
             return None
@@ -53,7 +53,7 @@ class SeedRunner:
         orchestrator = AgentOrchestrator(config, llm_client)
         result = orchestrator.run(seed.goal)
 
-        notes_parts: List[str] = []
+        notes_parts: list[str] = []
         if result.errors:
             notes_parts.append("; ".join(result.errors))
 
@@ -110,7 +110,7 @@ class SeedRunner:
             memories_reused=result.memories_reused,
         )
 
-    def _handle_skill_creation(self, seed: Seed) -> Tuple[bool, str]:
+    def _handle_skill_creation(self, seed: Seed) -> tuple[bool, str]:
         try:
             proposal = self._load_skill_proposal(seed)
         except Exception as exc:
@@ -128,8 +128,8 @@ class SeedRunner:
         return self._build_skill_proposal(payload, metadata)
 
     def _extract_proposal_payload(
-        self, metadata: Dict[str, str], seed: Seed
-    ) -> Dict[str, Any]:
+        self, metadata: dict[str, str], seed: Seed
+    ) -> dict[str, Any]:
         for key in ("proposal_json", "skill_proposal_json", "skill_proposal"):
             raw = metadata.get(key)
             if raw:
@@ -169,8 +169,8 @@ class SeedRunner:
         raise ValueError("Metadados da seed não contêm proposta de skill")
 
     def _resolve_proposal_path(
-        self, metadata: Dict[str, str], seed: Seed
-    ) -> Optional[Path]:
+        self, metadata: dict[str, str], seed: Seed
+    ) -> Path | None:
         path_keys = (
             "proposal_record",
             "proposal_file",
@@ -201,7 +201,7 @@ class SeedRunner:
         return None
 
     def _build_skill_proposal(
-        self, payload: Dict[str, Any], metadata: Dict[str, str]
+        self, payload: dict[str, Any], metadata: dict[str, str]
     ) -> SkillProposal:
         fields = [
             "id",
@@ -215,7 +215,7 @@ class SeedRunner:
             "target_domain",
             "created_at",
         ]
-        normalized: Dict[str, Any] = {}
+        normalized: dict[str, Any] = {}
         for field in fields:
             if field in payload and payload[field] not in (None, ""):
                 normalized[field] = payload[field]
@@ -247,7 +247,7 @@ class SeedRunner:
         return SkillProposal(**normalized)
 
     @staticmethod
-    def _parse_dependencies(value: Any) -> List[str]:
+    def _parse_dependencies(value: Any) -> list[str]:
         if isinstance(value, list):
             return [str(item) for item in value]
         if isinstance(value, str):

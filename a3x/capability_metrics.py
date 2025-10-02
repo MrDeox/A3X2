@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable
 
 
 @dataclass
@@ -27,10 +27,10 @@ class _CapabilityStats:
 
 def compute_capability_metrics(
     log_path: Path,
-) -> Dict[str, Dict[str, float | int | None]]:
+) -> dict[str, dict[str, float | int | None]]:
     """Aggregate simple stats per capability from run evaluations."""
 
-    stats: Dict[str, _CapabilityStats] = {}
+    stats: dict[str, _CapabilityStats] = {}
 
     def ensure(capability: str) -> _CapabilityStats:
         return stats.setdefault(capability, _CapabilityStats())
@@ -72,9 +72,9 @@ def compute_capability_metrics(
                         if success_rate < 1.0:
                             cap_stats.tests_failures += 1
 
-    aggregated: Dict[str, Dict[str, float | int | None]] = {}
+    aggregated: dict[str, dict[str, float | int | None]] = {}
     for capability, data in stats.items():
-        cap_metrics: Dict[str, float | int | None] = {}
+        cap_metrics: dict[str, float | int | None] = {}
         if data.runs:
             completion_rate = data.completed / data.runs
             avg_iterations = data.iterations_sum / data.runs

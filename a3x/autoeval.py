@@ -6,24 +6,25 @@ import ast
 import json
 import re
 import subprocess
-import tempfile
-from dataclasses import dataclass, asdict, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import yaml
-from .testgen import GrowthTestGenerator, E2ETestGenerator
-from .report import generate_capability_report
-from .seeds import SeedBacklog, Seed
-from .planner import Planner, PlannerThresholds
-from .planning.mission_planner import MissionPlanner
+
 from .capabilities import CapabilityRegistry
 from .capability_metrics import compute_capability_metrics
-from .planning.storage import load_mission_state, save_mission_state
-from .memory.store import SemanticMemory
-from .memory.insights import build_insight_payload
 from .config import AgentConfig
+from .memory.insights import build_insight_payload
+from .memory.store import SemanticMemory
+from .planner import Planner, PlannerThresholds
+from .planning.mission_planner import MissionPlanner
+from .planning.storage import load_mission_state, save_mission_state
+from .report import generate_capability_report
+from .seeds import Seed, SeedBacklog
+from .testgen import E2ETestGenerator, GrowthTestGenerator
+
 # Import MetaCapabilityPlanner locally to avoid circular import
 # from .meta_capabilities import MetaCapabilityPlanner
 
@@ -34,9 +35,9 @@ class EvaluationSeed:
 
     description: str
     priority: str = "medium"  # e.g., low/medium/high
-    capability: Optional[str] = None  # link to capability id
+    capability: str | None = None  # link to capability id
     seed_type: str = "improvement"
-    data: Optional[Dict[str, str]] = None
+    data: dict[str, str] | None = None
 
 
 @dataclass
@@ -47,13 +48,13 @@ class RunEvaluation:
     completed: bool
     iterations: int
     failures: int
-    duration_seconds: Optional[float]
+    duration_seconds: float | None
     timestamp: str
-    seeds: List[EvaluationSeed]
-    metrics: Dict[str, float]
-    capabilities: List[str]
-    notes: Optional[str] = None
-    errors: List[str] = field(default_factory=list)
+    seeds: list[EvaluationSeed]
+    metrics: dict[str, float]
+    capabilities: list[str]
+    notes: str | None = None
+    errors: list[str] = field(default_factory=list)
 
 
 class AutoEvaluator:
@@ -62,8 +63,8 @@ class AutoEvaluator:
     def __init__(
         self,
         log_dir: Path | str = Path("seed/evaluations"),
-        thresholds: Optional[PlannerThresholds] = None,
-        config: Optional[AgentConfig] = None,
+        thresholds: PlannerThresholds | None = None,
+        config: AgentConfig | None = None,
     ) -> None:
         self.log_dir = Path(log_dir)
         self.log_dir.mkdir(parents=True, exist_ok=True)
@@ -92,16 +93,16 @@ class AutoEvaluator:
         completed: bool,
         iterations: int,
         failures: int,
-        duration_seconds: Optional[float],
-        seeds: Optional[List[EvaluationSeed]] = None,
-        metrics: Optional[Dict[str, float]] = None,
-        capabilities: Optional[List[str]] = None,
-        notes: Optional[str] = None,
-        errors: Optional[List[str]] = None,
+        duration_seconds: float | None,
+        seeds: list[EvaluationSeed] | None = None,
+        metrics: dict[str, float] | None = None,
+        capabilities: list[str] | None = None,
+        notes: str | None = None,
+        errors: list[str] | None = None,
     ) -> RunEvaluation:
         # Calculate fitness_before (from previous run)
         fitness_before = self._calculate_fitness_before()
-        
+
         evaluation = RunEvaluation(
             goal=goal,
             completed=completed,
@@ -115,18 +116,18 @@ class AutoEvaluator:
             notes=notes,
             errors=errors or [],
         )
-        
+
         # Calculate fitness_after based on current metrics
         fitness_after = self._calculate_fitness(evaluation.metrics)
-        
+
         # Calculate delta
         delta = fitness_after - fitness_before
-        
+
         # Store the fitness data with the evaluation
-        evaluation.metrics['fitness_before'] = fitness_before
-        evaluation.metrics['fitness_after'] = fitness_after
-        evaluation.metrics['fitness_delta'] = delta
-        
+        evaluation.metrics["fitness_before"] = fitness_before
+        evaluation.metrics["fitness_after"] = fitness_after
+        evaluation.metrics["fitness_delta"] = delta
+
         self._append(evaluation)
         return evaluation
 
@@ -134,32 +135,32 @@ class AutoEvaluator:
         """Get the fitness from before this run."""
         # Load the last evaluation to get its fitness_after
         last_eval = self._read_last_evaluation()
-        if last_eval and 'metrics' in last_eval:
-            metrics = last_eval['metrics']
-            if 'fitness_after' in metrics:
-                return metrics['fitness_after']
+        if last_eval and "metrics" in last_eval:
+            metrics = last_eval["metrics"]
+            if "fitness_after" in metrics:
+                return metrics["fitness_after"]
         # If no previous fitness data, return default value
         return 0.0
 
-    def _calculate_fitness(self, metrics: Dict[str, float]) -> float:
+    def _calculate_fitness(self, metrics: dict[str, float]) -> float:
         """Calculate an overall fitness score based on metrics."""
         # Weighted combination of key metrics
         fitness = 0.0
-        
+
         # Actions success rate (most important)
         fitness += metrics.get("actions_success_rate", 0.0) * 0.4
-        
-        # Apply patch success rate  
+
+        # Apply patch success rate
         if "apply_patch_success_rate" in metrics:
             fitness += metrics["apply_patch_success_rate"] * 0.3
-        
+
         # Test success rate
         if "tests_success_rate" in metrics:
             fitness += metrics["tests_success_rate"] * 0.2
-        
+
         # Recursion depth (efficiency) - capped at 1.0
         fitness += min(metrics.get("recursion_depth", 0) / 10.0, 1.0) * 0.1
-        
+
         return fitness
 
     def _append(self, evaluation: RunEvaluation) -> None:
@@ -169,27 +170,27 @@ class AutoEvaluator:
         with self.log_file.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
         self._update_metric_history(evaluation.metrics)
-        
+
         # Analyze code quality and add to metrics
         code_quality_metrics = self._analyze_code_quality(evaluation)
         evaluation.metrics.update(code_quality_metrics)
-        
+
         # Generate seeds based on code quality issues
         quality_seeds = self._check_code_quality_issues(code_quality_metrics)
         evaluation.seeds.extend(quality_seeds)
 
         # Calculate fitness delta for this run
-        fitness_delta = evaluation.metrics.get('fitness_delta', 0.0)
-        
+        fitness_delta = evaluation.metrics.get("fitness_delta", 0.0)
+
         # Include fitness info in the metadata of seeds
         for seed in evaluation.seeds:
             if seed.data is None:
                 seed.data = {}
-            seed.data['fitness_delta'] = str(fitness_delta)
-        
+            seed.data["fitness_delta"] = str(fitness_delta)
+
         # Enfileirar seeds originadas desta execução
         self.enqueue_seeds(evaluation.seeds, source="autoeval")
-        
+
         self._growth_test_generator.ensure_tests()
         self._detect_and_run_e2e_tests(evaluation)
         generate_capability_report(
@@ -214,10 +215,10 @@ class AutoEvaluator:
         # Auto-crítica e avanço de currículo
         self._post_reflection_follow_up()
 
-    def _update_metric_history(self, metrics: Dict[str, float]) -> None:
+    def _update_metric_history(self, metrics: dict[str, float]) -> None:
         if not metrics:
             return
-        history: Dict[str, List[float]] = {}
+        history: dict[str, list[float]] = {}
         if self.metrics_history_file.exists():
             try:
                 history = json.loads(self.metrics_history_file.read_text(encoding="utf-8"))
@@ -229,7 +230,7 @@ class AutoEvaluator:
             json.dump(history, fh, ensure_ascii=False, indent=2)
 
     def latest_summary(self, max_metrics: int = 5) -> str:
-        parts: List[str] = []
+        parts: list[str] = []
         last_eval = self._read_last_evaluation()
         if last_eval:
             status = "concluído" if last_eval.get("completed") else "não concluído"
@@ -253,7 +254,7 @@ class AutoEvaluator:
             parts.append("Métricas: " + "; ".join(summaries))
         return "\n".join(parts) if parts else "Sem histórico SeedAI registrado."
 
-    def _read_last_evaluation(self) -> Optional[dict]:
+    def _read_last_evaluation(self) -> dict | None:
         if not self.log_file.exists():
             return None
         with self.log_file.open("r", encoding="utf-8") as fh:
@@ -265,14 +266,14 @@ class AutoEvaluator:
         except json.JSONDecodeError:
             return None
 
-    def _read_metrics_history(self) -> Dict[str, List[float]]:
+    def _read_metrics_history(self) -> dict[str, list[float]]:
         if not self.metrics_history_file.exists():
             return {}
         try:
             data = json.loads(self.metrics_history_file.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             return {}
-        history: Dict[str, List[float]] = {}
+        history: dict[str, list[float]] = {}
         for key, values in data.items():
             if not isinstance(values, list) or not values:
                 continue
@@ -287,7 +288,7 @@ class AutoEvaluator:
             panel = self.base_dir / "reports" / "run_status.md"
             panel.parent.mkdir(parents=True, exist_ok=True)
 
-            lines: List[str] = ["# SeedAI Run Status", "", "## Latest Metrics"]
+            lines: list[str] = ["# SeedAI Run Status", "", "## Latest Metrics"]
             for metric in [
                 "apply_patch_success_rate",
                 "apply_patch_count",
@@ -307,7 +308,7 @@ class AutoEvaluator:
             lines.append("")
             lines.append("## Recent Runs")
             eval_path = self.log_file
-            entries: List[dict] = []
+            entries: list[dict] = []
             if eval_path.exists():
                 for line in eval_path.read_text(encoding="utf-8").splitlines():
                     line = line.strip()
@@ -339,7 +340,7 @@ class AutoEvaluator:
             reflection_path = self.base_dir / "reports" / "reflection.md"
             reflection_path.parent.mkdir(parents=True, exist_ok=True)
 
-            lines: List[str] = ["# Run Reflection", ""]
+            lines: list[str] = ["# Run Reflection", ""]
 
             if last_eval:
                 status = (
@@ -426,7 +427,7 @@ class AutoEvaluator:
             # Não falhar o ciclo caso a etapa de auto-crítica tenha problemas
             pass
 
-    def _build_auto_critique(self, evaluation: Dict[str, Any]) -> str:
+    def _build_auto_critique(self, evaluation: dict[str, Any]) -> str:
         """Constrói texto curto de auto-crítica a partir dos resultados do run."""
 
         goal = evaluation.get("goal")
@@ -435,7 +436,7 @@ class AutoEvaluator:
         failures = evaluation.get("failures")
         iterations = evaluation.get("iterations")
 
-        parts: List[str] = []
+        parts: list[str] = []
         if completed:
             parts.append("Execução concluída, avaliar próximos incrementos de qualidade.")
         else:
@@ -463,11 +464,11 @@ class AutoEvaluator:
         header = f"Auto-crítica do objetivo '{goal}'" if goal else "Auto-crítica"
         return f"{header}: {' '.join(parts)}"
 
-    def _append_auto_critique_entry(self, evaluation: Dict[str, Any], critique: str) -> None:
+    def _append_auto_critique_entry(self, evaluation: dict[str, Any], critique: str) -> None:
         """Persiste auto-crítica incremental no relatório dedicado."""
 
         timestamp = datetime.now(timezone.utc).isoformat()
-        lines: List[str] = []
+        lines: list[str] = []
 
         path = self.auto_critique_path
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -494,7 +495,7 @@ class AutoEvaluator:
         with path.open("a", encoding="utf-8") as fh:
             fh.write("\n".join(lines) + "\n")
 
-    def _progress_curriculum(self, evaluation: Dict[str, Any]) -> None:
+    def _progress_curriculum(self, evaluation: dict[str, Any]) -> None:
         steps = self._load_curriculum()
         if not steps:
             return
@@ -503,10 +504,10 @@ class AutoEvaluator:
         now = datetime.now(timezone.utc).isoformat()
 
         current_index = int(progress.get("current_index", 0))
-        completed_steps: List[str] = list(progress.get("completed_steps", []))
-        active_step_id: Optional[str] = progress.get("active_step_id")
+        completed_steps: list[str] = list(progress.get("completed_steps", []))
+        active_step_id: str | None = progress.get("active_step_id")
 
-        def find_step(step_id: Optional[str]) -> Optional[Dict[str, Any]]:
+        def find_step(step_id: str | None) -> dict[str, Any] | None:
             if step_id is None:
                 return None
             for step in steps:
@@ -592,7 +593,7 @@ class AutoEvaluator:
         slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
         return slug or "seed"
 
-    def _load_curriculum(self) -> List[Dict[str, Any]]:
+    def _load_curriculum(self) -> list[dict[str, Any]]:
         if not self.curriculum_path.exists():
             return []
         try:
@@ -604,7 +605,7 @@ class AutoEvaluator:
             return []
         return [step for step in steps if isinstance(step, dict)]
 
-    def _load_curriculum_progress(self) -> Dict[str, Any]:
+    def _load_curriculum_progress(self) -> dict[str, Any]:
         path = self.curriculum_progress_path
         if not path.exists():
             return {"current_index": 0, "completed_steps": []}
@@ -616,13 +617,13 @@ class AutoEvaluator:
         except Exception:
             return {"current_index": 0, "completed_steps": []}
 
-    def _save_curriculum_progress(self, progress: Dict[str, Any]) -> None:
+    def _save_curriculum_progress(self, progress: dict[str, Any]) -> None:
         path = self.curriculum_progress_path
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w", encoding="utf-8") as fh:
             yaml.safe_dump(progress, fh, allow_unicode=True, sort_keys=False)
 
-    def _validate_curriculum_thresholds(self, history: Dict[str, List[float]]) -> bool:
+    def _validate_curriculum_thresholds(self, history: dict[str, list[float]]) -> bool:
         """Validate post-run metrics against curriculum thresholds."""
         thresholds = {
             "actions_success_rate": 0.95,
@@ -641,7 +642,7 @@ class AutoEvaluator:
 
     def _maybe_generate_auto_seeds(
         self,
-        capability_metrics: Dict[str, Dict[str, float | int | None]],
+        capability_metrics: dict[str, dict[str, float | int | None]],
         mission_state,
         registry: CapabilityRegistry | None,
     ) -> None:
@@ -739,7 +740,7 @@ class AutoEvaluator:
 
             meta_engine = MetaCapabilityEngine(config=self.config, auto_evaluator=self)
             proposals = meta_engine.propose_new_skills()
-            meta_seeds: List[EvaluationSeed] = []
+            meta_seeds: list[EvaluationSeed] = []
             for proposal in proposals:
                 feasible, score, reason = meta_engine.evaluate_proposal_feasibility(proposal)
                 if not feasible:
@@ -756,7 +757,7 @@ class AutoEvaluator:
                 self.enqueue_seeds(meta_seeds, source="meta_capabilities")
 
     def enqueue_seeds(
-        self, seeds: List[EvaluationSeed], *, source: str = "autoeval"
+        self, seeds: list[EvaluationSeed], *, source: str = "autoeval"
     ) -> None:
         """Add evaluation seeds to the shared backlog."""
 
@@ -814,7 +815,7 @@ class AutoEvaluator:
         return str(manual_config)
 
     def _update_capability_metrics(
-        self, capability_metrics: Dict[str, Dict[str, float | int | None]]
+        self, capability_metrics: dict[str, dict[str, float | int | None]]
     ) -> CapabilityRegistry | None:
         if not self.capabilities_path.exists() or not capability_metrics:
             return None
@@ -838,9 +839,9 @@ class AutoEvaluator:
     def _derive_maturity_updates(
         self,
         registry: CapabilityRegistry,
-        capability_metrics: Dict[str, Dict[str, float | int | None]],
-    ) -> Dict[str, str]:
-        updates: Dict[str, str] = {}
+        capability_metrics: dict[str, dict[str, float | int | None]],
+    ) -> dict[str, str]:
+        updates: dict[str, str] = {}
 
         diff = capability_metrics.get("core.diffing", {})
         success_rate = diff.get("success_rate")
@@ -887,7 +888,7 @@ class AutoEvaluator:
                 updates["horiz.docs"] = "baseline"
 
         # preserve existing maturity when no change
-        final_updates: Dict[str, str] = {}
+        final_updates: dict[str, str] = {}
         for cap_id, maturity in updates.items():
             try:
                 current = registry.get(cap_id).maturity
@@ -899,7 +900,7 @@ class AutoEvaluator:
 
     def _update_missions(
         self,
-        capability_metrics: Dict[str, Dict[str, float | int | None]],
+        capability_metrics: dict[str, dict[str, float | int | None]],
         mission_state,
     ) -> None:
         if mission_state is None or not capability_metrics:
@@ -993,45 +994,45 @@ class AutoEvaluator:
         if changed:
             save_mission_state(state, self.missions_path)
 
-    def _analyze_code_quality(self, evaluation: RunEvaluation) -> Dict[str, float]:
+    def _analyze_code_quality(self, evaluation: RunEvaluation) -> dict[str, float]:
         """Analyze code quality metrics from the evaluation."""
         # Calculate code quality metrics based on the actions and metrics in the evaluation
         quality_metrics = {}
-        
+
         # Look for write file or patch apply actions in metrics
-        if 'apply_patch_count' in evaluation.metrics:
-            patch_count = evaluation.metrics['apply_patch_count']
+        if "apply_patch_count" in evaluation.metrics:
+            patch_count = evaluation.metrics["apply_patch_count"]
             if patch_count > 0:
                 # For now just record the count, but we can expand to analyze patch content
-                quality_metrics['apply_patch_count'] = float(patch_count)
-        
+                quality_metrics["apply_patch_count"] = float(patch_count)
+
         # Look for any code-related metrics that could indicate quality
-        if 'unique_file_extensions' in evaluation.metrics:
-            extensions = evaluation.metrics['unique_file_extensions']
+        if "unique_file_extensions" in evaluation.metrics:
+            extensions = evaluation.metrics["unique_file_extensions"]
             # Value Python files higher for quality analysis
             if extensions > 0:
-                quality_metrics['file_diversity'] = float(extensions)
-        
+                quality_metrics["file_diversity"] = float(extensions)
+
         # Analyze actual code changes if possible by looking at the history
         # This would require access to the actual patch/diff content which normally comes from the history
         # For now, we'll add a placeholder and enhance it later
-        
+
         # Add more quality metrics based on what we can infer from the evaluation
         # Calculate failure rate as an indicator of "quality" of implementation
         if evaluation.iterations > 0:
             failure_rate = evaluation.failures / evaluation.iterations if evaluation.iterations > 0 else 0.0
-            quality_metrics['failure_rate'] = float(failure_rate)
-            quality_metrics['success_rate'] = 1.0 - failure_rate
-            
+            quality_metrics["failure_rate"] = float(failure_rate)
+            quality_metrics["success_rate"] = 1.0 - failure_rate
+
         return quality_metrics
 
-    def analyze_code_complexity_from_patch(self, patch_content: str) -> Dict[str, float]:
+    def analyze_code_complexity_from_patch(self, patch_content: str) -> dict[str, float]:
         """Analyze code complexity from a patch/diff content."""
         complexity_metrics = {}
-        
+
         # Extract Python code changes from the patch
         python_changes = self._extract_python_code_from_patch(patch_content)
-        
+
         if python_changes:
             # Analyze the Python code for complexity
             try:
@@ -1041,72 +1042,72 @@ class AutoEvaluator:
             except SyntaxError:
                 # If parsing fails, skip complexity analysis for this patch
                 pass
-        
+
         return complexity_metrics
 
     def _extract_python_code_from_patch(self, patch_content: str) -> str:
         """Extract actual Python code from patch content."""
-        lines = patch_content.split('\n')
+        lines = patch_content.split("\n")
         python_code = []
-        
+
         in_diff = False
         for line in lines:
-            if line.startswith('+++ ') and line.endswith('.py'):
+            if line.startswith("+++ ") and line.endswith(".py"):
                 in_diff = True
                 continue
-            elif line.startswith('--- '):
+            elif line.startswith("--- "):
                 in_diff = False
                 continue
-            
-            if in_diff and line.startswith('+'):
+
+            if in_diff and line.startswith("+"):
                 # This is a line being added
                 code_line = line[1:]  # Remove the '+' prefix
                 python_code.append(code_line)
-            elif in_diff and line.startswith(' '):
+            elif in_diff and line.startswith(" "):
                 # This is a context line
                 code_line = line[1:]  # Remove the space prefix
                 python_code.append(code_line)
-        
-        return '\n'.join(python_code)
 
-    def _analyze_ast_complexity(self, tree: ast.AST) -> Dict[str, float]:
+        return "\n".join(python_code)
+
+    def _analyze_ast_complexity(self, tree: ast.AST) -> dict[str, float]:
         """Analyze AST for complexity metrics."""
         stats = {
-            'function_count': 0,
-            'class_count': 0,
-            'total_nodes': 0,
-            'max_depth': 0,
+            "function_count": 0,
+            "class_count": 0,
+            "total_nodes": 0,
+            "max_depth": 0,
         }
-        
+
         def count_nodes(node, depth=0):
-            stats['total_nodes'] += 1
-            stats['max_depth'] = max(stats['max_depth'], depth)
-            
+            stats["total_nodes"] += 1
+            stats["max_depth"] = max(stats["max_depth"], depth)
+
             if isinstance(node, ast.FunctionDef):
-                stats['function_count'] += 1
+                stats["function_count"] += 1
             elif isinstance(node, ast.ClassDef):
-                stats['class_count'] += 1
-            
+                stats["class_count"] += 1
+
             for child in ast.iter_child_nodes(node):
                 count_nodes(child, depth + 1)
-        
+
         for node in ast.iter_child_nodes(tree):
             count_nodes(node)
-        
+
         # Convert counts to floats for metrics
         complexity_metrics = {
-            'ast_function_count': float(stats['function_count']),
-            'ast_class_count': float(stats['class_count']),
-            'ast_total_nodes': float(stats['total_nodes']),
-            'ast_max_depth': float(stats['max_depth']),
+            "ast_function_count": float(stats["function_count"]),
+            "ast_class_count": float(stats["class_count"]),
+            "ast_total_nodes": float(stats["total_nodes"]),
+            "ast_max_depth": float(stats["max_depth"]),
         }
-        
+
         return complexity_metrics
 
     def _update_semantic_memory(
         self,
         evaluation: RunEvaluation,
-        capability_metrics: Dict[str, Dict[str, float | int | None]],
+        capability_metrics: dict[str, dict[str, float | int | None]],
     ) -> None:
         try:
             store = SemanticMemory(self.memory_path)
@@ -1128,47 +1129,47 @@ class AutoEvaluator:
         except Exception:
             return
 
-    def _check_code_quality_issues(self, quality_metrics: Dict[str, float]) -> List[EvaluationSeed]:
+    def _check_code_quality_issues(self, quality_metrics: dict[str, float]) -> list[EvaluationSeed]:
         """Generate seeds based on code quality issues."""
         seeds = []
-        
+
         # Check if there are too many failures (indicating poor implementation quality)
-        if quality_metrics.get('failure_rate', 0) > 0.3:  # More than 30% failure rate
+        if quality_metrics.get("failure_rate", 0) > 0.3:  # More than 30% failure rate
             seeds.append(
                 EvaluationSeed(
                     description="Reduzir taxa de falhas durante execução (alta taxa de falhas detectada).",
                     priority="high",
                     capability="core.execution",
                     seed_type="quality",
-                    data={"metric": "failure_rate", "value": str(quality_metrics.get('failure_rate', 0))}
+                    data={"metric": "failure_rate", "value": str(quality_metrics.get("failure_rate", 0))}
                 )
             )
-        
+
         # Check if too many patches are being applied without proper success
-        if (quality_metrics.get('apply_patch_count', 0) > 5 and 
-            quality_metrics.get('success_rate', 1) < 0.7):
+        if (quality_metrics.get("apply_patch_count", 0) > 5 and
+            quality_metrics.get("success_rate", 1) < 0.7):
             seeds.append(
                 EvaluationSeed(
                     description="Melhorar qualidade das alterações de código aplicadas (muitos patches com baixa taxa de sucesso).",
                     priority="medium",
                     capability="core.diffing",
                     seed_type="quality",
-                    data={"metric": "apply_patch_success_rate", "value": str(quality_metrics.get('success_rate', 1))}
+                    data={"metric": "apply_patch_success_rate", "value": str(quality_metrics.get("success_rate", 1))}
                 )
             )
-        
+
         # Check if the system is not diversifying file types enough (might indicate lack of features)
-        if quality_metrics.get('file_diversity', 0) < 2 and quality_metrics.get('apply_patch_count', 0) > 10:
+        if quality_metrics.get("file_diversity", 0) < 2 and quality_metrics.get("apply_patch_count", 0) > 10:
             seeds.append(
                 EvaluationSeed(
                     description="Expandir diversidade de tipos de arquivos manipulados (sistema focado em poucos tipos de arquivos).",
                     priority="low",
                     capability="horiz.file_handling",
                     seed_type="quality",
-                    data={"metric": "file_diversity", "value": str(quality_metrics.get('file_diversity', 0))}
+                    data={"metric": "file_diversity", "value": str(quality_metrics.get("file_diversity", 0))}
                 )
             )
-            
+
         return seeds
 
 

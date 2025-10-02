@@ -5,33 +5,29 @@ from __future__ import annotations
 import ast
 import json
 import re
-import tempfile
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple, Any
+from typing import Any
 
-from .actions import AgentAction, ActionType, Observation
-from .config import AgentConfig
-from .executor import ActionExecutor
 # Import AutoEvaluator and EvaluationSeed locally to avoid circular import
 from .autoeval import AutoEvaluator, EvaluationSeed
-from .planning.mission_state import MissionState, Mission, MissionTelemetry
-from .planning.storage import load_mission_state, save_mission_state
-from .capabilities import CapabilityRegistry, Capability
-from .capability_metrics import compute_capability_metrics
-from .seeds import SeedBacklog, Seed
+from .capabilities import CapabilityRegistry
+from .config import AgentConfig
+from .planning.mission_state import MissionState
+from .planning.storage import load_mission_state
+from .seeds import Seed, SeedBacklog
 
 
 @dataclass
 class MetaSkill:
     """Represents a meta-skill that can create other skills."""
-    
+
     id: str
     name: str
     description: str
     implementation_template: str
-    required_capabilities: List[str]
+    required_capabilities: list[str]
     estimated_complexity: float
     success_probability: float
     last_updated: str
@@ -46,18 +42,18 @@ class SkillProposal:
     name: str
     description: str
     implementation_plan: str
-    required_dependencies: List[str]
+    required_dependencies: list[str]
     estimated_effort: float
     priority: str  # low, medium, high
     rationale: str
     target_domain: str
     created_at: str
-    blueprint_path: Optional[str] = None
+    blueprint_path: str | None = None
 
 
 class MetaCapabilityEngine:
     """Engine for autonomous skill creation and meta-capability development."""
-    
+
     def __init__(self, config: AgentConfig, auto_evaluator: AutoEvaluator) -> None:
         self.config = config
         self.auto_evaluator = auto_evaluator
@@ -75,10 +71,10 @@ class MetaCapabilityEngine:
         )
         self.skill_tests_path.mkdir(parents=True, exist_ok=True)
         self.backlog_path = self.workspace_root / "seed" / "backlog.yaml"
-        
+
         # Load existing capabilities
         self.capability_registry = self._load_capability_registry()
-        
+
         # Define meta-skills for autonomous skill creation
         self.meta_skills = self._define_meta_skills()
 
@@ -86,7 +82,7 @@ class MetaCapabilityEngine:
     def _slugify(value: str, *, separator: str = "_") -> str:
         slug = re.sub(r"[^a-z0-9]+", separator, value.lower()).strip(separator)
         return slug or "nova_skill"
-    
+
     def _load_capability_registry(self) -> CapabilityRegistry:
         """Load the existing capability registry."""
         try:
@@ -98,8 +94,8 @@ class MetaCapabilityEngine:
         except Exception:
             # Return empty registry on error
             return CapabilityRegistry(capabilities={}, raw_entries={})
-    
-    def _define_meta_skills(self) -> Dict[str, MetaSkill]:
+
+    def _define_meta_skills(self) -> dict[str, MetaSkill]:
         """Define meta-skills for autonomous skill creation."""
         meta_skills = {
             "skill_creator": MetaSkill(
@@ -182,50 +178,50 @@ class {{optimized_skill_name}}:
                 version="0.1"
             )
         }
-        
+
         return meta_skills
-    
-    def propose_new_skills(self) -> List[SkillProposal]:
+
+    def propose_new_skills(self) -> list[SkillProposal]:
         """Propose new skills based on current capabilities and needs."""
         proposals = []
-        
+
         # Analyze current capabilities and identify gaps
         capability_gaps = self._identify_capability_gaps()
-        
+
         # Analyze mission requirements and identify needed skills
         mission_needs = self._analyze_mission_needs()
-        
+
         # Analyze performance metrics and identify optimization opportunities
         optimization_opportunities = self._identify_optimization_opportunities()
-        
+
         # Generate proposals based on analysis
         for gap in capability_gaps:
             proposal = self._create_skill_proposal_for_gap(gap)
             if proposal:
                 proposals.append(proposal)
-        
+
         for need in mission_needs:
             proposal = self._create_skill_proposal_for_need(need)
             if proposal:
                 proposals.append(proposal)
-        
+
         for opportunity in optimization_opportunities:
             proposal = self._create_skill_proposal_for_optimization(opportunity)
             if proposal:
                 proposals.append(proposal)
-        
+
         return proposals
-    
-    def _identify_capability_gaps(self) -> List[Dict[str, Any]]:
+
+    def _identify_capability_gaps(self) -> list[dict[str, Any]]:
         """Identify gaps in current capabilities."""
         gaps = []
-        
+
         # Load metrics history to analyze capability performance
         try:
             metrics_history = self.auto_evaluator._read_metrics_history()
         except Exception:
             metrics_history = {}
-        
+
         # Check for capabilities with consistently low performance
         capability_metrics = {}
         for metric_name, values in metrics_history.items():
@@ -234,7 +230,7 @@ class {{optimized_skill_name}}:
                 if capability not in capability_metrics:
                     capability_metrics[capability] = {}
                 capability_metrics[capability][metric] = values[-1] if values else 0.0
-        
+
         # Identify capabilities below threshold
         for capability, metrics in capability_metrics.items():
             # Check success rate
@@ -246,7 +242,7 @@ class {{optimized_skill_name}}:
                     "value": metrics["success_rate"],
                     "description": f"Baixo desempenho em {capability} (taxa de sucesso: {metrics['success_rate']:.2f})"
                 })
-            
+
             # Check if capability is missing entirely
             if capability not in self.capability_registry._by_id:
                 gaps.append({
@@ -254,19 +250,19 @@ class {{optimized_skill_name}}:
                     "capability": capability,
                     "description": f"Capacidade {capability} ausente no registro"
                 })
-        
+
         return gaps
-    
-    def _analyze_mission_needs(self) -> List[Dict[str, Any]]:
+
+    def _analyze_mission_needs(self) -> list[dict[str, Any]]:
         """Analyze mission requirements to identify needed skills."""
         needs = []
-        
+
         # Load mission state
         try:
             mission_state = load_mission_state(self.missions_path)
         except Exception:
             mission_state = MissionState()
-        
+
         # Analyze missions for unmet requirements
         for mission in mission_state.missions:
             # Check if mission has unmet capabilities
@@ -278,7 +274,7 @@ class {{optimized_skill_name}}:
                         "capability_tag": tag,
                         "description": f"Missão {mission.id} requer capacidade {tag} não implementada"
                     })
-            
+
             # Check mission telemetry for performance issues
             if mission.telemetry:
                 # Look for metrics indicating need for new capabilities
@@ -291,19 +287,19 @@ class {{optimized_skill_name}}:
                             "value": summary.current,
                             "description": f"Missão {mission.id} tem baixo desempenho em {metric_name} ({summary.current:.2f})"
                         })
-        
+
         return needs
-    
-    def _identify_optimization_opportunities(self) -> List[Dict[str, Any]]:
+
+    def _identify_optimization_opportunities(self) -> list[dict[str, Any]]:
         """Identify opportunities to optimize existing capabilities."""
         opportunities = []
-        
+
         # Load metrics history
         try:
             metrics_history = self.auto_evaluator._read_metrics_history()
         except Exception:
             metrics_history = {}
-        
+
         # Look for capabilities with declining performance or high resource usage
         capability_metrics = {}
         for metric_name, values in metrics_history.items():
@@ -312,7 +308,7 @@ class {{optimized_skill_name}}:
                 if capability not in capability_metrics:
                     capability_metrics[capability] = {}
                 capability_metrics[capability][metric] = values[-5:] if len(values) >= 5 else values  # Last 5 values
-        
+
         # Analyze trends
         for capability, metrics in capability_metrics.items():
             # Check for declining performance trend
@@ -328,7 +324,7 @@ class {{optimized_skill_name}}:
                             "trend": trend,
                             "description": f"Desempenho de {capability} em declínio ({trend:.3f} por medição)"
                         })
-            
+
             # Check for high resource usage
             if "execution_time_avg" in metrics:
                 recent_times = metrics["execution_time_avg"]
@@ -339,14 +335,14 @@ class {{optimized_skill_name}}:
                         "avg_time": max(recent_times),
                         "description": f"{capability} consome recursos excessivos (tempo médio: {max(recent_times):.2f}s)"
                     })
-        
+
         return opportunities
-    
-    def _create_skill_proposal_for_gap(self, gap: Dict[str, Any]) -> Optional[SkillProposal]:
+
+    def _create_skill_proposal_for_gap(self, gap: dict[str, Any]) -> SkillProposal | None:
         """Create a skill proposal to address a capability gap."""
         gap_type = gap.get("type", "")
         capability = gap.get("capability", "")
-        
+
         if gap_type == "low_performance":
             return SkillProposal(
                 id=f"skill_{capability.replace('.', '_')}_improvement_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
@@ -373,15 +369,15 @@ class {{optimized_skill_name}}:
                 target_domain="core",
                 created_at=datetime.now(timezone.utc).isoformat()
             )
-        
+
         return None
-    
-    def _create_skill_proposal_for_need(self, need: Dict[str, Any]) -> Optional[SkillProposal]:
+
+    def _create_skill_proposal_for_need(self, need: dict[str, Any]) -> SkillProposal | None:
         """Create a skill proposal to address a mission need."""
         need_type = need.get("type", "")
         mission_id = need.get("mission_id", "")
         capability_tag = need.get("capability_tag", "") or need.get("metric", "")
-        
+
         if need_type == "mission_requirement":
             return SkillProposal(
                 id=f"skill_{capability_tag.replace('.', '_')}_for_mission_{mission_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
@@ -409,14 +405,14 @@ class {{optimized_skill_name}}:
                 target_domain="performance",
                 created_at=datetime.now(timezone.utc).isoformat()
             )
-        
+
         return None
-    
-    def _create_skill_proposal_for_optimization(self, opportunity: Dict[str, Any]) -> Optional[SkillProposal]:
+
+    def _create_skill_proposal_for_optimization(self, opportunity: dict[str, Any]) -> SkillProposal | None:
         """Create a skill proposal to address an optimization opportunity."""
         opp_type = opportunity.get("type", "")
         capability = opportunity.get("capability", "")
-        
+
         if opp_type == "declining_performance":
             trend = opportunity.get("trend", 0)
             return SkillProposal(
@@ -445,9 +441,9 @@ class {{optimized_skill_name}}:
                 target_domain="performance",
                 created_at=datetime.now(timezone.utc).isoformat()
             )
-        
+
         return None
-    
+
     def generate_skill_implementation(self, proposal: SkillProposal) -> str:
         """Generate implementation code for a proposed skill."""
         # Select appropriate meta-skill template based on proposal type
@@ -458,7 +454,7 @@ class {{optimized_skill_name}}:
             template = self.meta_skills["domain_expander"].implementation_template
         else:
             template = self.meta_skills["skill_creator"].implementation_template
-        
+
         # Fill template with proposal details
         implementation = template.replace("{{skill_name}}", proposal.name.replace(" ", ""))
         implementation = implementation.replace("{{skill_description}}", proposal.description)
@@ -466,9 +462,9 @@ class {{optimized_skill_name}}:
         implementation = implementation.replace("{{domain_description}}", proposal.description)
         implementation = implementation.replace("{{optimized_skill_name}}", proposal.name.replace(" ", ""))
         implementation = implementation.replace("{{optimization_description}}", proposal.description)
-        
+
         return implementation
-    
+
     def create_skill_seed(self, proposal: SkillProposal) -> EvaluationSeed:
         """Create an evaluation seed for implementing the proposed skill."""
         implementation_code = self.generate_skill_implementation(proposal)
@@ -512,33 +508,33 @@ class {{optimized_skill_name}}:
         )
 
         return seed
-    
-    def evaluate_proposal_feasibility(self, proposal: SkillProposal) -> Tuple[bool, float, str]:
+
+    def evaluate_proposal_feasibility(self, proposal: SkillProposal) -> tuple[bool, float, str]:
         """Evaluate the feasibility of implementing a skill proposal."""
         # Check if required dependencies are available
         missing_deps = []
         for dep in proposal.required_dependencies:
             if dep not in self.capability_registry._by_id:
                 missing_deps.append(dep)
-        
+
         if missing_deps:
             return False, 0.1, f"Faltando dependências: {', '.join(missing_deps)}"
-        
+
         # Check estimated effort vs available resources
         if proposal.estimated_effort > 10.0:  # Too complex
             return False, 0.2, f"Esforço estimado muito alto: {proposal.estimated_effort}"
-        
+
         # Check priority vs current workload
         if proposal.priority == "low" and len(self._get_pending_seeds()) > 5:
             return False, 0.3, "Prioridade baixa e backlog cheio"
-        
+
         # Everything looks good
         feasibility_score = 1.0 - (len(missing_deps) * 0.2)  # Reduce score for each missing dep
         feasibility_score = max(0.1, feasibility_score)  # Minimum score
-        
+
         return True, feasibility_score, "Viável para implementação"
-    
-    def _get_pending_seeds(self) -> List[Seed]:
+
+    def _get_pending_seeds(self) -> list[Seed]:
         """Return pending seeds currently registered in the backlog."""
         try:
             backlog = SeedBacklog.load(self.backlog_path)
@@ -548,14 +544,14 @@ class {{optimized_skill_name}}:
             return backlog.list_pending()
         except Exception:
             return []
-    
+
     def save_skill_proposal(self, proposal: SkillProposal) -> None:
         """Save a skill proposal to disk."""
         proposal_file = self.skill_records_path / f"{proposal.id}.json"
         with proposal_file.open("w", encoding="utf-8") as f:
             json.dump(asdict(proposal), f, ensure_ascii=False, indent=2)
-    
-    def load_skill_proposals(self) -> List[SkillProposal]:
+
+    def load_skill_proposals(self) -> list[SkillProposal]:
         """Load saved skill proposals from disk."""
         proposals = []
         for proposal_file in self.skill_records_path.glob("*.json"):
@@ -567,67 +563,67 @@ class {{optimized_skill_name}}:
             except Exception:
                 # Skip invalid files
                 continue
-        
+
         return proposals
 
-    def _analyze_ast_complexity(self, tree: ast.AST) -> Dict[str, float]:
+    def _analyze_ast_complexity(self, tree: ast.AST) -> dict[str, float]:
         """Analyze AST for complexity metrics."""
         stats = {
-            'function_count': 0,
-            'class_count': 0,
-            'total_nodes': 0,
-            'max_depth': 0,
+            "function_count": 0,
+            "class_count": 0,
+            "total_nodes": 0,
+            "max_depth": 0,
         }
-        
+
         def count_nodes(node, depth=0):
-            stats['total_nodes'] += 1
-            stats['max_depth'] = max(stats['max_depth'], depth)
-            
+            stats["total_nodes"] += 1
+            stats["max_depth"] = max(stats["max_depth"], depth)
+
             if isinstance(node, ast.FunctionDef):
-                stats['function_count'] += 1
+                stats["function_count"] += 1
             elif isinstance(node, ast.ClassDef):
-                stats['class_count'] += 1
-            
+                stats["class_count"] += 1
+
             for child in ast.iter_child_nodes(node):
                 count_nodes(child, depth + 1)
-        
+
         for node in ast.iter_child_nodes(tree):
             count_nodes(node)
-            
+
         return {
-            "ast_function_count": float(stats['function_count']),
-            "ast_class_count": float(stats['class_count']),
-            "ast_total_nodes": float(stats['total_nodes']),
-            "ast_max_depth": float(stats['max_depth']),
+            "ast_function_count": float(stats["function_count"]),
+            "ast_class_count": float(stats["class_count"]),
+            "ast_total_nodes": float(stats["total_nodes"]),
+            "ast_max_depth": float(stats["max_depth"]),
         }
 
     def _extract_python_code_from_patch(self, diff: str) -> str:
         """Extract actual Python code from patch content."""
-        lines = diff.split('\n')
+        lines = diff.split("\n")
         python_code = []
-        
+
         in_diff = False
         for line in lines:
-            if line.startswith('+++ ') and line.endswith('.py'):
+            if line.startswith("+++ ") and line.endswith(".py"):
                 in_diff = True
                 continue
-            elif line.startswith('--- ') or line.startswith('@@ '):
+            elif line.startswith("--- ") or line.startswith("@@ "):
                 continue
-            
-            if in_diff and (line.startswith('+') or line.startswith(' ')):
+
+            if in_diff and (line.startswith("+") or line.startswith(" ")):
                 # Lines being added or context lines
                 code_line = line[1:]  # Remove the prefix (+ or space)
                 python_code.append(code_line)
-        
-        return '\n'.join(python_code)
 
-    def analyze_code_complexity_from_patch(self, patch_content: str) -> Dict[str, float]:
+        return "\n".join(python_code)
+
+    def analyze_code_complexity_from_patch(self, patch_content: str) -> dict[str, float]:
         """Analyze code complexity from a patch/diff content."""
         complexity_metrics = {}
-        
+
         # Extract Python code from the patch
         python_code = self._extract_python_code_from_patch(patch_content)
-        
+
         if python_code:
             # Analyze the Python code for complexity
             try:
@@ -637,50 +633,50 @@ class {{optimized_skill_name}}:
             except SyntaxError:
                 # If parsing fails, skip complexity analysis for this patch
                 pass
-        
+
         return complexity_metrics
 
-    def _check_code_quality_issues(self, quality_metrics: Dict[str, float]) -> List[EvaluationSeed]:
+    def _check_code_quality_issues(self, quality_metrics: dict[str, float]) -> list[EvaluationSeed]:
         """Generate seeds based on code quality issues."""
         seeds = []
-        
+
         # Check if there are too many failures (indicating poor implementation quality)
-        if quality_metrics.get('failure_rate', 0) > 0.3:  # More than 30% failure rate
+        if quality_metrics.get("failure_rate", 0) > 0.3:  # More than 30% failure rate
             seeds.append(
                 EvaluationSeed(
                     description="Reduzir taxa de falhas durante execução (alta taxa de falhas detectada).",
                     priority="high",
                     capability="core.execution",
                     seed_type="quality",
-                    data={"metric": "failure_rate", "value": str(quality_metrics.get('failure_rate', 0))}
+                    data={"metric": "failure_rate", "value": str(quality_metrics.get("failure_rate", 0))}
                 )
             )
-        
+
         # Check if too many patches are being applied without proper success
-        if (quality_metrics.get('apply_patch_count', 0) > 5 and 
-            quality_metrics.get('success_rate', 1) < 0.7):
+        if (quality_metrics.get("apply_patch_count", 0) > 5 and
+            quality_metrics.get("success_rate", 1) < 0.7):
             seeds.append(
                 EvaluationSeed(
                     description="Melhorar qualidade das alterações de código aplicadas (muitos patches com baixa taxa de sucesso).",
                     priority="medium",
                     capability="core.diffing",
                     seed_type="quality",
-                    data={"metric": "apply_patch_success_rate", "value": str(quality_metrics.get('success_rate', 1))}
+                    data={"metric": "apply_patch_success_rate", "value": str(quality_metrics.get("success_rate", 1))}
                 )
             )
-        
+
         # Check if the system is not diversifying file types enough (might indicate lack of features)
-        if quality_metrics.get('file_diversity', 0) < 2 and quality_metrics.get('apply_patch_count', 0) > 10:
+        if quality_metrics.get("file_diversity", 0) < 2 and quality_metrics.get("apply_patch_count", 0) > 10:
             seeds.append(
                 EvaluationSeed(
                     description="Expandir diversidade de tipos de arquivos manipulados (sistema focado em poucos tipos de arquivos).",
                     priority="low",
                     capability="horiz.file_handling",
                     seed_type="quality",
-                    data={"metric": "file_diversity", "value": str(quality_metrics.get('file_diversity', 0))}
+                    data={"metric": "file_diversity", "value": str(quality_metrics.get("file_diversity", 0))}
                 )
             )
-            
+
         return seeds
 
 
@@ -689,10 +685,10 @@ def integrate_meta_capabilities(config: AgentConfig, auto_evaluator: AutoEvaluat
     """Integrate meta-capabilities into the existing system."""
     # Create meta-capability engine
     meta_engine = MetaCapabilityEngine(config, auto_evaluator)
-    
+
     # Propose new skills based on current state
     proposals = meta_engine.propose_new_skills()
-    
+
     # Evaluate and prioritize proposals
     prioritized_proposals = []
     for proposal in proposals:
@@ -700,10 +696,10 @@ def integrate_meta_capabilities(config: AgentConfig, auto_evaluator: AutoEvaluat
         if is_feasible:
             proposal.estimated_effort *= score  # Adjust effort based on feasibility
             prioritized_proposals.append((score, proposal))
-    
+
     # Sort by feasibility score (highest first)
     prioritized_proposals.sort(reverse=True)
-    
+
     # Create seeds for top proposals
     top_proposals = [proposal for _, proposal in prioritized_proposals[:3]]  # Top 3 proposals
     seeds = []
@@ -711,7 +707,7 @@ def integrate_meta_capabilities(config: AgentConfig, auto_evaluator: AutoEvaluat
         seed = meta_engine.create_skill_seed(proposal)
         seeds.append(seed)
         meta_engine.save_skill_proposal(proposal)  # Save for future reference
-    
+
     # Add seeds to backlog (this would normally be done by the auto-evaluator)
     # For now, just return the seeds
     return seeds

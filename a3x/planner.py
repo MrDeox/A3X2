@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
 
-import json
 import yaml
-from .llm import OpenRouterLLMClient
-from .actions import AgentState
-from .memory.insights import StatefulRetriever
 
+from .actions import AgentState
+from .llm import OpenRouterLLMClient
+from .memory.insights import StatefulRetriever
+from .metrics import get_latest_metric
 
 
 @dataclass
@@ -59,28 +59,25 @@ class Planner:
 
     def propose(
         self,
-        history: Dict[str, List[float]],
+        history: dict[str, list[float]],
         *,
         patch_config_path: str,
         manual_config_path: str,
         tests_config_path: str,
         lint_config_path: str,
-        capability_metrics: Optional[Dict[str, Dict[str, float | int | None]]] = None,
-        last_errors: Optional[List[str]] = None,
-    ) -> List[Seed]:
+        capability_metrics: dict[str, dict[str, float | int | None]] | None = None,
+        last_errors: list[str] | None = None,
+    ) -> list[Seed]:
         from .seeds import Seed
-        seeds: List[Seed] = []
+        seeds: list[Seed] = []
         capability_metrics = capability_metrics or {}
 
-        def latest(metric: str) -> Optional[float]:
-            values = history.get(metric, [])
-            return values[-1] if values else None
 
         def ensure_seed(id: str, seed: Seed) -> None:
             # Caller decides dedup with backlog; here we just list proposals
             seeds.append(seed)
 
-        def ensure_error_seed(errors: List[str]) -> None:
+        def ensure_error_seed(errors: list[str]) -> None:
             error_description = "; ".join(errors)
             seed_id = f"auto.error.reflection.{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
             ensure_seed(
@@ -141,7 +138,7 @@ class Planner:
             ),
         )
 
-        ap_success_last = latest("apply_patch_success_rate")
+        ap_success_last = get_latest_metric(history, "apply_patch_success_rate")
         diff_metrics = capability_metrics.get("core.diffing", {})
         diff_success_rate = diff_metrics.get("success_rate")
         if apc and max(apc) > 0:
@@ -174,8 +171,8 @@ class Planner:
                     ),
                 )
 
-        actions_rate = history.get("actions_success_rate", [])
-        if actions_rate and actions_rate[-1] < self.thresholds.actions_success_rate:
+        actions_rate = get_latest_metric(history, "actions_success_rate")
+        if actions_rate is not None and actions_rate < self.thresholds.actions_success_rate:
             ensure_seed(
                 "auto.actions.recovery",
                 Seed(
@@ -193,7 +190,7 @@ class Planner:
                 ),
             )
 
-        tests_rate = history.get("tests_success_rate", [])
+        tests_rate = get_latest_metric(history, "tests_success_rate")
         tests_count = history.get("tests_run_count", [])
         testing_metrics = capability_metrics.get("core.testing", {})
         tests_failures = testing_metrics.get("failures_detected")
@@ -225,7 +222,7 @@ class Planner:
                 ),
             )
 
-        lint_rate = history.get("lint_success_rate", [])
+        lint_rate = get_latest_metric(history, "lint_success_rate")
         lint_count = history.get("lint_run_count", [])
         if (
             lint_count
@@ -250,10 +247,10 @@ class Planner:
             )
 
         # Integrate dynamic metric feedback and enhanced prompts for low actions_rate
-        actions_rate = latest("actions_success_rate")
+        actions_rate = get_latest_metric(history, "actions_success_rate")
         if actions_rate is not None and actions_rate < 0.9:
             feedback = self.prompts.low_rate.format(rate=actions_rate)
-            
+
             # Hook stateful retrieval for context-aware planning
             mock_state = AgentState(
                 goal="Dynamic seed planning based on low actions_success_rate",
@@ -268,7 +265,7 @@ class Planner:
             )
             retriever = StatefulRetriever()
             session_context = retriever.retrieve_session_context(mock_state)
-            
+
             # Summarize context, highlight recent failures or derivations
             context_parts = []
             derivation_count = 0
@@ -277,9 +274,9 @@ class Planner:
                 if insight.metadata.get("derivation_flagged"):
                     derivation_count += 1
             context_str = "\n".join(context_parts) if context_parts else "No relevant session context found."
-            
+
             derivation_note = f" (Note: {derivation_count} insights show derivation changes - review for drift)" if derivation_count > 0 else ""
-            
+
             prompt = f"""{self.prompts.base}
 
 {feedback}
@@ -320,18 +317,18 @@ Output ONLY a valid YAML list of 1-3 new seeds. Each seed must include: id (uniq
                 parsed_seeds = yaml.safe_load(response)
                 if isinstance(parsed_seeds, list):
                     for data in parsed_seeds:
-                        if isinstance(data, dict) and 'id' in data and 'goal' in data:
-                            data.setdefault('priority', 'high')
-                            data.setdefault('status', 'pending')
-                            data.setdefault('max_steps', 6)
-                            data.setdefault('config', manual_config_path)
-                            data.setdefault('metadata', {})
-                            data['metadata'].setdefault('description', 'LLM-optimized seed for actions_rate improvement with session context')
-                            data['metadata'].setdefault('created_at', datetime.now(timezone.utc).isoformat())
-                            
+                        if isinstance(data, dict) and "id" in data and "goal" in data:
+                            data.setdefault("priority", "high")
+                            data.setdefault("status", "pending")
+                            data.setdefault("max_steps", 6)
+                            data.setdefault("config", manual_config_path)
+                            data.setdefault("metadata", {})
+                            data["metadata"].setdefault("description", "LLM-optimized seed for actions_rate improvement with session context")
+                            data["metadata"].setdefault("created_at", datetime.now(timezone.utc).isoformat())
+
                             # Ensure metadata values are strings
-                            processed_metadata = {k: ", ".join(v) if isinstance(v, list) else str(v) for k, v in data['metadata'].items()}
-                            data['metadata'] = processed_metadata
+                            processed_metadata = {k: ", ".join(v) if isinstance(v, list) else str(v) for k, v in data["metadata"].items()}
+                            data["metadata"] = processed_metadata
 
                             seeds.append(Seed(**data))
             except Exception:

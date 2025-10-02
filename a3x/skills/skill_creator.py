@@ -3,15 +3,11 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, field
-from typing import Dict, List, Tuple, Any
-
+from dataclasses import asdict
 from pathlib import Path
 from textwrap import dedent
 
 from ..meta_capabilities import SkillProposal
-from ..actions import AgentAction, Observation
-from ..config import AgentConfig
 
 
 class SkillCreator:
@@ -26,7 +22,7 @@ class SkillCreator:
         self.tests_dir.mkdir(parents=True, exist_ok=True)
         self.registry_dir.mkdir(parents=True, exist_ok=True)
 
-    def create_skill_from_proposal(self, proposal: SkillProposal) -> Tuple[bool, str]:
+    def create_skill_from_proposal(self, proposal: SkillProposal) -> tuple[bool, str]:
         """Create an actual skill implementation from a proposal."""
         slug = self._slugify(proposal.name)
         skill_filename = f"{slug}.py"

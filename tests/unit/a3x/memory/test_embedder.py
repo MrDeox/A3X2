@@ -1,7 +1,6 @@
-import pytest
-import numpy as np
 from unittest.mock import Mock, patch
-from typing import List
+
+import numpy as np
 
 from a3x.memory.embedder import EmbeddingModel, get_embedder, set_embedder
 
@@ -15,7 +14,7 @@ class TestEmbeddingModel:
 
         model = EmbeddingModel()
         texts = ["sample text 1", "sample text 2"]
-        result: List[List[float]] = model.embed(texts)
+        result: list[list[float]] = model.embed(texts)
 
         assert len(result) == 2
         assert result[0] == [0.1, 0.2, 0.3]
@@ -34,7 +33,7 @@ class TestEmbeddingModel:
         mock_model.encode.return_value = np.array([])
 
         model = EmbeddingModel()
-        result: List[List[float]] = model.embed([])
+        result: list[list[float]] = model.embed([])
 
         assert result == []
         mock_model.encode.assert_called_once_with(
@@ -51,7 +50,7 @@ class TestEmbeddingModel:
         mock_model.encode.return_value = np.array([[0.1, 0.2]])
 
         model = EmbeddingModel()
-        result: List[List[float]] = model.embed(["single text"])
+        result: list[list[float]] = model.embed(["single text"])
 
         assert len(result) == 1
         assert result[0] == [0.1, 0.2]

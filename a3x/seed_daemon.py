@@ -6,7 +6,6 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from .seed_runner import SeedRunner
 
@@ -23,9 +22,9 @@ def run_loop(
     *,
     config: str | Path = "configs/sample.yaml",
     interval: float = 30.0,
-    max_runs: Optional[int] = None,
+    max_runs: int | None = None,
     stop_when_idle: bool = True,
-    log_path: Optional[str | Path] = None,
+    log_path: str | Path | None = None,
 ) -> DaemonResult:
     runner = SeedRunner(backlog)
     log_file = None
@@ -92,7 +91,7 @@ def _maybe_sleep(interval: float) -> None:
         raise
 
 
-def _log_entry(log_file: Optional[Path], result) -> None:
+def _log_entry(log_file: Path | None, result) -> None:
     if not log_file:
         return
     from datetime import datetime, timezone

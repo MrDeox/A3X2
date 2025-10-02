@@ -1,7 +1,16 @@
 """Tests for the calculator module."""
 
-import pytest
-from test_calculator import add, subtract, multiply, divide, power, calculate_circle_area, calculate_rectangle_area, calculate_triangle_area
+from test_calculator import (
+    add,
+    calculate_circle_area,
+    calculate_rectangle_area,
+    calculate_triangle_area,
+    divide,
+    multiply,
+    power,
+    subtract,
+)
+
 
 def test_add():
     """Test addition function."""

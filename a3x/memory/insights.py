@@ -2,29 +2,28 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Dict, Iterable, List, Optional
 from hashlib import md5
-import json
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 from ..actions import AgentState
 from .store import MemoryEntry, SemanticMemory
 
-from typing import TYPE_CHECKING
-
 if TYPE_CHECKING:  # pragma: no cover
-    from ..autoeval import RunEvaluation
     from ..agent import AgentResult
+    from ..autoeval import RunEvaluation
     from ..planning import GoalPlan
 
 
 def build_insight_payload(
-    evaluation: "RunEvaluation",
-    capability_metrics: Optional[Dict[str, Dict[str, float | int | None]]] = None,
-    snapshot: Optional[str] = None,
-) -> tuple[str, str, List[str], dict]:
+    evaluation: RunEvaluation,
+    capability_metrics: dict[str, dict[str, float | int | None]] | None = None,
+    snapshot: str | None = None,
+) -> tuple[str, str, list[str], dict]:
     status = "✅" if evaluation.completed else "⚠️"
     title = f"Run {evaluation.goal} {status}"
     lines = [
@@ -44,7 +43,7 @@ def build_insight_payload(
         seeds_desc = "; ".join(seed.description for seed in evaluation.seeds)
         lines.append("seeds: " + seeds_desc)
     if capability_metrics and evaluation.capabilities:
-        cap_lines: List[str] = []
+        cap_lines: list[str] = []
         for cap in evaluation.capabilities:
             data = capability_metrics.get(cap)
             if not data:
@@ -74,13 +73,13 @@ class Insight:
     """Simplified insight from memory entry for retrieval."""
     title: str
     content: str
-    tags: List[str]
+    tags: list[str]
     metadata: dict
     created_at: str
     similarity: float = 0.0
 
     @classmethod
-    def from_entry(cls, entry: MemoryEntry, similarity: float) -> "Insight":
+    def from_entry(cls, entry: MemoryEntry, similarity: float) -> Insight:
         return cls(
             title=entry.title,
             content=entry.content,
@@ -93,42 +92,42 @@ class Insight:
 
 class StatefulRetriever:
     """Retriever for session continuity with dynamic state and derivation detection."""
-    
+
     def __init__(self):
         self.store = SemanticMemory()
-        self.last_snapshot_hash: Optional[str] = None
+        self.last_snapshot_hash: str | None = None
         self.derivation_threshold = 0.1  # Simple diff ratio threshold for flag
         self.similarity_threshold = 0.5  # Lowered for better retrieval in structured content
 
-    def retrieve_session_context(self, state: AgentState) -> List[Insight]:
+    def retrieve_session_context(self, state: AgentState) -> list[Insight]:
         """Retrieve recent relevant insights based on state, filtered by similarity >0.7."""
         # Derive query from state
         history_summary = state.history_snapshot[:500] if state.history_snapshot else ""  # Truncate for query
         query_text = f"goal: {state.goal} actions_success_rate low metrics failures capabilities planning session context recent history: {history_summary} events"
-        
+
         results = self.store.query(query_text, top_k=10)
-        
+
         # Filter by similarity > self.similarity_threshold and sort by recency
         filtered = [(entry, score) for entry, score in results if score > self.similarity_threshold]
         recent = sorted(filtered, key=lambda x: x[0].created_at, reverse=True)[:5]
-        
+
         insights = [Insight.from_entry(entry, score) for entry, score in recent]
-        
+
         # Detect derivation on retrieved insights
         for insight in insights:
             if self._detect_derivation(state.history_snapshot, insight):
                 insight.metadata["derivation_flagged"] = True
-        
+
         return insights
 
     def _detect_derivation(self, current_snapshot: str, insight: Insight) -> bool:
         """Basic derivation detection: hash comparison with threshold on content changes."""
         if not current_snapshot or "snapshot_hash" not in insight.metadata:
             return False
-        
+
         current_hash = md5(current_snapshot.encode()).hexdigest()
         stored_hash = insight.metadata.get("snapshot_hash", "")
-        
+
         # Simple flag if hashes differ (threshold on hash diff not directly, but flag change)
         if current_hash != stored_hash:
             # Basic change flag; could compute Levenshtein but minimal
@@ -149,15 +148,15 @@ class RetrospectiveReport:
     completed: bool
     iterations: int
     failures: int
-    duration_seconds: Optional[float]
-    metrics: Dict[str, float]
-    recommendations: List[str] = field(default_factory=list)
-    notes: List[str] = field(default_factory=list)
+    duration_seconds: float | None
+    metrics: dict[str, float]
+    recommendations: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
     created_at: str = field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
 
-    def to_dict(self) -> Dict[str, object]:
+    def to_dict(self) -> dict[str, object]:
         return {
             "goal": self.goal,
             "completed": self.completed,
@@ -171,7 +170,7 @@ class RetrospectiveReport:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, object]) -> "RetrospectiveReport":
+    def from_dict(cls, data: dict[str, object]) -> RetrospectiveReport:
         return cls(
             goal=str(data.get("goal", "")),
             completed=bool(data.get("completed", False)),
@@ -194,14 +193,14 @@ class RetrospectiveReport:
 
 
 def build_retrospective(
-    result: "AgentResult",
-    plan: Optional["GoalPlan"],
-    metrics: Dict[str, float],
+    result: AgentResult,
+    plan: GoalPlan | None,
+    metrics: dict[str, float],
     *,
     alerts: Iterable[str] | None = None,
 ) -> RetrospectiveReport:
-    recommendations: List[str] = []
-    notes: List[str] = []
+    recommendations: list[str] = []
+    notes: list[str] = []
     alerts_list = list(alerts or [])
     if alerts_list:
         notes.append("; ".join(alerts_list))
@@ -239,12 +238,12 @@ def persist_retrospective(
 def load_recent_retrospectives(
     limit: int = 5,
     path: Path | str = Path("seed/memory/retrospectives.jsonl"),
-) -> List[RetrospectiveReport]:
+) -> list[RetrospectiveReport]:
     path_obj = Path(path)
     if not path_obj.exists():
         return []
     lines = path_obj.read_text(encoding="utf-8").splitlines()
-    reports: List[RetrospectiveReport] = []
+    reports: list[RetrospectiveReport] = []
     for row in lines[-limit:]:
         row = row.strip()
         if not row:

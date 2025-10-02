@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List
 
 from .actions import AgentAction, Observation
 
@@ -20,19 +19,19 @@ class AgentHistory:
     """Mantém registro sequencial das interações do agente."""
 
     def __init__(self) -> None:
-        self._events: List[HistoryEvent] = []
+        self._events: list[HistoryEvent] = []
 
     def append(self, action: AgentAction, observation: Observation) -> None:
         self._events.append(HistoryEvent(action=action, observation=observation))
 
     @property
-    def events(self) -> List[HistoryEvent]:
+    def events(self) -> list[HistoryEvent]:
         return list(self._events)
 
     def snapshot(self, max_chars: int = 12_000) -> str:
         """Retorna versão textual compacta do histórico."""
 
-        lines: List[str] = []
+        lines: list[str] = []
         for idx, event in enumerate(self._events, start=1):
             action_desc = _describe_action(event.action)
             obs_desc = _describe_observation(event.observation)

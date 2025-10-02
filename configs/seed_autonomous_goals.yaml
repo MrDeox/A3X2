@@ -1,0 +1,220 @@
+# Configuration file for autonomous goal generation templates
+# This file defines templates for different types of autonomous goals
+
+autonomous_goals:
+  # Curiosity-driven exploration goals
+  curiosity_exploration:
+    enabled: true
+    max_per_cycle: 3
+    priority_base: "medium"
+    max_iterations: 15
+    config_template: "configs/seed_manual.yaml"
+
+    templates:
+      - id: "novelty_domain_exploration"
+        title_template: "Explorar domínio emergente: {{domain}}"
+        description_template: |
+          Investigar e mapear o domínio {{domain}} identificado como emergente.
+          Analisar código existente, identificar padrões de uso e oportunidades de expansão.
+        goal_type: "curiosity_exploration"
+        success_criteria:
+          - "Mapear funcionalidades existentes no domínio"
+          - "Identificar pelo menos 2 oportunidades de melhoria"
+          - "Documentar padrões e convenções do domínio"
+
+      - id: "uncertainty_reduction"
+        title_template: "Reduzir incerteza em área de baixa cobertura: {{area}}"
+        description_template: |
+          Área {{area}} apresenta baixa cobertura de testes e alta incerteza.
+          Implementar testes e validações para aumentar confiança e reduzir riscos.
+        goal_type: "curiosity_exploration"
+        success_criteria:
+          - "Aumentar cobertura de testes em pelo menos 30%"
+          - "Documentar comportamentos não testados"
+          - "Estabelecer baselines de qualidade"
+
+      - id: "diversity_expansion"
+        title_template: "Diversificar abordagens em {{domain}}"
+        description_template: |
+          O domínio {{domain}} pode se beneficiar de abordagens alternativas.
+          Explorar técnicas diferentes e avaliar trade-offs entre soluções.
+        goal_type: "curiosity_exploration"
+        success_criteria:
+          - "Implementar pelo menos 2 abordagens alternativas"
+          - "Comparar desempenho e características"
+          - "Documentar recomendações de uso"
+
+  # Meta-reflection goals
+  meta_reflection:
+    enabled: true
+    max_per_cycle: 2
+    priority_base: "high"
+    max_iterations: 10
+    config_template: "configs/seed_manual.yaml"
+
+    templates:
+      - id: "goal_generation_reflection"
+        title_template: "Meta-reflexão sobre geração de objetivos"
+        description_template: |
+          Analisar o processo de geração de objetivos autônomos, identificar padrões,
+          oportunidades de melhoria e ajustar parâmetros de motivação intrínseca.
+        goal_type: "meta_reflection"
+        success_criteria:
+          - "Analisar distribuição de tipos de objetivos gerados"
+          - "Identificar áreas de melhoria no processo"
+          - "Propor ajustes nos parâmetros de motivação"
+
+      - id: "system_self_evaluation"
+        title_template: "Auto-avaliação do sistema de evolução"
+        description_template: |
+          Realizar avaliação abrangente do sistema de evolução autônoma,
+          analisando métricas de sucesso, padrões de falha e oportunidades de melhoria.
+        goal_type: "meta_reflection"
+        success_criteria:
+          - "Gerar relatório de auto-avaliação detalhado"
+          - "Identificar métricas de sucesso relevantes"
+          - "Propor melhorias específicas para próxima iteração"
+
+  # Self-optimization goals
+  self_optimization:
+    enabled: true
+    max_per_cycle: 4
+    priority_base: "medium"
+    max_iterations: 20
+    config_template: "configs/seed_manual.yaml"
+
+    templates:
+      - id: "performance_bottleneck_resolution"
+        title_template: "Resolver gargalo de performance: {{component}}"
+        description_template: |
+          Identificado gargalo de performance em {{component}}.
+          Analisar causas raiz e implementar otimizações para melhorar {{metric}}.
+        goal_type: "self_optimization"
+        success_criteria:
+          - "Melhorar {{metric}} em pelo menos 30%"
+          - "Manter funcionalidade existente"
+          - "Documentar análise de causa raiz e solução"
+
+      - id: "efficiency_improvement"
+        title_template: "Otimizar eficiência: {{area}}"
+        description_template: |
+          Área {{area}} apresenta oportunidades de melhoria de eficiência.
+          Identificar e implementar otimizações para reduzir {{metric}}.
+        goal_type: "self_optimization"
+        success_criteria:
+          - "Reduzir {{metric}} em pelo menos 20%"
+          - "Manter qualidade de resultados"
+          - "Validar impacto das otimizações"
+
+      - id: "resource_usage_optimization"
+        title_template: "Otimizar uso de recursos: {{resource}}"
+        description_template: |
+          Uso de {{resource}} pode ser otimizado para melhorar eficiência geral.
+          Analisar padrões de uso e implementar melhorias.
+        goal_type: "self_optimization"
+        success_criteria:
+          - "Otimizar uso de {{resource}}"
+          - "Manter performance adequada"
+          - "Documentar impacto das mudanças"
+
+  # Domain expansion goals
+  domain_expansion:
+    enabled: true
+    max_per_cycle: 2
+    priority_base: "high"
+    max_iterations: 25
+    config_template: "configs/seed_manual.yaml"
+
+    templates:
+      - id: "strategic_domain_entry"
+        title_template: "Expandir para domínio estratégico: {{domain}}"
+        description_template: |
+          Domínio {{domain}} oferece oportunidades estratégicas de expansão.
+          Implementar funcionalidades básicas e estabelecer integração com sistemas existentes.
+        goal_type: "domain_expansion"
+        success_criteria:
+          - "Implementar funcionalidades básicas em {{domain}}"
+          - "Estabelecer integração com sistemas existentes"
+          - "Definir baselines de performance"
+
+  # Capability gap resolution goals
+  capability_gap:
+    enabled: true
+    max_per_cycle: 5
+    priority_base: "high"
+    max_iterations: 15
+    config_template: "configs/seed_manual.yaml"
+
+    templates:
+      - id: "performance_gap_closure"
+        title_template: "Resolver lacuna de performance: {{capability}}"
+        description_template: |
+          Capacidade {{capability}} apresenta lacuna de performance do tipo {{gap_type}}.
+          Implementar melhorias para elevar {{metric}} acima do threshold aceitável.
+        goal_type: "capability_gap"
+        success_criteria:
+          - "Elevar {{metric}} em pelo menos 20%"
+          - "Implementar ações recomendadas na análise"
+          - "Validar melhoria com métricas atuais"
+
+      - id: "coverage_gap_address"
+        title_template: "Melhorar cobertura: {{capability}}"
+        description_template: |
+          Capacidade {{capability}} apresenta baixa utilização ou cobertura.
+          Investigar barreiras e implementar melhorias de integração e documentação.
+        goal_type: "capability_gap"
+        success_criteria:
+          - "Aumentar utilização da capacidade"
+          - "Melhorar documentação e exemplos"
+          - "Identificar e remover barreiras de uso"
+
+# Configuration for autonomous goal generation triggers
+triggers:
+  # Thresholds for triggering different types of goals
+  curiosity_threshold: 0.6
+  performance_degradation_threshold: 0.8
+  coverage_threshold: 0.7
+  novelty_threshold: 0.5
+
+  # Minimum intervals between goal generation (in hours)
+  min_interval_between_runs: 2
+  min_interval_between_similar_goals: 24
+
+# Motivation profile for autonomous goal generation
+motivation_profile:
+  curiosity_weight: 0.3
+  competence_weight: 0.25
+  autonomy_weight: 0.2
+  relatedness_weight: 0.15
+  exploration_bias: 0.1
+
+  novelty_threshold: 0.6
+  uncertainty_tolerance: 0.4
+  domain_diversity_factor: 0.3
+
+# Integration settings
+integration:
+  # Maximum number of autonomous goals to generate per cycle
+  max_goals_per_cycle: 10
+
+  # Prioritization settings
+  prioritize_recent_gaps: true
+  prioritize_high_impact: true
+  prioritize_curiosity_goals: false
+
+  # Seed backlog settings
+  autonomous_goals_backlog: "seed/autonomous_goals_backlog.yaml"
+  enable_autonomous_goal_backlog: true
+
+# Monitoring and evaluation
+monitoring:
+  enable_goal_generation_metrics: true
+  metrics_file: "seed/metrics/autonomous_goals_history.json"
+
+  track_goal_success_rate: true
+  track_motivation_effectiveness: true
+  track_exploration_diversity: true
+
+  # Evaluation intervals (in cycles)
+  evaluation_interval: 5
+  reflection_interval: 10

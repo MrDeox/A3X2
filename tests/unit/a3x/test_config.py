@@ -1,20 +1,29 @@
 """Testes para o módulo de configuração do agente A3X."""
 
-import pytest
 from pathlib import Path
-from unittest.mock import patch, mock_open
+from unittest.mock import mock_open, patch
+
+import pytest
 import yaml
 
 from a3x.config import (
-    LLMConfig, WorkspaceConfig, LimitsConfig, TestSettings,
-    PoliciesConfig, GoalsConfig, LoopConfig, AuditConfig,
-    AgentConfig, load_config, _read_yaml
+    AgentConfig,
+    AuditConfig,
+    GoalsConfig,
+    LimitsConfig,
+    LLMConfig,
+    LoopConfig,
+    PoliciesConfig,
+    TestSettings,
+    WorkspaceConfig,
+    _read_yaml,
+    load_config,
 )
 
 
 class TestLLMConfig:
     """Testes para a configuração do LLM."""
-    
+
     def test_llm_config_creation(self) -> None:
         """Testa a criação da configuração do LLM."""
         llm_config = LLMConfig(
@@ -33,7 +42,7 @@ class TestLLMConfig:
 
 class TestWorkspaceConfig:
     """Testes para a configuração do workspace."""
-    
+
     def test_workspace_config_creation(self) -> None:
         """Testa a criação da configuração do workspace."""
         workspace_config = WorkspaceConfig(
@@ -46,13 +55,13 @@ class TestWorkspaceConfig:
     def test_workspace_config_defaults(self) -> None:
         """Testa os valores padrão da configuração do workspace."""
         workspace_config = WorkspaceConfig()
-        assert workspace_config.root == Path(".")
+        assert workspace_config.root == Path()
         assert workspace_config.allow_outside_root is False
 
 
 class TestLimitsConfig:
     """Testes para a configuração de limites."""
-    
+
     def test_limits_config_creation(self) -> None:
         """Testa a criação da configuração de limites."""
         limits_config = LimitsConfig(
@@ -77,7 +86,7 @@ class TestLimitsConfig:
 
 class TestTestSettings:
     """Testes para as configurações de testes."""
-    
+
     def test_test_settings_creation(self) -> None:
         """Testa a criação das configurações de testes."""
         test_commands = [["pytest", "tests/"], ["ruff", "check", "."]]
@@ -97,7 +106,7 @@ class TestTestSettings:
 
 class TestPoliciesConfig:
     """Testes para as configurações de políticas."""
-    
+
     def test_policies_config_creation(self) -> None:
         """Testa a criação das configurações de políticas."""
         deny_commands = ["rm -rf", "sudo"]
@@ -120,7 +129,7 @@ class TestPoliciesConfig:
 
 class TestGoalsConfig:
     """Testes para as configurações de metas."""
-    
+
     def test_goals_config_creation(self) -> None:
         """Testa a criação das configurações de metas."""
         thresholds = {
@@ -145,7 +154,7 @@ class TestGoalsConfig:
 
 class TestLoopConfig:
     """Testes para as configurações de loop."""
-    
+
     def test_loop_config_creation(self) -> None:
         """Testa a criação das configurações de loop."""
         loop_config = LoopConfig(
@@ -176,7 +185,7 @@ class TestLoopConfig:
 
 class TestAuditConfig:
     """Testes para as configurações de auditoria."""
-    
+
     def test_audit_config_creation(self) -> None:
         """Testa a criação das configurações de auditoria."""
         audit_config = AuditConfig(
@@ -201,7 +210,7 @@ class TestAuditConfig:
 
 class TestAgentConfig:
     """Testes para a configuração completa do agente."""
-    
+
     def test_agent_config_creation(self) -> None:
         """Testa a criação da configuração do agente."""
         llm_config = LLMConfig(type="openai")
@@ -212,7 +221,7 @@ class TestAgentConfig:
         goals_config = GoalsConfig()
         loop_config = LoopConfig()
         audit_config = AuditConfig()
-        
+
         agent_config = AgentConfig(
             llm=llm_config,
             workspace=workspace_config,
@@ -223,7 +232,7 @@ class TestAgentConfig:
             loop=loop_config,
             audit=audit_config
         )
-        
+
         assert agent_config.llm == llm_config
         assert agent_config.workspace == workspace_config
         assert agent_config.limits == limits_config
@@ -246,20 +255,20 @@ class TestAgentConfig:
             loop=LoopConfig(),
             audit=AuditConfig()
         )
-        
+
         expected = Path("/tmp/test").resolve()
         assert agent_config.workspace_root == expected
 
 
 class TestReadYaml:
     """Testes para a função _read_yaml."""
-    
+
     @patch("a3x.config.Path.open", new_callable=mock_open, read_data="key: value")
     @patch("a3x.config.Path.exists", return_value=True)
     def test_read_yaml_success(self, mock_exists, mock_file) -> None:
         """Testa a leitura bem-sucedida de um arquivo YAML."""
         result = _read_yaml(Path("test.yaml"))
-        
+
         assert result == {"key": "value"}
         mock_file.assert_called_once_with("r", encoding="utf-8")
 
@@ -274,7 +283,7 @@ class TestReadYaml:
     def test_read_yaml_empty_file(self, mock_exists, mock_file) -> None:
         """Testa a leitura de um arquivo YAML vazio."""
         result = _read_yaml(Path("empty.yaml"))
-        
+
         assert result == {}
 
     @patch("a3x.config.Path.open", new_callable=mock_open, read_data="invalid: [unclosed list")
@@ -296,7 +305,7 @@ class TestReadYaml:
 
 class TestLoadConfig:
     """Testes para a função load_config."""
-    
+
     @patch("a3x.config._read_yaml")
     @patch("pathlib.Path.exists")
     def test_load_config_minimal(self, mock_exists, mock_read_yaml) -> None:
@@ -305,11 +314,11 @@ class TestLoadConfig:
         mock_read_yaml.return_value = {
             "llm": {"type": "openai"}
         }
-        
+
         config = load_config(Path("test.yaml"))
-        
+
         assert config.llm.type == "openai"
-        assert config.workspace.root == Path(".").resolve()
+        assert config.workspace.root == Path().resolve()
         assert config.limits.max_iterations == 50
 
     @patch("a3x.config._read_yaml")
@@ -366,39 +375,39 @@ class TestLoadConfig:
                 "commit_prefix": "CUSTOM"
             }
         }
-        
+
         config = load_config(Path("test.yaml"))
-        
+
         # Test LLM config
         assert config.llm.type == "openrouter"
         assert config.llm.model == "test-model"
         assert config.llm.api_key_env == "TEST_API_KEY"
         assert config.llm.endpoint == "https://test.api/v1"
         assert config.llm.base_url == "https://test.api"
-        
+
         # Test workspace config
         assert config.workspace.root == Path("/tmp/workspace").resolve()
         assert config.workspace.allow_outside_root is True
-        
+
         # Test limits config
         assert config.limits.max_iterations == 100
         assert config.limits.command_timeout == 300
         assert config.limits.max_failures == 3
         assert config.limits.total_timeout == 7200
-        
+
         # Test tests config
         assert config.tests.auto is True
         assert config.tests.commands == [["pytest", "tests/"], ["ruff", "check", "."]]
-        
+
         # Test policies config
         assert config.policies.allow_network is True
         assert config.policies.allow_shell_write is False
         assert config.policies.deny_commands == ["rm -rf", "sudo"]
-        
+
         # Test goals config
         assert config.goals.thresholds["apply_patch_success_rate"] == 0.9
         assert config.goals.thresholds["actions_success_rate"] == 0.85
-        
+
         # Test loop config
         assert config.loop.auto_seed is True
         assert config.loop.seed_backlog == Path("custom/backlog.yaml").resolve()
@@ -406,7 +415,7 @@ class TestLoadConfig:
         assert config.loop.seed_interval == 10.0
         assert config.loop.seed_max_runs == 5
         assert config.loop.stop_when_idle is False
-        
+
         # Test audit config
         assert config.audit.enable_file_log is False
         assert config.audit.file_dir == Path("custom/changes")

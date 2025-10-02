@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-import sys
-import os
 
 # Simple executor to test patch.py
 

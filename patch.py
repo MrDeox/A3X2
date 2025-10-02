@@ -1,12 +1,12 @@
 # Secure patch.py script with safety checks
-import sys
 import os
-import subprocess
-import tempfile
 import shutil
+import subprocess
+import sys
+import tempfile
 
 # Safety configurations
-ALLOWED_DIRS = ['/home/arthur/Projetos/A3X']  # Restrict patching to allowed directories
+ALLOWED_DIRS = ["/home/arthur/Projetos/A3X"]  # Restrict patching to allowed directories
 MAX_FILE_SIZE = 1024 * 1024  # 1MB max file size
 
 
@@ -24,7 +24,7 @@ def validate_diff_content(diff_content):
     """Basic validation of diff content to prevent malicious patches."""
     if len(diff_content) > 10000:  # Limit diff size
         raise ValueError("Diff too large")
-    if 'rm -rf' in diff_content or 'exec' in diff_content.lower():
+    if "rm -rf" in diff_content or "exec" in diff_content.lower():
         raise ValueError("Potentially malicious diff content detected")
     return True
 
@@ -40,18 +40,18 @@ def apply_secure_patch(file_path, diff_content):
         raise ValueError("File too large to patch")
 
     # Create backup
-    backup_path = file_path + '.backup'
+    backup_path = file_path + ".backup"
     if os.path.exists(file_path):
         shutil.copy2(file_path, backup_path)
 
     try:
         # Write diff to temp file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.patch', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".patch", delete=False) as f:
             f.write(diff_content)
             temp_patch = f.name
 
         # Run patch command with restrictions
-        cmd = ['patch', '-p0', '-i', temp_patch, file_path]
+        cmd = ["patch", "-p0", "-i", temp_patch, file_path]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
         if result.returncode != 0:
@@ -68,13 +68,13 @@ def apply_secure_patch(file_path, diff_content):
             shutil.copy2(backup_path, file_path)
         raise e
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     if len(sys.argv) < 3:
         print("Usage: python patch.py <file_path> <diff_content>")
         sys.exit(1)
 
     file_path = sys.argv[1]
-    diff_content = ' '.join(sys.argv[2:])
+    diff_content = " ".join(sys.argv[2:])
 
     try:
         apply_secure_patch(file_path, diff_content)

@@ -1,31 +1,44 @@
 steps:
-  - id: bootstrap-tests
-    title: "Domínio de testes básicos"
-    difficulty: easy
-    goal: "Garantir que a suíte de testes básica execute sem falhas e documentar o fluxo."
-    description: |
-      Revisar o projeto, executar `pytest -q` e corrigir pequenos problemas para obter uma
-      execução verde. Documentar no relatório como reproduzir o resultado.
-    success_criteria:
-      - "pytest -q executa sem falhas"
-      - "Relatório de execução atualizado em seed/reports"
-  - id: reinforce-quality
-    title: "Melhorar qualidade de código"
-    difficulty: medium
-    goal: "Introduzir melhorias de linting e automatizar validações em seeds existentes."
-    description: |
-      Ajustar seeds/manuais para disparar lint automático e capturar métricas de qualidade.
-      Deve incluir ajustes em pipelines de seeds e atualizar documentação relevante.
-    success_criteria:
-      - "Lint automático habilitado em seeds prioritárias"
-      - "Novas métricas de qualidade registradas em seed/reports"
-  - id: self-directed-evolution
-    title: "Orquestrar evolução autônoma"
-    difficulty: hard
-    goal: "Configurar ciclo de self-play que proponha e execute seeds de evolução contínua."
-    description: |
-      Utilizar planners/módulos de missão para acoplar currículo com geração de seeds e
-      validar se o agente é capaz de criar, executar e avaliar melhorias em sequência.
-    success_criteria:
-      - "Seed de self-play enfileirada e executada"
-      - "Relatório do ciclo com auto-crítica registrada"
+   - id: bootstrap-tests
+     title: "Domínio de testes básicos"
+     difficulty: easy
+     goal: "Garantir que a suíte de testes básica execute sem falhas e documentar o fluxo."
+     description: |
+       Revisar o projeto, executar `pytest -q` e corrigir pequenos problemas para obter uma
+       execução verde. Documentar no relatório como reproduzir o resultado.
+     success_criteria:
+       - "pytest -q executa sem falhas"
+       - "Relatório de execução atualizado em seed/reports"
+   - id: reinforce-quality
+     title: "Melhorar qualidade de código"
+     difficulty: medium
+     goal: "Introduzir melhorias de linting e automatizar validações em seeds existentes."
+     description: |
+       Ajustar seeds/manuais para disparar lint automático e capturar métricas de qualidade.
+       Deve incluir ajustes em pipelines de seeds e atualizar documentação relevante.
+     success_criteria:
+       - "Lint automático habilitado em seeds prioritárias"
+       - "Novas métricas de qualidade registradas em seed/reports"
+   - id: autonomous-goal-generation
+     title: "Sistema de geração autônoma de objetivos"
+     difficulty: hard
+     goal: "Implementar sistema de geração curiosa de objetivos baseado em motivação intrínseca."
+     description: |
+       Desenvolver e integrar o AutonomousGoalGenerator com capacidades de exploração curiosa,
+       análise de lacunas, auto-otimização e expansão de domínio. Sistema deve gerar objetivos
+       autônomos baseados em análise de capacidades, novelty detection e motivação intrínseca.
+     success_criteria:
+       - "AutonomousGoalGenerator integrado ao sistema de seeds"
+       - "Objetivos de exploração curiosa sendo gerados automaticamente"
+       - "Sistema de priorização baseado em motivação intrínseca funcional"
+       - "Templates de objetivos autônomos criados e configurados"
+   - id: self-directed-evolution
+     title: "Orquestrar evolução autônoma"
+     difficulty: hard
+     goal: "Configurar ciclo de self-play que proponha e execute seeds de evolução contínua."
+     description: |
+       Utilizar planners/módulos de missão para acoplar currículo com geração de seeds e
+       validar se o agente é capaz de criar, executar e avaliar melhorias em sequência.
+     success_criteria:
+       - "Seed de self-play enfileirada e executada"
+       - "Relatório do ciclo com auto-crítica registrada"

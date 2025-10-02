@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Script para iniciar o SeedAI no modo autopilot e observar sua autoevolução real."""
 
-import subprocess
-import sys
-import time
 from pathlib import Path
 
 
@@ -11,17 +8,17 @@ def run_autopilot_real():
     """Executa o SeedAI no modo autopilot usando o CLI existente."""
     print("🚀 INICIANDO SEEDAI NO MODO AUTOPILOT - EXECUÇÃO REAL")
     print("=" * 60)
-    
+
     print("\n🎯 COMANDOS PARA INICIAR AUTO-EVOLUÇÃO:")
     print("   1. Iniciar uma execução de objetivo geral de autoaprimoramento")
     print("   2. Rodar seeds existentes no backlog")
     print("   3. Iniciar loop contínuo de autopilot")
-    
+
     print("\n📋 DESCRICAO DOS COMANDOS:")
     print("   a) a3x run --goal 'Auto-aperfeiçoar minhas próprias capacidades' --config configs/seed_manual.yaml")
     print("   b) a3x seed run --config configs/seed_manual.yaml")
     print("   c) a3x autopilot --cycles 5 --goals seed/goal_rotation.yaml")
-    
+
     print("\n🔍 ARTEFATOS DE AUTO-EVOLUÇÃO:")
     print("   - Logs: seed/evaluations/run_evaluations.jsonl")
     print("   - Métricas: seed/metrics/history.json")
@@ -29,7 +26,7 @@ def run_autopilot_real():
     print("   - Alterações: seed/changes/")
     print("   - Relatórios: seed/reports/")
     print("   - Consciência: seed/consciousness/")
-    
+
     print("\n🎯 OBJETIVO DA AUTO-EVOLUÇÃO:")
     print("   O SeedAI irá:")
     print("   1. Analisar seu próprio código e desempenho")
@@ -37,7 +34,7 @@ def run_autopilot_real():
     print("   3. Criar e executar seeds para auto-aperfeiçoamento")
     print("   4. Avaliar o impacto das mudanças")
     print("   5. Repetir o ciclo continuamente")
-    
+
     print("\n💡 PARA INICIAR REALMENTE:")
     print("   Execute um destes comandos no terminal:")
     print()
@@ -50,7 +47,7 @@ def run_autopilot_real():
     print("   # Loop de autopilot (5 ciclos)")
     print("   python -m a3x autopilot --cycles 5 --goals configs/sample_goals.yaml")
     print()
-    
+
     print("\n📊 PARA MONITORAR A AUTO-EVOLUÇÃO:")
     print("   # Ver últimos relatórios")
     print("   ls -la seed/reports/")
@@ -63,7 +60,7 @@ def run_autopilot_real():
     print()
     print("   # Ver seeds pendentes")
     print("   cat seed/backlog.yaml")
-    
+
     print("\n✅ PRONTO PARA AUTO-EVOLUÇÃO!")
     print("   O SeedAI está configurado para evoluir indefinidamente.")
 
@@ -71,7 +68,7 @@ def run_autopilot_real():
 def create_sample_goals():
     """Cria um arquivo de objetivos de exemplo para autopilot."""
     goals_path = Path("configs/sample_goals.yaml")
-    
+
     goals_content = """
 # Objetivos de exemplo para autopilot
 - goal: "Auto-avaliar minhas capacidades atuais e identificar lacunas"
@@ -90,17 +87,17 @@ def create_sample_goals():
   config: "configs/seed_manual.yaml"
   priority: "high"
 """
-    
-    with open(goals_path, 'w', encoding='utf-8') as f:
+
+    with open(goals_path, "w", encoding="utf-8") as f:
         f.write(goals_content)
-    
+
     print(f"📋 Arquivo de objetivos de exemplo criado: {goals_path}")
 
 
 def create_seed_config():
     """Cria um arquivo de configuração para seeds."""
     config_path = Path("configs/seed_manual.yaml")
-    
+
     config_content = """
 llm:
   type: "manual"
@@ -132,10 +129,10 @@ audit:
   file_dir: "seed/changes"
   enable_git_commit: false
 """
-    
-    with open(config_path, 'w', encoding='utf-8') as f:
+
+    with open(config_path, "w", encoding="utf-8") as f:
         f.write(config_content)
-    
+
     print(f"📋 Configuração de seed criada: {config_path}")
 
 
@@ -143,9 +140,9 @@ def create_demo_plan():
     """Cria um plano de demonstração para o modo manual."""
     scripts_dir = Path("configs/scripts")
     scripts_dir.mkdir(exist_ok=True)
-    
+
     plan_path = scripts_dir / "demo_plan.yaml"
-    
+
     plan_content = """
 # Plano de demonstração para SeedAI
 - type: "message"
@@ -171,25 +168,25 @@ def create_demo_plan():
 - type: "finish"
   text: "Concluído auto-aperfeiçoamento inicial"
 """
-    
-    with open(plan_path, 'w', encoding='utf-8') as f:
+
+    with open(plan_path, "w", encoding="utf-8") as f:
         f.write(plan_content)
-    
+
     print(f"📋 Plano de demonstração criado: {plan_path}")
 
 
 if __name__ == "__main__":
     print("🔧 CONFIGURANDO SEEDAI PARA AUTO-EVOLUÇÃO")
     print("=" * 50)
-    
+
     # Criar arquivos de configuração necessários
     create_seed_config()
     create_demo_plan()
     create_sample_goals()
-    
+
     print()
     run_autopilot_real()
-    
+
     print("\n💡 RECOMENDAÇÃO:")
     print("   1. Inicie com uma execução pequena para testar")
     print("   2. Monitore os resultados nos diretórios seed/")

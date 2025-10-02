@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Dict, List
 
+from ..constants import DEFAULT_MISSION_MAX_STEPS
 from ..seeds import Seed
-from .mission_state import MissionState, MissionMilestone
-
+from .mission_state import MissionMilestone, MissionState
 
 _CAPABILITY_DEFAULT_CONFIG = {
     "core.diffing": "patch",
@@ -23,14 +22,14 @@ class MissionPlanner:
     def propose(
         self,
         missions: MissionState,
-        capability_metrics: Dict[str, Dict[str, float | int | None]],
+        capability_metrics: dict[str, dict[str, float | int | None]],
         *,
         patch_config_path: str,
         manual_config_path: str,
         tests_config_path: str,
         lint_config_path: str,
-    ) -> List[Seed]:
-        seeds: List[Seed] = []
+    ) -> list[Seed]:
+        seeds: list[Seed] = []
 
         config_map = {
             "patch": patch_config_path,
@@ -78,7 +77,7 @@ class MissionPlanner:
                     status="pending",
                     type="mission",
                     config=config,
-                    max_steps=6,
+                    max_steps=DEFAULT_MISSION_MAX_STEPS,
                     metadata={
                         "mission": mission.id,
                         "milestone": milestone.id,
@@ -90,7 +89,7 @@ class MissionPlanner:
         return seeds
 
     def _resolve_config(
-        self, milestone: MissionMilestone, config_map: Dict[str, str]
+        self, milestone: MissionMilestone, config_map: dict[str, str]
     ) -> str:
         for capability in milestone.capability_tags:
             key = _CAPABILITY_DEFAULT_CONFIG.get(capability, "manual")
@@ -99,7 +98,7 @@ class MissionPlanner:
         return config_map["manual"]
 
 
-def _milestone_completed(milestones: List[MissionMilestone], milestone_id: str) -> bool:
+def _milestone_completed(milestones: list[MissionMilestone], milestone_id: str) -> bool:
     for milestone in milestones:
         if milestone.id == milestone_id:
             return milestone.status == "completed"
@@ -107,7 +106,7 @@ def _milestone_completed(milestones: List[MissionMilestone], milestone_id: str) 
 
 
 def _resolve_metric(
-    metric_ref: str, capability_metrics: Dict[str, Dict[str, float | int | None]]
+    metric_ref: str, capability_metrics: dict[str, dict[str, float | int | None]]
 ) -> float | None:
     if not metric_ref:
         return None

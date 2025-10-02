@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
@@ -19,14 +19,14 @@ class PolicyOverrideManager:
     """Persist overrides derived from self-evaluation feedback."""
 
     path: Path = field(default_factory=lambda: Path("configs/policy_overrides.yaml"))
-    data: Dict[str, Any] = field(init=False, default_factory=dict)
+    data: dict[str, Any] = field(init=False, default_factory=dict)
 
     def __post_init__(self) -> None:
         self.path = Path(self.path)
         self.data = self._load()
 
     # ---------------------------------------------------------------- public
-    def apply_to_agent(self, agent: "AgentOrchestrator") -> None:
+    def apply_to_agent(self, agent: AgentOrchestrator) -> None:
         overrides = self.data.get("agent", {})
         recursion_depth = overrides.get("recursion_depth")
         if recursion_depth is not None:
@@ -41,7 +41,7 @@ class PolicyOverrideManager:
             except (TypeError, ValueError):  # pragma: no cover - defensive
                 pass
 
-    def update_from_report(self, report: RetrospectiveReport, agent: "AgentOrchestrator") -> None:
+    def update_from_report(self, report: RetrospectiveReport, agent: AgentOrchestrator) -> None:
         overrides = dict(self.data.get("agent", {}))
         updated = False
         for recommendation in report.recommendations:
@@ -57,7 +57,7 @@ class PolicyOverrideManager:
             self.apply_to_agent(agent)
 
     # --------------------------------------------------------------- internals
-    def _load(self) -> Dict[str, Any]:
+    def _load(self) -> dict[str, Any]:
         if not self.path.exists():
             return {}
         try:

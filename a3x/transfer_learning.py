@@ -2,41 +2,36 @@
 
 from __future__ import annotations
 
-import ast
 import json
-import re
-from dataclasses import dataclass, asdict
+from collections import defaultdict
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Set, Tuple, Any, Optional
-from collections import defaultdict
 
-from .actions import AgentAction, ActionType, Observation
+from .capabilities import Capability
 from .config import AgentConfig
-from .capabilities import CapabilityRegistry, Capability
-from .capability_metrics import compute_capability_metrics
-from .meta_capabilities import MetaCapabilityEngine, SkillProposal
+from .meta_capabilities import MetaCapabilityEngine
 
 
 @dataclass
 class DomainPattern:
     """Represents a pattern identified in a domain."""
-    
+
     id: str
     name: str
     description: str
     domain: str
     pattern_type: str  # structural, behavioral, data_processing, etc.
     confidence: float
-    examples: List[str]
-    related_capabilities: List[str]
+    examples: list[str]
+    related_capabilities: list[str]
     created_at: str
 
 
 @dataclass
 class CrossDomainMapping:
     """Represents a mapping between patterns from different domains."""
-    
+
     id: str
     source_domain: str
     target_domain: str
@@ -51,14 +46,14 @@ class CrossDomainMapping:
 @dataclass
 class TransferredSkill:
     """Represents a skill created through knowledge transfer."""
-    
+
     id: str
     name: str
     description: str
-    source_domains: List[str]
+    source_domains: list[str]
     target_domain: str
     base_skill: str
-    adaptations: List[str]
+    adaptations: list[str]
     confidence: float
     implementation_plan: str
     created_at: str
@@ -66,50 +61,50 @@ class TransferredSkill:
 
 class TransferLearningEngine:
     """Engine for cross-domain knowledge transfer and skill adaptation."""
-    
+
     def __init__(self, config: AgentConfig, meta_engine: MetaCapabilityEngine) -> None:
         self.config = config
         self.meta_engine = meta_engine
         self.workspace_root = Path(config.workspace.root).resolve()
         self.transfer_path = self.workspace_root / "seed" / "transfer_learning"
         self.transfer_path.mkdir(parents=True, exist_ok=True)
-        
+
         # Load existing patterns and mappings
         self.patterns_path = self.transfer_path / "patterns"
         self.patterns_path.mkdir(parents=True, exist_ok=True)
-        
+
         self.mappings_path = self.transfer_path / "mappings"
         self.mappings_path.mkdir(parents=True, exist_ok=True)
-        
+
         self.transferred_skills_path = self.transfer_path / "transferred_skills"
         self.transferred_skills_path.mkdir(parents=True, exist_ok=True)
-    
-    def identify_domain_patterns(self, domain: str, capabilities: List[Capability]) -> List[DomainPattern]:
+
+    def identify_domain_patterns(self, domain: str, capabilities: list[Capability]) -> list[DomainPattern]:
         """Identify patterns in a specific domain based on capabilities."""
         patterns = []
-        
+
         # Structural patterns (based on code structure)
         structural_patterns = self._identify_structural_patterns(domain, capabilities)
         patterns.extend(structural_patterns)
-        
+
         # Behavioral patterns (based on execution behavior)
         behavioral_patterns = self._identify_behavioral_patterns(domain, capabilities)
         patterns.extend(behavioral_patterns)
-        
+
         # Data processing patterns (based on data handling)
         data_patterns = self._identify_data_processing_patterns(domain, capabilities)
         patterns.extend(data_patterns)
-        
+
         # Save patterns to disk
         for pattern in patterns:
             self._save_domain_pattern(pattern)
-        
+
         return patterns
-    
-    def _identify_structural_patterns(self, domain: str, capabilities: List[Capability]) -> List[DomainPattern]:
+
+    def _identify_structural_patterns(self, domain: str, capabilities: list[Capability]) -> list[DomainPattern]:
         """Identify structural patterns in a domain."""
         patterns = []
-        
+
         # Pattern: Configuration-driven behavior
         if any("config" in cap.id.lower() for cap in capabilities):
             patterns.append(DomainPattern(
@@ -123,7 +118,7 @@ class TransferLearningEngine:
                 related_capabilities=[cap.id for cap in capabilities if "config" in cap.id.lower()],
                 created_at=datetime.now(timezone.utc).isoformat()
             ))
-        
+
         # Pattern: Pipeline processing
         if any("pipeline" in cap.id.lower() or "process" in cap.id.lower() for cap in capabilities):
             patterns.append(DomainPattern(
@@ -137,13 +132,13 @@ class TransferLearningEngine:
                 related_capabilities=[cap.id for cap in capabilities if "pipeline" in cap.id.lower() or "process" in cap.id.lower()],
                 created_at=datetime.now(timezone.utc).isoformat()
             ))
-        
+
         return patterns
-    
-    def _identify_behavioral_patterns(self, domain: str, capabilities: List[Capability]) -> List[DomainPattern]:
+
+    def _identify_behavioral_patterns(self, domain: str, capabilities: list[Capability]) -> list[DomainPattern]:
         """Identify behavioral patterns in a domain."""
         patterns = []
-        
+
         # Pattern: Event-driven architecture
         if any("event" in cap.id.lower() or "trigger" in cap.id.lower() for cap in capabilities):
             patterns.append(DomainPattern(
@@ -157,7 +152,7 @@ class TransferLearningEngine:
                 related_capabilities=[cap.id for cap in capabilities if "event" in cap.id.lower() or "trigger" in cap.id.lower()],
                 created_at=datetime.now(timezone.utc).isoformat()
             ))
-        
+
         # Pattern: Error handling and recovery
         if any("error" in cap.id.lower() or "recover" in cap.id.lower() for cap in capabilities):
             patterns.append(DomainPattern(
@@ -171,13 +166,13 @@ class TransferLearningEngine:
                 related_capabilities=[cap.id for cap in capabilities if "error" in cap.id.lower() or "recover" in cap.id.lower()],
                 created_at=datetime.now(timezone.utc).isoformat()
             ))
-        
+
         return patterns
-    
-    def _identify_data_processing_patterns(self, domain: str, capabilities: List[Capability]) -> List[DomainPattern]:
+
+    def _identify_data_processing_patterns(self, domain: str, capabilities: list[Capability]) -> list[DomainPattern]:
         """Identify data processing patterns in a domain."""
         patterns = []
-        
+
         # Pattern: Data validation and cleaning
         if any("validate" in cap.id.lower() or "clean" in cap.id.lower() for cap in capabilities):
             patterns.append(DomainPattern(
@@ -191,7 +186,7 @@ class TransferLearningEngine:
                 related_capabilities=[cap.id for cap in capabilities if "validate" in cap.id.lower() or "clean" in cap.id.lower()],
                 created_at=datetime.now(timezone.utc).isoformat()
             ))
-        
+
         # Pattern: Batch processing
         if any("batch" in cap.id.lower() for cap in capabilities):
             patterns.append(DomainPattern(
@@ -205,19 +200,19 @@ class TransferLearningEngine:
                 related_capabilities=[cap.id for cap in capabilities if "batch" in cap.id.lower()],
                 created_at=datetime.now(timezone.utc).isoformat()
             ))
-        
+
         return patterns
-    
-    def find_cross_domain_mappings(self, source_patterns: List[DomainPattern], 
-                                   target_patterns: List[DomainPattern]) -> List[CrossDomainMapping]:
+
+    def find_cross_domain_mappings(self, source_patterns: list[DomainPattern],
+                                   target_patterns: list[DomainPattern]) -> list[CrossDomainMapping]:
         """Find mappings between patterns from different domains."""
         mappings = []
-        
+
         for source_pattern in source_patterns:
             for target_pattern in target_patterns:
                 # Calculate similarity score based on pattern type and description
                 similarity = self._calculate_pattern_similarity(source_pattern, target_pattern)
-                
+
                 if similarity > 0.6:  # Only consider strong similarities
                     mapping = CrossDomainMapping(
                         id=f"mapping_{source_pattern.domain.replace('.', '_')}_{target_pattern.domain.replace('.', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
@@ -231,13 +226,13 @@ class TransferLearningEngine:
                         created_at=datetime.now(timezone.utc).isoformat()
                     )
                     mappings.append(mapping)
-        
+
         # Save mappings to disk
         for mapping in mappings:
             self._save_cross_domain_mapping(mapping)
-        
+
         return mappings
-    
+
     def _calculate_pattern_similarity(self, pattern1: DomainPattern, pattern2: DomainPattern) -> float:
         """Calculate similarity between two patterns."""
         # Simple similarity calculation based on pattern type and description overlap
@@ -247,24 +242,24 @@ class TransferLearningEngine:
         else:
             # Different pattern types have lower base similarity
             base_similarity = 0.3
-        
+
         # Check for common words in descriptions
         desc1_words = set(pattern1.description.lower().split())
         desc2_words = set(pattern2.description.lower().split())
-        
+
         common_words = len(desc1_words.intersection(desc2_words))
         total_words = len(desc1_words.union(desc2_words))
-        
+
         if total_words > 0:
             description_similarity = common_words / total_words
         else:
             description_similarity = 0.0
-        
+
         # Combine base similarity with description similarity
         combined_similarity = (base_similarity + description_similarity) / 2
-        
+
         return min(combined_similarity, 1.0)
-    
+
     def _generate_adaptation_strategy(self, source_pattern: DomainPattern, target_pattern: DomainPattern) -> str:
         """Generate adaptation strategy for transferring knowledge between patterns."""
         strategies = {
@@ -274,35 +269,35 @@ class TransferLearningEngine:
             ("structural", "data_processing"): "Transformar estruturas de configuração em pipelines de processamento",
             ("data_processing", "structural"): "Converter pipelines de processamento em estruturas configuráveis",
         }
-        
+
         key = (source_pattern.pattern_type, target_pattern.pattern_type)
         return strategies.get(key, "Adaptação genérica baseada em similaridade de padrões")
-    
-    def create_transferred_skills(self, mappings: List[CrossDomainMapping]) -> List[TransferredSkill]:
+
+    def create_transferred_skills(self, mappings: list[CrossDomainMapping]) -> list[TransferredSkill]:
         """Create new skills by transferring knowledge between domains."""
         transferred_skills = []
-        
+
         for mapping in mappings:
             # Create a transferred skill based on the mapping
             skill = self._create_skill_from_mapping(mapping)
             if skill:
                 transferred_skills.append(skill)
                 self._save_transferred_skill(skill)
-        
+
         return transferred_skills
-    
-    def _create_skill_from_mapping(self, mapping: CrossDomainMapping) -> Optional[TransferredSkill]:
+
+    def _create_skill_from_mapping(self, mapping: CrossDomainMapping) -> TransferredSkill | None:
         """Create a transferred skill from a cross-domain mapping."""
         # Get pattern details
         source_pattern = self._load_domain_pattern(mapping.source_pattern)
         target_pattern = self._load_domain_pattern(mapping.target_pattern)
-        
+
         if not source_pattern or not target_pattern:
             return None
-        
+
         # Create skill name combining both domains
         skill_name = f"Transferência de {source_pattern.name} para {target_pattern.domain}"
-        
+
         # Generate implementation plan based on adaptation strategy
         implementation_plan = f"""
         TRANSFERÊNCIA DE CONHECIMENTO AUTOMÁTICA
@@ -320,7 +315,7 @@ class TransferLearningEngine:
         4. Validar transferência com casos de teste do domínio alvo
         5. Refinar implementação baseada em feedback
         """
-        
+
         skill = TransferredSkill(
             id=f"transferred_skill_{mapping.source_domain.replace('.', '_')}_{mapping.target_domain.replace('.', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
             name=skill_name,
@@ -333,28 +328,28 @@ class TransferLearningEngine:
             implementation_plan=implementation_plan.strip(),
             created_at=datetime.now(timezone.utc).isoformat()
         )
-        
+
         return skill
-    
+
     def _save_domain_pattern(self, pattern: DomainPattern) -> None:
         """Save a domain pattern to disk."""
         pattern_file = self.patterns_path / f"{pattern.id}.json"
         with pattern_file.open("w", encoding="utf-8") as f:
             json.dump(asdict(pattern), f, ensure_ascii=False, indent=2)
-    
+
     def _save_cross_domain_mapping(self, mapping: CrossDomainMapping) -> None:
         """Save a cross-domain mapping to disk."""
         mapping_file = self.mappings_path / f"{mapping.id}.json"
         with mapping_file.open("w", encoding="utf-8") as f:
             json.dump(asdict(mapping), f, ensure_ascii=False, indent=2)
-    
+
     def _save_transferred_skill(self, skill: TransferredSkill) -> None:
         """Save a transferred skill to disk."""
         skill_file = self.transferred_skills_path / f"{skill.id}.json"
         with skill_file.open("w", encoding="utf-8") as f:
             json.dump(asdict(skill), f, ensure_ascii=False, indent=2)
-    
-    def _load_domain_pattern(self, pattern_id: str) -> Optional[DomainPattern]:
+
+    def _load_domain_pattern(self, pattern_id: str) -> DomainPattern | None:
         """Load a domain pattern from disk."""
         pattern_file = self.patterns_path / f"{pattern_id}.json"
         if pattern_file.exists():
@@ -368,52 +363,52 @@ class TransferLearningEngine:
 
 
 # Integration with existing system
-def integrate_transfer_learning(config: AgentConfig, meta_engine: MetaCapabilityEngine) -> List[TransferredSkill]:
+def integrate_transfer_learning(config: AgentConfig, meta_engine: MetaCapabilityEngine) -> list[TransferredSkill]:
     """Integrate transfer learning capabilities into the existing system."""
     # Create transfer learning engine
     transfer_engine = TransferLearningEngine(config, meta_engine)
-    
+
     # Get capability registry
     capability_registry = meta_engine.capability_registry
-    
+
     # Group capabilities by domain
     domains = defaultdict(list)
     for capability in capability_registry._by_id.values():
         if "." in capability.id:
             domain = capability.id.split(".")[0]
             domains[domain].append(capability)
-    
+
     # Identify patterns in each domain
     domain_patterns = {}
     for domain, capabilities in domains.items():
         patterns = transfer_engine.identify_domain_patterns(domain, capabilities)
         domain_patterns[domain] = patterns
-    
+
     # Find cross-domain mappings
     all_mappings = []
     domain_list = list(domain_patterns.keys())
-    
+
     for i in range(len(domain_list)):
         for j in range(i + 1, len(domain_list)):
             source_domain = domain_list[i]
             target_domain = domain_list[j]
-            
+
             mappings = transfer_engine.find_cross_domain_mappings(
-                domain_patterns[source_domain], 
+                domain_patterns[source_domain],
                 domain_patterns[target_domain]
             )
             all_mappings.extend(mappings)
-    
+
     # Create transferred skills
     transferred_skills = transfer_engine.create_transferred_skills(all_mappings)
-    
+
     return transferred_skills
 
 
 __all__ = [
     "TransferLearningEngine",
     "DomainPattern",
-    "CrossDomainMapping", 
+    "CrossDomainMapping",
     "TransferredSkill",
     "integrate_transfer_learning",
 ]

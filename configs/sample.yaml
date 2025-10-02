@@ -44,3 +44,34 @@ audit:
   enable_git_commit: true
   low_risk_dry_run: false
   commit_prefix: "A3X"
+
+autonomous_goals:
+  enable: true
+  config_file: "configs/seed_autonomous_goals.yaml"
+  generation_interval: 300  # seconds between generations
+  max_goals_per_cycle: 10
+
+  # Trigger thresholds
+  triggers:
+    curiosity_threshold: 0.6
+    performance_degradation_threshold: 0.8
+    coverage_threshold: 0.7
+    novelty_threshold: 0.5
+
+  # Motivation profile
+  motivation_profile:
+    curiosity_weight: 0.3
+    competence_weight: 0.25
+    autonomy_weight: 0.2
+    relatedness_weight: 0.15
+    exploration_bias: 0.1
+
+  # Seed backlog integration
+  seed_backlog: "../seed/backlog.yaml"
+  autonomous_goals_backlog: "../seed/autonomous_goals_backlog.yaml"
+  enable_separate_backlog: true
+
+  # Monitoring
+  enable_metrics_collection: true
+  metrics_file: "../seed/metrics/autonomous_goals_history.json"
+  enable_goal_success_tracking: true

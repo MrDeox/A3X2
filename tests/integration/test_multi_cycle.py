@@ -1,15 +1,16 @@
 """Auto-generated E2E test for multi-cycle autoloop with seeding.
 AUTO-GENERATED. Edit via E2ETestGenerator."""
 
-import pytest
-from unittest.mock import Mock, patch
 from pathlib import Path
+from unittest.mock import Mock, patch
 
-from a3x.autoloop import AutoLoop
-from a3x.llm import LLMClient
-from a3x.executor import ActionExecutor
-from a3x.seeds import SeedBacklog
+import pytest
+
 from a3x.autoeval import AutoEvaluator
+from a3x.autoloop import AutoLoop
+from a3x.executor import ActionExecutor
+from a3x.llm import LLMClient
+from a3x.seeds import SeedBacklog
 
 
 @pytest.fixture
@@ -52,7 +53,7 @@ def test_multi_cycle_with_seeding(mock_llm_client, mock_executor, mock_backlog, 
     with patch("a3x.autoloop.LLMClient", return_value=mock_llm_client),          patch("a3x.autoloop.Executor", return_value=mock_executor),          patch("a3x.autoloop.SeedBacklog", return_value=mock_backlog),          patch("a3x.autoloop.AutoEvaluator", return_value=mock_evaluator),          patch("a3x.autoloop.config.BASE_DIR", tmp_path):
         loop = AutoLoop(goal="test multi-cycle", max_iterations=3)
         result = loop.run()
-    
+
     assert result.iterations == 3
     assert result.metrics.get("actions_success_rate", 0) < 0.8  # Triggers seeding
     mock_backlog.add_seed.assert_called()  # Seeding on low threshold

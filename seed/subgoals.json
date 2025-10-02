@@ -1,0 +1,17 @@
+[
+  {
+    "goal": "Step 1: Plan Executar su\u00edte de testes Pytest para garantir integridade.",
+    "priority": 1.0,
+    "parent_goal": "Executar su\u00edte de testes Pytest para garantir integridade."
+  },
+  {
+    "goal": "Step 2: Implement Executar su\u00edte de testes Pytest para garantir integridade.",
+    "priority": 1.0,
+    "parent_goal": "Executar su\u00edte de testes Pytest para garantir integridade."
+  },
+  {
+    "goal": "Step 3: Test Executar su\u00edte de testes Pytest para garantir integridade.",
+    "priority": 1.0,
+    "parent_goal": "Executar su\u00edte de testes Pytest para garantir integridade."
+  }
+]

@@ -1,12 +1,10 @@
 import json
 import math
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Tuple
 from unittest.mock import Mock, patch
 
-import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 
 from a3x.memory.embedder import EmbeddingModel
 from a3x.memory.store import MemoryEntry, SemanticMemory, _cosine_similarity
@@ -61,7 +59,7 @@ class TestCosineSimilarity:
         assert score == 0.0
 
     @given(st.lists(st.floats(min_value=-1.0, max_value=1.0, allow_subnormal=False), min_size=1), st.lists(st.floats(min_value=-1.0, max_value=1.0, allow_subnormal=False), min_size=1))
-    def test_symmetry(self, vec_a: List[float], vec_b: List[float]) -> None:
+    def test_symmetry(self, vec_a: list[float], vec_b: list[float]) -> None:
         if len(vec_a) != len(vec_b):
             # Skip if lengths differ, as it returns 0
             return
@@ -70,7 +68,7 @@ class TestCosineSimilarity:
         assert math.isclose(score_ab, score_ba)
 
     @given(st.lists(st.floats(min_value=-1.0, max_value=1.0), min_size=1))
-    def test_self_similarity_max(self, vec: List[float]) -> None:
+    def test_self_similarity_max(self, vec: list[float]) -> None:
         score = _cosine_similarity(vec, vec)
         norm_sq = sum(v * v for v in vec)
         if norm_sq == 0:
@@ -171,7 +169,7 @@ class TestSemanticMemory:
     @patch("a3x.memory.store.get_embedder")
     def test_query_empty(self, mock_get_embedder: Mock) -> None:
         memory = SemanticMemory(path=self.test_path)
-        results: List[Tuple[MemoryEntry, float]] = memory.query("query text", top_k=3)
+        results: list[tuple[MemoryEntry, float]] = memory.query("query text", top_k=3)
         assert results == []
 
     @patch("a3x.memory.store.get_embedder")

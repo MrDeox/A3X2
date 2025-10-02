@@ -34,14 +34,14 @@ planner follows and we expose a compact public API:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
-from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence
-
 import json
 import textwrap
+from collections.abc import Iterable, Sequence
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
 
 from ..actions import ActionType, AgentAction, AgentState, Observation
+from ..constants import PERFORMANCE_DEGRADATION_THRESHOLD
 from ..planner import PlannerThresholds
 from ..planning.mission_state import MissionMilestone, MissionState
 
@@ -56,7 +56,7 @@ class PlanEvidence:
 
     type: str
     description: str
-    payload: Optional[str] = None
+    payload: str | None = None
 
 
 @dataclass
@@ -66,20 +66,20 @@ class TaskPlan:
     id: str
     description: str
     expected_outcome: str
-    metrics_target: Dict[str, float] = field(default_factory=dict)
+    metrics_target: dict[str, float] = field(default_factory=dict)
     status: str = "pending"  # pending|in_progress|completed|blocked
-    dependencies: List[str] = field(default_factory=list)
-    evidence: List[PlanEvidence] = field(default_factory=list)
-    last_observation: Optional[str] = None
-    blocked_reason: Optional[str] = None
+    dependencies: list[str] = field(default_factory=list)
+    evidence: list[PlanEvidence] = field(default_factory=list)
+    last_observation: str | None = None
+    blocked_reason: str | None = None
 
-    def to_dict(self) -> Dict[str, object]:
+    def to_dict(self) -> dict[str, object]:
         payload = asdict(self)
         payload["evidence"] = [asdict(item) for item in self.evidence]
         return payload
 
     @classmethod
-    def from_dict(cls, data: Dict[str, object]) -> "TaskPlan":
+    def from_dict(cls, data: dict[str, object]) -> TaskPlan:
         evidence_raw = data.get("evidence") or []
         evidence = [PlanEvidence(**item) for item in evidence_raw if isinstance(item, dict)]
         return cls(
@@ -126,9 +126,9 @@ class MissionPlan:
     id: str
     description: str
     priority: str
-    tasks: List[TaskPlan]
+    tasks: list[TaskPlan]
 
-    def to_dict(self) -> Dict[str, object]:
+    def to_dict(self) -> dict[str, object]:
         return {
             "id": self.id,
             "description": self.description,
@@ -137,7 +137,7 @@ class MissionPlan:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, object]) -> "MissionPlan":
+    def from_dict(cls, data: dict[str, object]) -> MissionPlan:
         return cls(
             id=str(data.get("id")),
             description=str(data.get("description", "")),
@@ -145,7 +145,7 @@ class MissionPlan:
             tasks=[TaskPlan.from_dict(item) for item in data.get("tasks", []) or []],
         )
 
-    def next_task(self) -> Optional[TaskPlan]:
+    def next_task(self) -> TaskPlan | None:
         for task in self.tasks:
             if task.status in {"pending", "in_progress"}:
                 return task
@@ -166,14 +166,14 @@ class GoalPlan:
     """Root object describing the active plan for a goal."""
 
     goal: str
-    missions: List[MissionPlan]
+    missions: list[MissionPlan]
     plan_id: str
-    metrics_snapshot: Dict[str, float] = field(default_factory=dict)
-    current_mission: Optional[str] = None
-    current_task: Optional[str] = None
-    events: List[PlanEvent] = field(default_factory=list)
+    metrics_snapshot: dict[str, float] = field(default_factory=dict)
+    current_mission: str | None = None
+    current_task: str | None = None
+    events: list[PlanEvent] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, object]:
+    def to_dict(self) -> dict[str, object]:
         return {
             "goal": self.goal,
             "missions": [mission.to_dict() for mission in self.missions],
@@ -185,7 +185,7 @@ class GoalPlan:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, object]) -> "GoalPlan":
+    def from_dict(cls, data: dict[str, object]) -> GoalPlan:
         events = [PlanEvent(**item) for item in data.get("events", []) or [] if isinstance(item, dict)]
         return cls(
             goal=str(data.get("goal", "")),
@@ -205,7 +205,7 @@ class GoalPlan:
             events=events,
         )
 
-    def locate_step(self, step_id: str | None) -> Optional[TaskPlan]:
+    def locate_step(self, step_id: str | None) -> TaskPlan | None:
         if step_id is None:
             return None
         for mission in self.missions:
@@ -231,7 +231,7 @@ class PlanEvaluation:
     """Result of evaluating an action against the plan."""
 
     needs_replan: bool = False
-    alerts: List[str] = field(default_factory=list)
+    alerts: list[str] = field(default_factory=list)
 
     def register_alert(self, message: str) -> None:
         self.alerts.append(message)
@@ -250,20 +250,21 @@ class HierarchicalPlanner:
         self,
         storage_dir: Path | str = Path("seed/memory/plans"),
         *,
-        thresholds: Optional[PlannerThresholds] = None,
+        thresholds: PlannerThresholds | None = None,
     ) -> None:
         self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
         self.thresholds = thresholds or PlannerThresholds()
-        self._cached_plan: Optional[GoalPlan] = None
+        self.objectives = {}
+        self._cached_plan: GoalPlan | None = None
 
     # ------------------------------------------------------------------ public
     def ensure_plan(
         self,
         state: AgentState,
-        missions: Optional[MissionState],
+        missions: MissionState | None,
         objectives: Sequence[str],
-        metrics_history: Dict[str, List[float]],
+        metrics_history: dict[str, list[float]],
     ) -> GoalPlan:
         plan_id = _slugify(state.goal)
         plan = self._load_plan(plan_id)
@@ -277,9 +278,9 @@ class HierarchicalPlanner:
     def force_replan(
         self,
         state: AgentState,
-        missions: Optional[MissionState],
+        missions: MissionState | None,
         objectives: Sequence[str],
-        metrics_history: Dict[str, List[float]],
+        metrics_history: dict[str, list[float]],
     ) -> GoalPlan:
         plan = self._build_plan(state, missions, objectives, metrics_history)
         self._save_plan(plan)
@@ -326,18 +327,18 @@ class HierarchicalPlanner:
         self._save_plan(plan)
         return evaluation
 
-    def current_plan(self) -> Optional[GoalPlan]:
+    def current_plan(self) -> GoalPlan | None:
         return self._cached_plan
 
     # ----------------------------------------------------------------- helpers
     def _build_plan(
         self,
         state: AgentState,
-        missions: Optional[MissionState],
+        missions: MissionState | None,
         objectives: Sequence[str],
-        metrics_history: Dict[str, List[float]],
+        metrics_history: dict[str, list[float]],
     ) -> GoalPlan:
-        mission_plans: List[MissionPlan] = []
+        mission_plans: list[MissionPlan] = []
         if missions:
             for mission in missions.missions:
                 description = mission.vision or f"Missão {mission.id}"
@@ -372,8 +373,8 @@ class HierarchicalPlanner:
         plan.update_current_step()
         return plan
 
-    def _convert_milestones(self, milestones: List[MissionMilestone]) -> List[TaskPlan]:
-        tasks: List[TaskPlan] = []
+    def _convert_milestones(self, milestones: list[MissionMilestone]) -> list[TaskPlan]:
+        tasks: list[TaskPlan] = []
         for milestone in milestones:
             if milestone.status == "completed":
                 continue
@@ -385,10 +386,10 @@ class HierarchicalPlanner:
                 if snapshot.target is not None
             }
             expected = textwrap.dedent(
-                (
+
                     milestone.notes
                     or "Preparar alteração, implementar e validar com testes automatizados."
-                )
+
             ).strip()
             tasks.append(
                 TaskPlan(
@@ -401,7 +402,7 @@ class HierarchicalPlanner:
             )
         return tasks
 
-    def _build_fallback_tasks(self, goal: str) -> List[TaskPlan]:
+    def _build_fallback_tasks(self, goal: str) -> list[TaskPlan]:
         return [
             TaskPlan(
                 id="analisar",
@@ -428,15 +429,15 @@ class HierarchicalPlanner:
             ),
         ]
 
-    def _latest_metrics(self, metrics_history: Dict[str, List[float]]) -> Dict[str, float]:
-        snapshot: Dict[str, float] = {}
+    def _latest_metrics(self, metrics_history: dict[str, list[float]]) -> dict[str, float]:
+        snapshot: dict[str, float] = {}
         for name, values in metrics_history.items():
             if values:
                 snapshot[name] = float(values[-1])
         return snapshot
 
     def _metrics_degraded(
-        self, plan: GoalPlan, metrics_history: Dict[str, List[float]]
+        self, plan: GoalPlan, metrics_history: dict[str, list[float]]
     ) -> bool:
         if not plan.metrics_snapshot:
             return False
@@ -448,14 +449,14 @@ class HierarchicalPlanner:
             if baseline == 0:
                 continue
             variation = (baseline - latest) / abs(baseline)
-            if variation >= 0.25:  # drop of 25% from baseline triggers replan
+            if variation >= PERFORMANCE_DEGRADATION_THRESHOLD:  # drop of configured % from baseline triggers replan
                 return True
         return False
 
     def _build_evidence(
         self, action: AgentAction, observation_excerpt: str
-    ) -> List[PlanEvidence]:
-        evidence: List[PlanEvidence] = []
+    ) -> list[PlanEvidence]:
+        evidence: list[PlanEvidence] = []
         if action.type == ActionType.RUN_COMMAND:
             evidence.append(
                 PlanEvidence(
@@ -494,7 +495,7 @@ class HierarchicalPlanner:
     def _plan_path(self, plan_id: str) -> Path:
         return self.storage_dir / f"{plan_id}.json"
 
-    def _load_plan(self, plan_id: str) -> Optional[GoalPlan]:
+    def _load_plan(self, plan_id: str) -> GoalPlan | None:
         path = self._plan_path(plan_id)
         if not path.exists():
             return None
@@ -509,6 +510,12 @@ class HierarchicalPlanner:
         path = self._plan_path(plan.plan_id)
         payload = plan.to_dict()
         path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def roll_forward_objectives(self):
+        """Roll forward objectives from storage or return current."""
+        if self._cached_plan:
+            return [mission.description for mission in self._cached_plan.missions]
+        return []
 
 
 __all__ = [

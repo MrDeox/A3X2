@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, Iterable, List, Literal, Optional
-
+from typing import Literal
 
 MissionStatus = Literal["draft", "active", "paused", "completed"]
 MissionPriority = Literal["moonshot", "high", "medium", "low"]
@@ -17,11 +17,11 @@ class MetricSnapshot:
     """Aggregated metric view used by missions and milestones."""
 
     current: float
-    target: Optional[float] = None
-    best: Optional[float] = None
+    target: float | None = None
+    best: float | None = None
     samples: int = 0
 
-    def to_dict(self) -> Dict[str, float | int | None]:
+    def to_dict(self) -> dict[str, float | int | None]:
         return {
             "current": self.current,
             "target": self.target,
@@ -37,14 +37,14 @@ class MissionMilestone:
     id: str
     goal: str
     status: MilestoneStatus = "planned"
-    capability_tags: List[str] = field(default_factory=list)
-    dependencies: List[str] = field(default_factory=list)
-    eta: Optional[str] = None  # ISO timestamp or relative horizon
-    backlog_seed_id: Optional[str] = None
-    metrics: Dict[str, MetricSnapshot] = field(default_factory=dict)
-    notes: Optional[str] = None
+    capability_tags: list[str] = field(default_factory=list)
+    dependencies: list[str] = field(default_factory=list)
+    eta: str | None = None  # ISO timestamp or relative horizon
+    backlog_seed_id: str | None = None
+    metrics: dict[str, MetricSnapshot] = field(default_factory=dict)
+    notes: str | None = None
 
-    def to_dict(self) -> Dict[str, object]:
+    def to_dict(self) -> dict[str, object]:
         return {
             "id": self.id,
             "goal": self.goal,
@@ -62,10 +62,10 @@ class MissionMilestone:
 class MissionTelemetry:
     """Long-term signals guiding planning decisions."""
 
-    metric_summaries: Dict[str, MetricSnapshot] = field(default_factory=dict)
-    reflections: List[str] = field(default_factory=list)
-    discovered_gaps: List[str] = field(default_factory=list)
-    tools_required: List[str] = field(default_factory=list)
+    metric_summaries: dict[str, MetricSnapshot] = field(default_factory=dict)
+    reflections: list[str] = field(default_factory=list)
+    discovered_gaps: list[str] = field(default_factory=list)
+    tools_required: list[str] = field(default_factory=list)
     last_updated: str = field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -75,7 +75,7 @@ class MissionTelemetry:
             self.metric_summaries[name] = snapshot
         self.last_updated = datetime.now(timezone.utc).isoformat()
 
-    def to_dict(self) -> Dict[str, object]:
+    def to_dict(self) -> dict[str, object]:
         return {
             "metric_summaries": {
                 name: snapshot.to_dict()
@@ -96,10 +96,10 @@ class Mission:
     vision: str
     status: MissionStatus = "draft"
     priority: MissionPriority = "medium"
-    success_criteria: List[str] = field(default_factory=list)
-    target_metrics: Dict[str, MetricSnapshot] = field(default_factory=dict)
-    capability_tags: List[str] = field(default_factory=list)
-    milestones: List[MissionMilestone] = field(default_factory=list)
+    success_criteria: list[str] = field(default_factory=list)
+    target_metrics: dict[str, MetricSnapshot] = field(default_factory=dict)
+    capability_tags: list[str] = field(default_factory=list)
+    milestones: list[MissionMilestone] = field(default_factory=list)
     telemetry: MissionTelemetry = field(default_factory=MissionTelemetry)
     created_at: str = field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
@@ -116,7 +116,7 @@ class Mission:
             self.milestones.append(milestone)
         self.touch()
 
-    def to_dict(self) -> Dict[str, object]:
+    def to_dict(self) -> dict[str, object]:
         return {
             "id": self.id,
             "vision": self.vision,
@@ -139,7 +139,7 @@ class Mission:
 class MissionState:
     """Persistent container for missions controlled by the multi-level planner."""
 
-    missions: List[Mission] = field(default_factory=list)
+    missions: list[Mission] = field(default_factory=list)
     generated_at: str = field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -151,13 +151,13 @@ class MissionState:
         self.missions.append(mission)
         self.generated_at = datetime.now(timezone.utc).isoformat()
 
-    def find_mission(self, mission_id: str) -> Optional[Mission]:
+    def find_mission(self, mission_id: str) -> Mission | None:
         for mission in self.missions:
             if mission.id == mission_id:
                 return mission
         return None
 
-    def to_dict(self) -> Dict[str, object]:
+    def to_dict(self) -> dict[str, object]:
         return {
             "version": self.version,
             "generated_at": self.generated_at,

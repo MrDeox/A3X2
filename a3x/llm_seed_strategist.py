@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from hashlib import md5
 from pathlib import Path
-from typing import List
 
 from .actions import AgentAction, Observation
 from .seeds import Seed, SeedBacklog
@@ -19,7 +18,7 @@ class FailureEvent:
     snippet: str
 
     def seed_id(self) -> str:
-        digest = md5(f"{self.goal}|{self.action_type}|{self.description}".encode("utf-8")).hexdigest()
+        digest = md5(f"{self.goal}|{self.action_type}|{self.description}".encode()).hexdigest()
         return f"auto-failure.{digest[:10]}"
 
 
@@ -28,7 +27,7 @@ class LLMSeedStrategist:
     """Track executor failures and turn them into actionable seeds."""
 
     backlog_path: Path
-    _events: List[FailureEvent] = field(default_factory=list)
+    _events: list[FailureEvent] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         self.backlog_path = Path(self.backlog_path)
@@ -46,11 +45,11 @@ class LLMSeedStrategist:
         )
         self._events.append(event)
 
-    def flush(self) -> List[Seed]:
+    def flush(self) -> list[Seed]:
         if not self._events:
             return []
         backlog = SeedBacklog.load(self.backlog_path)
-        created: List[Seed] = []
+        created: list[Seed] = []
         for event in self._events:
             seed_id = event.seed_id()
             if backlog.exists(seed_id):
