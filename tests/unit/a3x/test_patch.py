@@ -9,7 +9,7 @@ from hypothesis import given
 from hypothesis.strategies import lists, text
 
 from a3x.config import AgentConfig
-from a3x.patch import PatchError, PatchManager
+from a3x.patch import CoreSandboxModifier, PatchError, PatchManager
 
 
 class TestPatchManager:
@@ -222,3 +222,48 @@ class TestPatchManager:
             # Only allow expected exceptions
             if not isinstance(e, (ValueError, AttributeError)):
                 raise AssertionError(f"Unexpected exception in extract_paths: {type(e).__name__}: {e}")
+
+
+class TestCoreSandboxModifier:
+    """Tests for CoreSandboxModifier sandbox behavior."""
+
+    def test_apply_in_sandbox_uses_generated_diff_path(self, tmp_path):
+        """Ensure the venv sandbox applies patches using the generated diff file."""
+
+        workspace_root = tmp_path / "workspace"
+        workspace_root.mkdir()
+
+        modifier = CoreSandboxModifier(workspace_root, sandbox_type="venv")
+        sandbox_path = modifier.sandbox_dir
+
+        diff_file = tmp_path / "sandbox.diff"
+
+        class FakeTempFile:
+            def __init__(self) -> None:
+                self.name = str(diff_file)
+
+            def write(self, data: str) -> None:
+                diff_file.write_text(data, encoding="utf-8")
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        fake_tempfile = FakeTempFile()
+
+        with patch("tempfile.NamedTemporaryFile", return_value=fake_tempfile):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = Mock(returncode=0, stdout="applied", stderr="")
+
+                success, output = modifier.apply_in_sandbox("diff content", sandbox_path)
+
+        assert success is True
+        assert "applied" in output
+        assert mock_run.call_args is not None
+
+        command = mock_run.call_args[0][0]
+        assert str(diff_file) in command
+        assert mock_run.call_args.kwargs["cwd"] == sandbox_path
+        assert not diff_file.exists()

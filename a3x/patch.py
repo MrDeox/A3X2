@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -210,13 +211,47 @@ class CoreSandboxModifier:
         # Activate venv and apply patch
         if self.sandbox_type == "venv":
             activate_script = sandbox_path / "bin" / "activate"
-            cmd = f"source {activate_script} && cd {self.root} && patch -p1 < /tmp/diff.patch"
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".diff", delete=False) as tmp:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".diff", delete=False, encoding="utf-8"
+            ) as tmp:
                 tmp.write(diff)
                 tmp_path = Path(tmp.name)
+
             try:
-                result = subprocess.run(cmd, shell=True, capture_output=True, text=True, cwd=sandbox_path)
-                return result.returncode == 0, result.stdout + result.stderr
+                activate_str = shlex.quote(str(activate_script))
+                root_str = shlex.quote(str(self.root))
+                diff_str = shlex.quote(str(tmp_path))
+                cmd = (
+                    f"source {activate_str} && "
+                    f"cd {root_str} && "
+                    f"patch -p1 < {diff_str}"
+                )
+                result = subprocess.run(
+                    cmd,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    cwd=sandbox_path,
+                )
+
+                stdout = result.stdout.strip()
+                stderr = result.stderr.strip()
+                output_parts = []
+                if stdout:
+                    output_parts.append(f"STDOUT:\n{stdout}")
+                if stderr:
+                    output_parts.append(f"STDERR:\n{stderr}")
+                combined_output = "\n".join(output_parts)
+
+                if result.returncode == 0:
+                    return True, combined_output or "Patch applied successfully."
+
+                failure_message = (
+                    f"Patch command failed with exit code {result.returncode}."
+                )
+                if combined_output:
+                    failure_message = f"{failure_message}\n{combined_output}"
+                return False, failure_message
             finally:
                 tmp_path.unlink(missing_ok=True)
         return False, "Sandbox application not implemented for this type"
