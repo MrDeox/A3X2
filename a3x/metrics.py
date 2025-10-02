@@ -26,8 +26,8 @@ def compute_overall_success_rate(
     rates = {
         "actions_success": actions_rate or 0.0,
         "tests_success": tests_rate or 0.0,
-        "lint_success": lint_rate or 1.0,
-        "patch_success": patch_rate or 1.0,
+        "lint_success": lint_rate if lint_rate is not None else 1.0,
+        "patch_success": patch_rate if patch_rate is not None else 1.0,
     }
     weights = {
         "actions_success": 0.4,
