@@ -1,6 +1,17 @@
 """Unit tests for DynamicScaler."""
 
+import sys
+import types
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+psutil_stub = types.ModuleType("psutil")
+psutil_stub.cpu_percent = lambda interval=0: 0.0
+psutil_stub.virtual_memory = lambda: types.SimpleNamespace(percent=0.0)
+psutil_stub.disk_usage = lambda path: types.SimpleNamespace(percent=0.0)
+psutil_stub.getloadavg = lambda: (0.0, 0.0, 0.0)
+psutil_stub.cpu_count = lambda: 1
+sys.modules.setdefault("psutil", psutil_stub)
 from unittest.mock import Mock, patch
 
 import pytest
@@ -9,11 +20,15 @@ from a3x.dynamic_scaler import DynamicScaler, ScalingDecision, integrate_dynamic
 
 
 @pytest.fixture
-def mock_config():
+def mock_config(tmp_path):
     config = Mock()
     config.workspace = Mock()
-    config.workspace.root = Path("/tmp/test_workspace")
-    config.get = Mock(side_effect=lambda key, default=None: 0.8 if "threshold" in key else default)
+    config.workspace.root = tmp_path
+    config.scaling = Mock(
+        cpu_threshold=0.75,
+        memory_threshold=0.8,
+        max_recursion_adjust=3,
+    )
     return config
 
 
@@ -101,3 +116,24 @@ def test_get_scaling_summary(dynamic_scaler):
 def test_integration_function(mock_config):
     scaler = integrate_dynamic_scaler(mock_config)
     assert isinstance(scaler, DynamicScaler)
+
+
+def test_reload_does_not_duplicate_history(mock_config):
+    scaler = DynamicScaler(mock_config)
+    decision = ScalingDecision(
+        id="scale_20240101",
+        timestamp="2024-01-01T00:00:00+00:00",
+        resource_metrics={"cpu_percent": 0.5},
+        decision_type="maintain",
+        action_taken="monitor",
+        threshold_exceeded={"cpu": False, "memory": False, "disk": False},
+        confidence=0.5,
+    )
+
+    scaler.decision_history = [decision]
+    scaler._save_scaling_decision(decision)
+    scaler._save_scaling_history()
+
+    reloaded_scaler = DynamicScaler(mock_config)
+    assert len(reloaded_scaler.decision_history) == 1
+    assert reloaded_scaler.decision_history[0].id == decision.id
