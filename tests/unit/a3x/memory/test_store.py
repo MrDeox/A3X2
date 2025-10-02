@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 from hypothesis import given
 from hypothesis import strategies as st
 
+from a3x.constants import MEMORY_TTL_DAYS
 from a3x.memory.embedder import EmbeddingModel
 from a3x.memory.store import (
     MEMORY_TTL_DAYS,
@@ -89,10 +90,18 @@ class TestSemanticMemory:
         self.test_path.parent.mkdir(exist_ok=True)
         if self.test_path.exists():
             self.test_path.unlink()
+        self.cache_patcher = patch("a3x.memory.store.memory_cache_manager.get_cache")
+        self.mock_get_cache = self.cache_patcher.start()
+        self.mock_cache = Mock()
+        self.mock_cache.get_cached_embedding.return_value = None
+        self.mock_cache.get_cached_query.return_value = None
+        self.mock_cache.get_cached_similarity.return_value = None
+        self.mock_get_cache.return_value = self.mock_cache
 
     def teardown_method(self) -> None:
         if self.test_path.exists():
             self.test_path.unlink()
+        self.cache_patcher.stop()
 
     @patch("a3x.memory.store.get_embedder")
     def test_add_entry(self, mock_get_embedder: Mock) -> None:
@@ -166,10 +175,11 @@ class TestSemanticMemory:
     @patch("a3x.memory.store.get_embedder")
     def test_load_from_file(self, mock_get_embedder: Mock) -> None:
         # Create sample file
+        current_iso = datetime.now(timezone.utc).isoformat()
         sample_entries = [
             MemoryEntry(
                 id="1",
-                created_at="2023-01-01T00:00:00Z",
+                created_at=current_iso,
                 title="Loaded Title",
                 content="Loaded Content",
                 embedding=[0.1, 0.2],
@@ -188,7 +198,18 @@ class TestSemanticMemory:
         # Invalid JSON line
         with self.test_path.open("w") as f:
             f.write("invalid json\n")
-            f.write(json.dumps({"id": "valid", "created_at": "2023-01-01T00:00:00Z", "title": "Valid", "content": "Content", "embedding": []}) + "\n")
+            f.write(
+                json.dumps(
+                    {
+                        "id": "valid",
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "title": "Valid",
+                        "content": "Content",
+                        "embedding": [],
+                    }
+                )
+                + "\n"
+            )
 
         memory = SemanticMemory(path=self.test_path)
         assert len(memory.entries) == 1  # Only valid loaded
@@ -255,6 +276,51 @@ class TestSemanticMemory:
         assert entry1.embedding == entry2.embedding  # Same content, same embed
 
     @patch("a3x.memory.store.get_embedder")
+    def test_add_prunes_before_save(self, mock_get_embedder: Mock) -> None:
+        mock_embedder = Mock(spec=EmbeddingModel)
+        mock_get_embedder.return_value = mock_embedder
+        mock_embedder.embed.return_value = [[0.3, 0.4]]
+
+        memory = SemanticMemory(path=self.test_path)
+
+        expired_entry = MemoryEntry(
+            id="expired",
+            created_at=(
+                datetime.now(timezone.utc)
+                - timedelta(days=MEMORY_TTL_DAYS + 1)
+            ).isoformat(),
+            title="Old",
+            content="Old content",
+            embedding=[0.0, 0.0],
+        )
+        with memory._lock:
+            memory._entries.append(expired_entry)
+
+        original_prune_locked = memory._prune_old_entries_locked
+        original_save = memory._save_atomic
+        call_order: list[str] = []
+
+        def prune_wrapper() -> None:
+            call_order.append("prune")
+            original_prune_locked()
+
+        def save_wrapper() -> None:
+            call_order.append("save")
+            original_save()
+
+        with patch.object(memory, "_prune_old_entries_locked", prune_wrapper), patch.object(
+            memory, "_save_atomic", save_wrapper
+        ):
+            memory.add("Title", "Content")
+
+        assert call_order == ["prune", "save"]
+        assert all(entry.id != "expired" for entry in memory.entries)
+
+        with self.test_path.open() as f:
+            data = [json.loads(line) for line in f if line.strip()]
+        assert all(item["id"] != "expired" for item in data)
+
+    @patch("a3x.memory.store.get_embedder")
     def test_query_with_threshold_manual(self, mock_get_embedder: Mock) -> None:
         # Since no built-in threshold, test filtering results > 0.5
         mock_embedder = Mock(spec=EmbeddingModel)
@@ -278,3 +344,51 @@ class TestSemanticMemory:
         filtered = [r for r in results if r[1] > 0.5]
         assert len(filtered) == 1  # Only high similarity
         assert filtered[0][0].title == "High"
+
+    @patch("a3x.memory.store.get_embedder")
+    def test_init_prunes_before_save(self, mock_get_embedder: Mock) -> None:
+        mock_get_embedder.return_value = Mock(spec=EmbeddingModel)
+
+        now = datetime.now(timezone.utc)
+        expired = MemoryEntry(
+            id="old",
+            created_at=(now - timedelta(days=MEMORY_TTL_DAYS + 2)).isoformat(),
+            title="Expired",
+            content="Expired content",
+            embedding=[0.0],
+        )
+        fresh = MemoryEntry(
+            id="fresh",
+            created_at=now.isoformat(),
+            title="Fresh",
+            content="Fresh content",
+            embedding=[0.1],
+        )
+
+        with self.test_path.open("w", encoding="utf-8") as f:
+            for item in (expired, fresh):
+                f.write(json.dumps(item.as_json()) + "\n")
+
+        original_prune_locked = SemanticMemory._prune_old_entries_locked
+        original_save = SemanticMemory._save_atomic
+        call_order: list[str] = []
+
+        def class_prune_wrapper(self: SemanticMemory) -> None:
+            call_order.append("prune")
+            original_prune_locked(self)
+
+        def class_save_wrapper(self: SemanticMemory) -> None:
+            call_order.append("save")
+            original_save(self)
+
+        with patch.object(SemanticMemory, "_prune_old_entries_locked", class_prune_wrapper), patch.object(
+            SemanticMemory, "_save_atomic", class_save_wrapper
+        ):
+            memory = SemanticMemory(path=self.test_path)
+
+        assert call_order == ["prune", "save"]
+        assert [entry.id for entry in memory.entries] == ["fresh"]
+
+        with self.test_path.open(encoding="utf-8") as f:
+            contents = [json.loads(line) for line in f if line.strip()]
+        assert contents == [fresh.as_json()]
