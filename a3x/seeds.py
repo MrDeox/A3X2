@@ -16,7 +16,8 @@ _VALID_STATUS = {"pending", "in_progress", "completed", "failed"}
 _VALID_SEED_TYPES = {
     "generic", "refactor", "autonomous_goal", "curiosity_exploration",
     "meta_reflection", "self_optimization", "domain_expansion", "capability_gap",
-    "analysis", "test", "benchmark_report", "benchmark_diff"
+    "analysis", "test", "benchmark_report", "benchmark_diff", "mission",
+    "emergency_fix", "e2e_failure", "benchmark_tests", "curriculum", "quality"
 }
 
 

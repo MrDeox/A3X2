@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import sys
 from pathlib import Path
 
@@ -151,14 +152,14 @@ def _handle_autopilot_command(args: argparse.Namespace) -> int:
     except Exception as exc:
         print(f"Erro ao carregar rotação de objetivos: {exc}")
         return 1
-    return run_autopilot(
+    return asyncio.run(run_autopilot(
         goals,
         cycles=args.cycles,
         backlog_path=args.backlog,
         seed_default_config=args.seed_default_config,
         seed_max=args.seed_max,
         seed_max_steps=args.seed_max_steps,
-    )
+    ))
 
 
 def _handle_plan_command(args: argparse.Namespace) -> int:

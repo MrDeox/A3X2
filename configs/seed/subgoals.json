@@ -1,17 +1,17 @@
 [
   {
-    "goal": "Step 1: Plan Test the system functionality",
+    "goal": "Step 1: Plan Auto-avaliar minhas capacidades atuais e identificar lacunas",
     "priority": 1.0,
-    "parent_goal": "Test the system functionality"
+    "parent_goal": "Auto-avaliar minhas capacidades atuais e identificar lacunas"
   },
   {
-    "goal": "Step 2: Implement Test the system functionality",
+    "goal": "Step 2: Implement Auto-avaliar minhas capacidades atuais e identificar lacunas",
     "priority": 1.0,
-    "parent_goal": "Test the system functionality"
+    "parent_goal": "Auto-avaliar minhas capacidades atuais e identificar lacunas"
   },
   {
-    "goal": "Step 3: Test Test the system functionality",
+    "goal": "Step 3: Test Auto-avaliar minhas capacidades atuais e identificar lacunas",
     "priority": 1.0,
-    "parent_goal": "Test the system functionality"
+    "parent_goal": "Auto-avaliar minhas capacidades atuais e identificar lacunas"
   }
 ]

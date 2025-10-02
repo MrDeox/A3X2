@@ -65,7 +65,7 @@ class MetaRecursionEngine:
     def evaluate_and_recurse(self, context: RecursionContext, current_metrics: dict[str, float]) -> bool:
         """Evaluate if recursion should continue based on metrics."""
         context.metrics.update(current_metrics)
-        improvement_threshold = self.config.get("recursion.improvement_threshold", 0.1)
+        improvement_threshold = 0.8
 
         # Check for sufficient improvement
         key_metric = "actions_success_rate"  # Example key metric
