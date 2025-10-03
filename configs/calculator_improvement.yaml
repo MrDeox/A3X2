@@ -1,6 +1,6 @@
 llm:
   type: manual
-  script: /home/arthur/Projetos/A3X/configs/scripts/improve_calculator.yaml
+  script: configs/scripts/improve_calculator.yaml
 
 workspace:
   root: .
@@ -13,7 +13,7 @@ limits:
 
 tests:
   auto: true
-  commands: ["python -m pytest test_test_calculator.py -v"]
+  commands: ["python -m pytest samples/calculator/test_calculator.py -v"]
 
 policies:
   allow_network: false

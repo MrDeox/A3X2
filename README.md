@@ -61,6 +61,15 @@ Com base na pesquisa "Ferramenta Autônoma de Codificação Local – Pesquisa e
 - `a3x.transfer_learning`: Implementação de aprendizado por transferência entre domínios.
 - `a3x.self_directed_evolution`: Sistema de evolução autodirigida com autoavaliação contínua.
 
+## Estrutura do Projeto
+
+- `a3x/`: núcleo do agente, com CLI, planners, executores e memória.
+- `configs/`: presets YAML, overrides de política e roteiros determinísticos.
+- `seed/`: backlog, memória longa, métricas e artefatos gerados pelo ciclo.
+- `samples/`: exemplos isolados (`samples/calculator/`) e demonstrações (`samples/demos/`).
+- `tests/`: suíte pytest (unitária, integração e geração automática).
+- `docs/`: documentação de arquitetura, roadmap e notas operacionais.
+
 ## Fluxo Operacional
 
 1. **Objetivo inicial**: fornecido via CLI, incorporado ao contexto inicial.

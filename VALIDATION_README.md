@@ -11,7 +11,7 @@ This comprehensive validation system provides a complete framework for validatin
 python validate_autonomous_system.py
 
 # Quick demo (5 minutes)
-python demo_validation.py --duration 5
+python samples/demos/validation_demo.py --duration 5
 
 # Specific scenario validation
 python validate_autonomous_system.py --scenario evolution --duration 15

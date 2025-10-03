@@ -1,8 +1,0 @@
-{
-  "action_biases": {},
-  "recursion_depth": 3,
-  "max_sub_depth": 3,
-  "backlog_weights": {
-    "high_delta": 1.5
-  }
-}

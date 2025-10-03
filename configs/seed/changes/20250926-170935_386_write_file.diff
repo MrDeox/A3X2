@@ -1,7 +1,0 @@
---- a/doc.md
-+++ b/doc.md
---- doc.md
-+++ doc.md
-@@ -0,0 +1,2 @@
-+# Documento Inicial
-+Este é o conteúdo inicial do documento.

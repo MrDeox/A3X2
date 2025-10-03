@@ -1,5 +1,0 @@
-Directory listing:
-28 drwxrwxr-x  3 arthur arthur 4096 set 26 14:01 .
-drwxrwxr-x 10 arthur arthur 4096 set 25 18:15 ..
-
-No other files found. Seed report prepared.

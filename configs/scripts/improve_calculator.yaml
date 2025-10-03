@@ -3,7 +3,7 @@
   text: "Analisando o módulo de calculadora para identificar oportunidades de melhoria."
 
 - type: read_file
-  path: "test_calculator.py"
+  path: "samples/calculator/calculator.py"
 
 - type: message
   text: "Identificando más práticas de programação no código..."
@@ -22,8 +22,8 @@
 
 - type: patch
   diff: |
-    --- a/test_calculator.py
-    +++ b/test_calculator.py
+    --- a/samples/calculator/calculator.py
+    +++ b/samples/calculator/calculator.py
     @@ -1,4 +1,8 @@
      """Simple calculator module for testing."""
      
